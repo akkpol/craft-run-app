@@ -1,0 +1,192 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { pushQuoteLink } from "@/lib/line";
+import { toMM, calculatePrice, PRODUCT_TYPES } from "@/lib/types";
+import type { IntakeFormData } from "@/lib/types";
+
+export async function POST(request: NextRequest) {
+  let data: IntakeFormData;
+  try {
+    data = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  // Simple required-field validation
+  const errors: string[] = [];
+  if (!data.lineUserId) errors.push("lineUserId is required");
+  if (!data.productType) errors.push("productType is required");
+  if (!data.width || data.width <= 0) errors.push("width must be positive");
+  if (!data.height || data.height <= 0) errors.push("height must be positive");
+  if (!data.unit) errors.push("unit is required");
+  if (!data.qty || data.qty <= 0) errors.push("qty must be positive");
+  if (!data.phone) errors.push("phone is required");
+
+  if (errors.length > 0) {
+    return NextResponse.json({ error: errors.join(", ") }, { status: 400 });
+  }
+
+  const supabase = createAdminClient();
+
+  // Normalize units to mm
+  const widthMm = toMM(data.width, data.unit);
+  const heightMm = toMM(data.height, data.unit);
+  const qty = data.qty;
+
+  // 1. Upsert customer
+  const { data: customer } = await supabase
+    .from("customers")
+    .upsert(
+      {
+        line_user_id: data.lineUserId,
+        display_name: data.displayName || "ลูกค้า",
+        phone: data.phone,
+      },
+      { onConflict: "line_user_id" }
+    )
+    .select("id")
+    .single();
+
+  if (!customer) {
+    return NextResponse.json(
+      { error: "Failed to create customer" },
+      { status: 500 }
+    );
+  }
+
+  // 2. Find or create conversation
+  let conversationId: string;
+  const { data: existingConv } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("line_user_id", data.lineUserId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (existingConv) {
+    conversationId = existingConv.id;
+  } else {
+    const { data: newConv } = await supabase
+      .from("conversations")
+      .insert({ line_user_id: data.lineUserId, state: "FORM_SUBMITTED" })
+      .select("id")
+      .single();
+    conversationId = newConv!.id;
+  }
+
+  // 3. Update conversation state
+  await supabase
+    .from("conversations")
+    .update({ state: "FORM_SUBMITTED" })
+    .eq("id", conversationId);
+
+  // 4. Create lead
+  const needsReview =
+    !data.productType || !data.dueDate || widthMm <= 0 || heightMm <= 0;
+
+  const { data: lead } = await supabase
+    .from("leads")
+    .insert({
+      conversation_id: conversationId,
+      customer_id: customer.id,
+      product_type: data.productType,
+      width_mm: widthMm,
+      height_mm: heightMm,
+      qty,
+      due_date: data.dueDate || null,
+      note_from_form: data.note || null,
+      reference_info: data.referenceInfo || null,
+      status: needsReview ? "new" : "quoted",
+    })
+    .select("id")
+    .single();
+
+  if (!lead) {
+    return NextResponse.json(
+      { error: "Failed to create lead" },
+      { status: 500 }
+    );
+  }
+
+  // 5. If data incomplete, create escalation
+  if (needsReview) {
+    await supabase.from("escalations").insert({
+      conversation_id: conversationId,
+      reason: "Incomplete intake data — admin review needed",
+      status: "open",
+    });
+
+    await supabase
+      .from("conversations")
+      .update({ state: "HUMAN_REVIEW_REQUIRED" })
+      .eq("id", conversationId);
+
+    return NextResponse.json({
+      success: true,
+      leadId: lead.id,
+      needsReview: true,
+      message: "Lead created — escalated for admin review",
+    });
+  }
+
+  // 6. Calculate price & create quote
+  const subtotal = calculatePrice(data.productType, widthMm, heightMm, qty);
+  const vat = Math.round(subtotal * 0.07 * 100) / 100;
+  const total = subtotal + vat;
+
+  const productLabel =
+    PRODUCT_TYPES.find((p) => p.value === data.productType)?.label ||
+    data.productType;
+
+  const { data: quote } = await supabase
+    .from("quotes")
+    .insert({
+      lead_id: lead.id,
+      subtotal,
+      discount: 0,
+      vat,
+      total,
+      status: "sent",
+    })
+    .select("id, public_token")
+    .single();
+
+  if (!quote) {
+    return NextResponse.json(
+      { error: "Failed to create quote" },
+      { status: 500 }
+    );
+  }
+
+  // 7. Create quote items
+  await supabase.from("quote_items").insert({
+    quote_id: quote.id,
+    label: `${productLabel} (${(widthMm / 10).toFixed(1)}×${(heightMm / 10).toFixed(1)} ซม.) × ${qty}`,
+    qty: 1,
+    unit_price: subtotal,
+  });
+
+  // 8. Update conversation to QUOTE_DRAFTED → WAITING_CUSTOMER_APPROVAL
+  await supabase
+    .from("conversations")
+    .update({ state: "WAITING_CUSTOMER_APPROVAL" })
+    .eq("id", conversationId);
+
+  // 9. Send quote link to customer via LINE push
+  try {
+    const summary = `${productLabel} ${(widthMm / 10).toFixed(0)}×${(heightMm / 10).toFixed(0)} ซม. จำนวน ${qty} ชิ้น\nราคารวม VAT: ฿${total.toLocaleString()}`;
+    await pushQuoteLink(data.lineUserId, quote.public_token, summary);
+  } catch (error) {
+    console.error("Failed to push quote link:", error);
+    // Don't fail — quote is created, customer can still access via admin
+  }
+
+  return NextResponse.json({
+    success: true,
+    leadId: lead.id,
+    quoteId: quote.id,
+    quoteToken: quote.public_token,
+    total,
+  });
+}

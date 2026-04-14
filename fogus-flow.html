@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FOGUS — Complete Customer Flow</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #fafaf8;
+  --surface: #ffffff;
+  --surface-2: #f5f4f0;
+  --border: #e8e6df;
+  --border-light: #f0eee8;
+  --text: #1a1a1a;
+  --text-2: #5c5c5c;
+  --text-3: #9a9a9a;
+  --accent: #1a1a2e;
+  --accent-light: #e8e8f0;
+  --line-green: #06C755;
+  --line-green-light: #e6f9ee;
+  --web-blue: #2563eb;
+  --web-blue-light: #eff6ff;
+  --admin-amber: #d97706;
+  --admin-amber-light: #fef9ee;
+  --danger: #dc2626;
+  --danger-light: #fef2f2;
+  --success: #16a34a;
+  --success-light: #f0fdf4;
+  --purple: #7c3aed;
+  --purple-light: #f5f3ff;
+  --teal: #0d9488;
+  --teal-light: #f0fdfa;
+  --font: 'IBM Plex Sans Thai', -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hero */
+.hero {
+  background: var(--accent);
+  color: white;
+  padding: 60px 24px 48px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 30% 50%, rgba(124,58,237,0.15) 0%, transparent 50%),
+              radial-gradient(circle at 70% 80%, rgba(6,199,85,0.1) 0%, transparent 40%);
+  pointer-events: none;
+}
+.hero h1 { font-size: 28px; font-weight: 700; position: relative; letter-spacing: -0.5px; }
+.hero p { font-size: 14px; color: rgba(255,255,255,0.6); margin-top: 8px; position: relative; }
+
+/* Nav */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(250,250,248,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 0.5px solid var(--border);
+  padding: 0 24px;
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.nav a {
+  flex-shrink: 0;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-3);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.nav a:hover, .nav a.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Container */
+.container { max-width: 720px; margin: 0 auto; padding: 0 20px; }
+
+/* Section */
+.section { padding: 48px 0 32px; }
+.section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-3);
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 0.5px;
+  background: var(--border);
+}
+
+/* Step card */
+.step {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 8px;
+  position: relative;
+  transition: box-shadow 0.2s;
+}
+.step:hover { box-shadow: 0 2px 20px rgba(0,0,0,0.04); }
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.step-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.step-num.line { background: var(--line-green-light); color: var(--line-green); }
+.step-num.web { background: var(--web-blue-light); color: var(--web-blue); }
+.step-num.api { background: var(--accent-light); color: var(--accent); }
+.step-num.admin { background: var(--admin-amber-light); color: var(--admin-amber); }
+.step-num.esc { background: var(--danger-light); color: var(--danger); }
+
+.step-title { font-size: 16px; font-weight: 600; flex: 1; }
+
+.badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.badge-line { background: var(--line-green-light); color: var(--line-green); }
+.badge-liff { background: var(--purple-light); color: var(--purple); }
+.badge-web { background: var(--web-blue-light); color: var(--web-blue); }
+.badge-api { background: var(--accent-light); color: var(--accent); }
+.badge-admin { background: var(--admin-amber-light); color: var(--admin-amber); }
+.badge-esc { background: var(--danger-light); color: var(--danger); }
+
+.step-body { font-size: 14px; color: var(--text-2); }
+.step-body strong { color: var(--text); font-weight: 500; }
+
+.step-detail {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.step-detail code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: rgba(0,0,0,0.05);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+/* Fields grid */
+.fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 20px;
+  margin: 8px 0;
+}
+.field-item {
+  font-size: 13px;
+  color: var(--text-2);
+  padding: 3px 0;
+  border-bottom: 0.5px solid var(--border-light);
+}
+.field-item::before { content: '→ '; color: var(--text-3); }
+
+/* State pill */
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 20px;
+  margin-top: 12px;
+  font-family: var(--mono);
+  letter-spacing: 0.3px;
+}
+.state-blue { background: var(--web-blue-light); color: var(--web-blue); }
+.state-amber { background: var(--admin-amber-light); color: var(--admin-amber); }
+.state-green { background: var(--success-light); color: var(--success); }
+.state-red { background: var(--danger-light); color: var(--danger); }
+.state-purple { background: var(--purple-light); color: var(--purple); }
+.state-teal { background: var(--teal-light); color: var(--teal); }
+
+/* Connector */
+.connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+}
+.conn-line { width: 1.5px; height: 20px; background: var(--border); }
+.conn-arrow {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--text-3);
+}
+
+/* Mock buttons */
+.mock-btn {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 8px;
+  margin: 3px 4px 3px 0;
+}
+.mock-btn-primary { background: var(--accent); color: white; }
+.mock-btn-secondary { background: var(--surface-2); color: var(--text-2); border: 0.5px solid var(--border); }
+.mock-btn-green { background: var(--line-green); color: white; }
+
+/* State flow diagram */
+.state-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 12px 0;
+}
+.state-flow .sf-item {
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-weight: 500;
+}
+.state-flow .sf-arrow { color: var(--text-3); font-size: 12px; }
+.state-flow .sf-active { background: var(--accent); color: white; }
+
+/* Divider */
+.divider {
+  border: none;
+  border-top: 0.5px solid var(--border);
+  margin: 40px 0;
+}
+
+/* Routes table */
+.routes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 12px 0;
+}
+.routes-table th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-3);
+  padding: 8px 12px;
+  border-bottom: 1.5px solid var(--border);
+}
+.routes-table td {
+  padding: 10px 12px;
+  border-bottom: 0.5px solid var(--border-light);
+  vertical-align: top;
+}
+.routes-table code {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--accent);
+}
+.method {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.method-post { background: var(--success-light); color: var(--success); }
+.method-get { background: var(--web-blue-light); color: var(--web-blue); }
+
+/* DB tables */
+.db-table {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin: 12px 0;
+}
+.db-item {
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* Checklist */
+.checklist { list-style: none; margin: 12px 0; }
+.checklist li {
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--text-2);
+  border-bottom: 0.5px solid var(--border-light);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.checklist li::before {
+  content: '☐';
+  font-size: 14px;
+  color: var(--text-3);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Footer */
+.footer {
+  text-align: center;
+  padding: 40px 24px;
+  font-size: 12px;
+  color: var(--text-3);
+  border-top: 0.5px solid var(--border);
+  margin-top: 40px;
+}
+
+@media (max-width: 600px) {
+  .fields { grid-template-columns: 1fr; }
+  .db-table { grid-template-columns: 1fr 1fr; }
+  .hero h1 { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<div class="hero">
+  <h1>🏭 FOGUS — Customer Flow</h1>
+  <p>LINE OA + LIFF + Supabase + Next.js 16.2 + Vercel · April 2026</p>
+</div>
+
+<!-- Nav -->
+<div class="nav">
+  <a href="#customer">ลูกค้า</a>
+  <a href="#admin">แอดมิน</a>
+  <a href="#escalation">Escalation</a>
+  <a href="#states">States</a>
+  <a href="#routes">Routes</a>
+  <a href="#db">Database</a>
+  <a href="#checklist">Checklist</a>
+</div>
+
+<div class="container">
+
+<!-- ===== CUSTOMER FLOW ===== -->
+<div class="section" id="customer">
+<div class="section-title">Customer journey · ฝั่งลูกค้า</div>
+
+<!-- Step 1 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num line">1</div>
+    <div class="step-title">ลูกค้าส่งข้อความ</div>
+    <span class="badge badge-line">LINE Chat</span>
+  </div>
+  <div class="step-body">
+    ลูกค้าพิมพ์อะไรก็ได้ใน LINE OA เช่น <strong>"อยากทำป้าย"</strong>, <strong>"สอบถามราคา"</strong>, หรือแม้แต่ <strong>"สวัสดี"</strong>
+  </div>
+  <div class="step-detail">
+    <strong>ระบบทำอะไร:</strong> LINE Platform ส่ง webhook POST มาที่ <code>/api/webhook</code> พร้อม <code>x-line-signature</code> header → verify signature → save raw message ลง DB ก่อน → จากนั้นค่อย reply
+  </div>
+  <div class="state state-blue">NEW_MESSAGE → COLLECTING_INFO</div>
+</div>
+
+<div class="connector"><div class="conn-line"></div><div class="conn-arrow"></div></div>
+
+<!-- Step 2 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num line">2</div>
+    <div class="step-title">Bot ตอบ Flex Message</div>
+    <span class="badge badge-line">LINE Reply</span>
+  </div>
+  <div class="step-body">
+    ลูกค้าเห็น card สวยๆ ใน LINE:
+    <br>— ข้อความทักทาย <strong>"สวัสดีค่ะ คุณ [ชื่อจาก LINE profile]! 👋"</strong>
+    <br>— คำอธิบายสั้นว่ากรอกฟอร์มเพื่อรับใบเสนอราคา
+    <br><br>
+    <span class="mock-btn mock-btn-primary">📋 กรอกรายละเอียดงาน</span>
+    <span class="mock-btn mock-btn-secondary">💬 คุยกับแอดมิน</span>
+  </div>
+  <div class="step-detail">
+    ปุ่มแรก = URI action เปิด LIFF <code>https://liff.line.me/{LIFF_ID}/intake</code><br>
+    ปุ่มสอง = message action ส่งข้อความ "ขอคุยกับแอดมิน" → trigger escalation
+  </div>
+</div>
+
+<div class="connector"><div class="conn-line"></div><div class="conn-arrow"></div></div>
+
+<!-- Step 3 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num web">3</div>
+    <div class="step-title">เปิด LIFF ใน LINE</div>
+    <span class="badge badge-liff">LIFF v2.28</span>
+  </div>
+  <div class="step-body">
+    หน้าจอเปิด <strong>Full screen</strong> ใน LINE browser
+  </div>
+  <div class="step-detail">
+    <strong>ลำดับ init:</strong><br>
+    1. <code>liff.init({ liffId })</code> → ถ้ายังไม่ login → <code>liff.login()</code><br>
+    2. <code>liff.requestFriendship()</code> → popup ให้ add OA เป็นเพื่อน (สำหรับ user จาก shared link)<br>
+    3. <code>liff.getProfile()</code> → ดึง userId + displayName<br><br>
+    <strong>LIFF endpoint URL</strong> ตั้งเป็น <code>/liff</code> ไม่ใช่ <code>/liff/intake</code><br>
+    <code>/liff</code> redirect ไป <code>/liff/intake</code> อีกที (รองรับเพิ่มหน้าได้ในอนาคต)
+  </div>
+</div>
+
+<div class="connector"><div class="conn-line"></div><div class="conn-arrow"></div></div>
+
+<!-- Step 4 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num web">4</div>
+    <div class="step-title">กรอกฟอร์ม Intake</div>
+    <span class="badge badge-liff">LIFF Form</span>
+  </div>
+  <div class="step-body">ฟอร์มเก็บข้อมูลทั้งหมดที่ต้องการ:</div>
+  <div class="fields">
+    <div class="field-item">ประเภทงาน (6 ตัวเลือก) <strong>*</strong></div>
+    <div class="field-item">ขนาด กว้าง × สูง <strong>*</strong></div>
+    <div class="field-item">หน่วย (มม./ซม./ม./นิ้ว/ฟุต)</div>
+    <div class="field-item">จำนวน</div>
+    <div class="field-item">วันที่ต้องการ</div>
+    <div class="field-item">เบอร์โทร <strong>*</strong></div>
+    <div class="field-item">รายละเอียดเพิ่มเติม</div>
+    <div class="field-item">ลิงก์ไฟล์อ้างอิง</div>
+  </div>
+  <div class="step-detail">
+    ปุ่ม submit อยู่ล่างสุด มี <code>padding-bottom: env(safe-area-inset-bottom)</code> กัน navigation bar บังบน Android (บังคับตั้งแต่ 9 มี.ค. 2026)
+  </div>
+</div>
+
+<div class="connector"><div class="conn-line"></div><div class="conn-arrow"></div></div>
+
+<!-- Step 5 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num api">5</div>
+    <div class="step-title">ส่งฟอร์ม → สร้าง Lead + Quote</div>
+    <span class="badge badge-api">POST /api/intake</span>
+  </div>
+  <div class="step-body">
+    LIFF submit ข้อมูลไปที่ API:
+    <br>— <strong>Normalize หน่วย</strong>: ซม./ม./นิ้ว/ฟุต → มม. ทั้งหมด
+    <br>— <strong>Upsert customer</strong>: สร้างหรืออัพเดทข้อมูลลูกค้า
+    <br>— <strong>สร้าง lead</strong>: เก็บทุก field จากฟอร์ม
+    <br>— <strong>คำนวณราคา</strong>: ตร.ม. × ราคาต่อวัสดุ + VAT 7%
+    <br>— <strong>สร้าง quote</strong> + quote_items พร้อม <code>public_token</code> (32 hex chars)
+  </div>
+  <div class="step-detail">
+    ถ้าข้อมูลไม่ครบ (ไม่มี due_date หรือขนาด ≤ 0) → ไม่สร้าง quote → สร้าง <strong>escalation</strong> แทน → ดูหัวข้อ Escalation
+  </div>
+  <div class="state state-blue">FORM_SUBMITTED → WAITING_CUSTOMER_APPROVAL</div>
+</div>
+
+<div class="connector"><div class="conn-line"></div><div class="conn-arrow"></div></div>
+
+<!-- Step 6 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num web">6</div>
+    <div class="step-title">LIFF แสดงผลสำเร็จ → ปิดอัตโนมัติ</div>
+    <span class="badge badge-liff">LIFF</span>
+  </div>
+  <div class="step-body">
+    หน้าจอเปลี่ยนเป็น <strong>"✅ ส่งข้อมูลเรียบร้อยแล้ว!"</strong> พร้อมข้อความ "เราจะส่งใบเสนอราคาให้ทาง LINE ค่ะ"
+  </div>
+  <div class="step-detail">
+    <code>liff.closeWindow()</code> ถูกเรียกหลัง 3 วินาที → LIFF browser ปิด กลับไปหน้า LINE chat
+  </div>
+</div>
+
+<div class="connector"><div class="conn-line"></div><div class="conn-arrow"></div></div>
+
+<!-- Step 7 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num line">7</div>
+    <div class="step-title">ได้รับลิงก์ใบเสนอราคาทาง LINE</div>
+    <span class="badge badge-line">LINE Push</span>
+  </div>
+  <div class="step-body">
+    Bot push Flex Message มาใน chat:
+    <br>— <strong>"📄 ใบเสนอราคา"</strong>
+    <br>— สรุป: ประเภท, ขนาด (ซม.), จำนวน, ราคารวม VAT
+    <br>— "กรุณาตรวจสอบและอนุมัติใบเสนอราคาค่ะ"
+    <br><br>
+    <span class="mock-btn mock-btn-primary">ดูใบเสนอราคา</span>
+  </div>
+  <div class="step-detail">
+    ⚠️ Push Message มีค่าใช้จ่ายตาม LINE OA plan (ฟรี = 500 msg/เดือน)
+  </div>
+</div>
+
+<div class="connector"><div class="conn-line"></div><div class="conn-arrow"></div></div>
+
+<!-- Step 8 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num web">8</div>
+    <div class="step-title">เปิดหน้าใบเสนอราคา</div>
+    <span class="badge badge-web">GET /quote/:token</span>
+  </div>
+  <div class="step-body">
+    เปิดใน browser (public URL ไม่ต้อง login) แสดง:
+    <br>— <strong>ข้อมูลลูกค้า</strong>: ชื่อ, เบอร์โทร
+    <br>— <strong>รายละเอียดงาน</strong>: ประเภท, ขนาด (ซม.), จำนวน, กำหนดส่ง, หมายเหตุ
+    <br>— <strong>รายการ</strong>: line items + ราคาต่อรายการ
+    <br>— <strong>สรุปราคา</strong>: ก่อน VAT → VAT 7% → <strong>รวมทั้งสิ้น (฿)</strong>
+    <br>— วันหมดอายุ (30 วันจากวันสร้าง)
+    <br><br>
+    <span class="mock-btn mock-btn-green">✅ อนุมัติใบเสนอราคา</span>
+  </div>
+  <div class="step-detail">
+    <code>public_token</code> = 32 hex chars จาก <code>gen_random_bytes(16)</code> → ไม่สามารถ guess ได้<br>
+    กดอนุมัติ → confirm dialog → <code>POST /api/quotes/:id/approve</code>
+  </div>
+</div>
+
+<div class="connector"><div class="conn-line"></div><div class="conn-arrow"></div></div>
+
+<!-- Step 9 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num api">9</div>
+    <div class="step-title">อนุมัติ → สร้าง Job</div>
+    <span class="badge badge-api">POST /api/quotes/:id/approve</span>
+  </div>
+  <div class="step-body">
+    — Quote status → <strong>approved</strong>
+    <br>— Lead status → <strong>approved</strong>
+    <br>— สร้าง <strong>job</strong> (status: JOB_CREATED)
+    <br>— สร้าง <strong>job_timeline</strong> entry: "Job created from approved quote"
+    <br>— Conversation state → <strong>JOB_CREATED</strong>
+  </div>
+  <div class="state state-teal">JOB_CREATED</div>
+</div>
+
+<div class="connector"><div class="conn-line"></div><div class="conn-arrow"></div></div>
+
+<!-- Step 10 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num line">10</div>
+    <div class="step-title">ได้รับแจ้งเตือนสถานะ</div>
+    <span class="badge badge-line">LINE Push</span>
+  </div>
+  <div class="step-body">
+    ลูกค้าจะได้รับ push message ทุกครั้งที่สถานะเปลี่ยน:
+    <br>— <strong>"✅ สร้างงานเรียบร้อย"</strong> (ตอน approve)
+    <br>— <strong>"🔧 กำลังดำเนินการ"</strong> (admin เปลี่ยนเป็น IN_PROGRESS)
+    <br>— <strong>"🎉 งานเสร็จสมบูรณ์"</strong> (admin เปลี่ยนเป็น COMPLETED)
+    <br><br>ทุกข้อความมีลิงก์ <code>/status/:token</code> ให้กดดูรายละเอียด
+  </div>
+</div>
+
+<div class="connector"><div class="conn-line"></div><div class="conn-arrow"></div></div>
+
+<!-- Step 11 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num web">11</div>
+    <div class="step-title">เช็คสถานะงาน</div>
+    <span class="badge badge-web">GET /status/:token</span>
+  </div>
+  <div class="step-body">
+    เปิดใน browser (public URL) แสดง:
+    <br>— <strong>สถานะปัจจุบัน</strong>: icon ใหญ่ + pill สี
+    <br>— <strong>รายละเอียดงาน</strong>: ประเภท, ขนาด, จำนวน, ราคา
+    <br>— <strong>Timeline</strong>: ประวัติสถานะทั้งหมด เรียงจากใหม่→เก่า พร้อมวันเวลา + note จาก admin
+  </div>
+  <div class="state state-green">COMPLETED</div>
+</div>
+
+</div><!-- end customer section -->
+
+<hr class="divider">
+
+<!-- ===== ADMIN FLOW ===== -->
+<div class="section" id="admin">
+<div class="section-title">Admin journey · ฝั่งแอดมิน</div>
+
+<div class="step">
+  <div class="step-header">
+    <div class="step-num admin">A</div>
+    <div class="step-title">Login</div>
+    <span class="badge badge-admin">GET /auth/login</span>
+  </div>
+  <div class="step-body">
+    Email + Password login ผ่าน <strong>Supabase Auth</strong>
+    <br>— Middleware check: ถ้ายังไม่ login → redirect มาหน้านี้
+    <br>— สร้าง admin user: Supabase Dashboard → Authentication → Users → Invite
+  </div>
+</div>
+
+<div class="connector"><div class="conn-line"></div><div class="conn-arrow"></div></div>
+
+<div class="step">
+  <div class="step-header">
+    <div class="step-num admin">B</div>
+    <div class="step-title">Dashboard</div>
+    <span class="badge badge-admin">GET /admin</span>
+  </div>
+  <div class="step-body">
+    <strong>KPI Cards (4 ช่อง):</strong>
+    <br>Leads ทั้งหมด · รอลูกค้าอนุมัติ · งานที่กำลังทำ · Escalations ที่เปิดอยู่
+    <br><br>
+    <strong>🚨 Escalations (แถบแดง):</strong>
+    <br>แสดงเฉพาะ status=open พร้อม reason, LINE user ID, เวลา
+    <br><br>
+    <strong>📋 Jobs:</strong>
+    <br>แต่ละ card: ชื่อลูกค้า, ประเภทงาน, status pill, วันที่สร้าง, ลิงก์ status page
+    <br><span class="mock-btn mock-btn-secondary">เปลี่ยนสถานะ ▾</span> dropdown: IN_PROGRESS / COMPLETED / CANCELLED
+    <br>เปลี่ยนแล้ว → <code>POST /api/jobs/:id/status</code> → push LINE notification ทันที
+    <br><br>
+    <strong>📄 Quotes:</strong>
+    <br>ชื่อลูกค้า, ประเภท, ราคารวม, status pill, ลิงก์ดู quote page
+    <br><br>
+    <strong>🎯 Leads:</strong>
+    <br>ชื่อลูกค้า, ประเภท, ขนาด (ซม.), จำนวน, status
+    <br><br>
+    <strong>💬 Recent Conversations:</strong>
+    <br>LINE user ID (ย่อ 12 ตัว), workflow state, เวลาข้อความล่าสุด
+  </div>
+</div>
+
+</div><!-- end admin section -->
+
+<hr class="divider">
+
+<!-- ===== ESCALATION ===== -->
+<div class="section" id="escalation">
+<div class="section-title">Escalation paths · ทางแยก</div>
+
+<div class="step">
+  <div class="step-header">
+    <div class="step-num esc">E1</div>
+    <div class="step-title">ลูกค้าขอคุยกับแอดมิน</div>
+    <span class="badge badge-esc">Escalation</span>
+  </div>
+  <div class="step-body">
+    Webhook ตรวจจับ keyword ในข้อความ:
+    <br><strong>"คุยกับคน"</strong> · <strong>"คุยกับแอดมิน"</strong> · <strong>"ขอคุยกับคน"</strong> · <strong>"ต้องการคุยกับคน"</strong> · <strong>"admin"</strong>
+    <br><br>
+    — สร้าง escalation row (reason = ข้อความลูกค้า + conversation_id)
+    <br>— เปลี่ยน state → <strong>HUMAN_REVIEW_REQUIRED</strong>
+    <br>— Bot ตอบ: <strong>"ขอบคุณค่ะ ทีมงานจะติดต่อกลับโดยเร็วที่สุดนะคะ 🙏"</strong>
+    <br>— Admin เห็นแถบแดงใน /admin
+    <br>— Admin ตอบลูกค้าผ่าน LINE OA Manager Chat ได้เลย (Chat + Bot mode ทำงานพร้อมกัน)
+  </div>
+  <div class="state state-red">HUMAN_REVIEW_REQUIRED</div>
+</div>
+
+<div style="height: 12px;"></div>
+
+<div class="step">
+  <div class="step-header">
+    <div class="step-num esc">E2</div>
+    <div class="step-title">Intake ข้อมูลไม่ครบ</div>
+    <span class="badge badge-esc">Auto-escalation</span>
+  </div>
+  <div class="step-body">
+    ถ้า form submit แต่:
+    <br>— ไม่มี <strong>due_date</strong> หรือ
+    <br>— ขนาด <strong>≤ 0</strong> หลัง normalize
+    <br><br>
+    ระบบจะ:
+    <br>— สร้าง lead (status: new) แต่ <strong>ไม่สร้าง quote</strong>
+    <br>— สร้าง escalation: "Incomplete intake data — admin review needed"
+    <br>— เปลี่ยน state → <strong>HUMAN_REVIEW_REQUIRED</strong>
+    <br>— Admin ต้อง review แล้วสร้าง quote เอง (ผ่าน Supabase Dashboard หรือพัฒนาเพิ่มใน phase 2)
+  </div>
+  <div class="state state-red">HUMAN_REVIEW_REQUIRED</div>
+</div>
+
+</div><!-- end escalation -->
+
+<hr class="divider">
+
+<!-- ===== STATE MACHINE ===== -->
+<div class="section" id="states">
+<div class="section-title">Workflow states · สถานะทั้งหมด</div>
+
+<div class="step">
+  <div class="step-header">
+    <div class="step-title">Happy path</div>
+  </div>
+  <div class="state-flow">
+    <span class="sf-item">NEW_MESSAGE</span>
+    <span class="sf-arrow">→</span>
+    <span class="sf-item">COLLECTING_INFO</span>
+    <span class="sf-arrow">→</span>
+    <span class="sf-item">FORM_SUBMITTED</span>
+    <span class="sf-arrow">→</span>
+    <span class="sf-item">QUOTE_DRAFTED</span>
+    <span class="sf-arrow">→</span>
+    <span class="sf-item">WAITING_CUSTOMER_APPROVAL</span>
+    <span class="sf-arrow">→</span>
+    <span class="sf-item">JOB_CREATED</span>
+    <span class="sf-arrow">→</span>
+    <span class="sf-item">IN_PROGRESS</span>
+    <span class="sf-arrow">→</span>
+    <span class="sf-item sf-active">COMPLETED</span>
+  </div>
+
+  <div style="margin-top: 16px;">
+    <div class="step-body"><strong>Branch:</strong> จากทุก state สามารถแยกไป</div>
+    <div class="state-flow" style="margin-top: 8px;">
+      <span class="sf-item" style="background: var(--danger-light); color: var(--danger);">HUMAN_REVIEW_REQUIRED</span>
+      <span class="sf-arrow" style="color: var(--text-3);">← เมื่อ keyword escalation หรือข้อมูลไม่ครบ</span>
+    </div>
+  </div>
+</div>
+
+</div><!-- end states -->
+
+<hr class="divider">
+
+<!-- ===== ROUTES ===== -->
+<div class="section" id="routes">
+<div class="section-title">Routes · เส้นทาง API ทั้งหมด</div>
+
+<table class="routes-table">
+<thead>
+<tr><th>Method</th><th>Route</th><th>Auth</th><th>หน้าที่</th></tr>
+</thead>
+<tbody>
+<tr><td><span class="method method-post">POST</span></td><td><code>/api/webhook</code></td><td>LINE signature</td><td>รับ webhook จาก LINE</td></tr>
+<tr><td><span class="method method-post">POST</span></td><td><code>/api/intake</code></td><td>None (LIFF)</td><td>รับข้อมูลจากฟอร์ม</td></tr>
+<tr><td><span class="method method-post">POST</span></td><td><code>/api/quotes/[id]/approve</code></td><td>Public token</td><td>อนุมัติใบเสนอราคา</td></tr>
+<tr><td><span class="method method-post">POST</span></td><td><code>/api/jobs/[id]/status</code></td><td>Admin auth</td><td>เปลี่ยนสถานะงาน</td></tr>
+<tr><td><span class="method method-get">GET</span></td><td><code>/liff</code></td><td>None</td><td>LIFF endpoint → redirect</td></tr>
+<tr><td><span class="method method-get">GET</span></td><td><code>/liff/intake</code></td><td>LIFF login</td><td>ฟอร์มกรอกข้อมูล</td></tr>
+<tr><td><span class="method method-get">GET</span></td><td><code>/quote/[token]</code></td><td>Public token</td><td>หน้าใบเสนอราคา</td></tr>
+<tr><td><span class="method method-get">GET</span></td><td><code>/status/[token]</code></td><td>Public token</td><td>หน้าสถานะงาน</td></tr>
+<tr><td><span class="method method-get">GET</span></td><td><code>/auth/login</code></td><td>None</td><td>Admin login</td></tr>
+<tr><td><span class="method method-get">GET</span></td><td><code>/admin</code></td><td>Supabase Auth</td><td>Admin dashboard</td></tr>
+</tbody>
+</table>
+
+<div class="step-detail" style="margin-top: 12px;">
+  <strong>2026 constraint:</strong> ทุก dynamic route (<code>[id]</code>, <code>[token]</code>) ใช้ <code>await props.params</code> ตาม Next.js 16 breaking change
+</div>
+
+</div><!-- end routes -->
+
+<hr class="divider">
+
+<!-- ===== DATABASE ===== -->
+<div class="section" id="db">
+<div class="section-title">Database · 9 tables</div>
+
+<div class="db-table">
+  <div class="db-item">conversations</div>
+  <div class="db-item">messages</div>
+  <div class="db-item">customers</div>
+  <div class="db-item">leads</div>
+  <div class="db-item">quotes</div>
+  <div class="db-item">quote_items</div>
+  <div class="db-item">jobs</div>
+  <div class="db-item">job_timeline</div>
+  <div class="db-item">escalations</div>
+</div>
+
+<div class="step-detail">
+  <strong>Realtime enabled:</strong> conversations, jobs, escalations<br>
+  <strong>Supabase keys:</strong> <code>sb_publishable_...</code> (client) + <code>sb_secret_...</code> (server-only) — ไม่ใช้ legacy anon/service_role
+</div>
+
+</div><!-- end db -->
+
+<hr class="divider">
+
+<!-- ===== CHECKLIST ===== -->
+<div class="section" id="checklist">
+<div class="section-title">Smoke test checklist</div>
+
+<ul class="checklist">
+  <li>POST /api/webhook returns 200 with valid LINE signature</li>
+  <li>POST /api/webhook returns 401 with invalid signature</li>
+  <li>LINE message → bot replies with Flex Message + LIFF link</li>
+  <li>LIFF page opens inside LINE app (Full size)</li>
+  <li>liff.requestFriendship() fires (check console)</li>
+  <li>Safe-area padding visible on Android (ปุ่ม submit ไม่โดน nav bar บัง)</li>
+  <li>Intake form submit → lead + quote created in DB</li>
+  <li>Quote link pushed to customer via LINE push message</li>
+  <li>/quote/:token shows quote with approve button</li>
+  <li>Approve creates job + job_timeline entry</li>
+  <li>Customer receives LINE notification on approve</li>
+  <li>/status/:token shows current job status + timeline</li>
+  <li>/admin requires login (redirect to /auth/login if not logged in)</li>
+  <li>/admin shows all leads / quotes / jobs / escalations</li>
+  <li>Admin changes job status → triggers LINE push notification</li>
+  <li>"คุยกับแอดมิน" → creates escalation row + bot replies</li>
+  <li>Incomplete intake data → auto-escalation (no quote created)</li>
+  <li>Conversation state updates correctly through whole workflow</li>
+</ul>
+
+</div><!-- end checklist -->
+
+</div><!-- end container -->
+
+<div class="footer">
+  FOGUS ERP 2026 · Next.js 16.2 · Supabase · LINE LIFF v2.28 · Vercel<br>
+  Built for 3-hour deployment · April 2026
+</div>
+
+<script>
+// Sticky nav active state
+const sections = document.querySelectorAll('.section[id]');
+const navLinks = document.querySelectorAll('.nav a');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      navLinks.forEach(l => l.classList.remove('active'));
+      const active = document.querySelector(`.nav a[href="#${entry.target.id}"]`);
+      if (active) active.classList.add('active');
+    }
+  });
+}, { rootMargin: '-80px 0px -60% 0px' });
+sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>
