@@ -1,7 +1,6 @@
 ---
 name: Supabase CLI Helper
 description: "Use when working with Supabase CLI commands, npx supabase --help, migrations, local dev, linking projects, db push/pull, auth/storage setup, and troubleshooting Supabase CLI output."
-tools: [execute, read, search]
 tools: [execute, read, search, web]
 argument-hint: "Describe your Supabase CLI goal or paste the command/output to analyze."
 user-invocable: true
