@@ -2,13 +2,20 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { JOB_STATUSES } from "@/lib/types";
+import { type JobStatus } from "@/lib/types";
+import { ALLOWED_JOB_TRANSITIONS } from "@/lib/workflow-transitions";
 
-export default function AdminJobActions({ jobId, currentStatus }: { jobId: string; currentStatus: string }) {
+export default function AdminJobActions({
+  jobId,
+  currentStatus,
+}: {
+  jobId: string;
+  currentStatus: JobStatus;
+}) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const nextStatuses = JOB_STATUSES.filter((s) => s !== currentStatus);
+  const nextStatuses = ALLOWED_JOB_TRANSITIONS[currentStatus] || [];
 
   async function updateStatus(newStatus: string) {
     setLoading(true);
@@ -32,7 +39,7 @@ export default function AdminJobActions({ jobId, currentStatus }: { jobId: strin
     }
   }
 
-  if (currentStatus === "COMPLETED" || currentStatus === "CANCELLED") {
+  if (nextStatuses.length === 0) {
     return null;
   }
 

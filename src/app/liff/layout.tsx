@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 
 export const metadata: Metadata = {
   title: "FOGUS - สั่งงาน",
@@ -14,8 +15,8 @@ export const viewport: Viewport = {
 export default function LiffLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charSet="utf-8" defer />
-      {children}
+      <Script src="https://static.line-scdn.net/liff/edge/2/sdk.js" strategy="beforeInteractive" />
+      <div className="liff-shell">{children}</div>
     </>
   );
 }

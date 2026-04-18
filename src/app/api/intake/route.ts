@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { pushQuoteLink } from "@/lib/line";
-import { toMM, calculatePrice, PRODUCT_TYPES } from "@/lib/types";
-import type { IntakeFormData } from "@/lib/types";
+import {
+  toMM,
+  calculatePrice,
+  PRODUCT_TYPES,
+  isPaymentTerm,
+  isWorkflowState,
+} from "@/lib/types";
+import type { IntakeFormData, WorkflowState } from "@/lib/types";
+import { getLeadOperationalDefaults } from "@/lib/quote-workflow";
+import {
+  canTransitionConversationState,
+  isTerminalConversationState,
+} from "@/lib/workflow-transitions";
 
 export async function POST(request: NextRequest) {
   let data: IntakeFormData;
@@ -21,6 +32,9 @@ export async function POST(request: NextRequest) {
   if (!data.unit) errors.push("unit is required");
   if (!data.qty || data.qty <= 0) errors.push("qty must be positive");
   if (!data.phone) errors.push("phone is required");
+  if (data.paymentTerms && !isPaymentTerm(data.paymentTerms)) {
+    errors.push("paymentTerms is invalid");
+  }
 
   if (errors.length > 0) {
     return NextResponse.json({ error: errors.join(", ") }, { status: 400 });
@@ -56,34 +70,68 @@ export async function POST(request: NextRequest) {
 
   // 2. Find or create conversation
   let conversationId: string;
+  let conversationState: WorkflowState = "NEW_MESSAGE";
   const { data: existingConv } = await supabase
     .from("conversations")
-    .select("id")
+    .select("id, state")
     .eq("line_user_id", data.lineUserId)
     .order("created_at", { ascending: false })
     .limit(1)
     .single();
 
   if (existingConv) {
+    if (!isWorkflowState(existingConv.state)) {
+      return NextResponse.json(
+        { error: "Conversation has invalid workflow state" },
+        { status: 500 }
+      );
+    }
+
     conversationId = existingConv.id;
+    conversationState = existingConv.state;
+
+    if (isTerminalConversationState(existingConv.state)) {
+      return NextResponse.json(
+        { error: `Conversation is already ${existingConv.state}` },
+        { status: 409 }
+      );
+    }
   } else {
     const { data: newConv } = await supabase
       .from("conversations")
-      .insert({ line_user_id: data.lineUserId, state: "FORM_SUBMITTED" })
+      .insert({ line_user_id: data.lineUserId, state: "REQUIREMENTS_REVIEW" })
       .select("id")
       .single();
     conversationId = newConv!.id;
+    conversationState = "REQUIREMENTS_REVIEW";
   }
 
   // 3. Update conversation state
+  if (
+    existingConv &&
+    conversationState !== "REQUIREMENTS_REVIEW" &&
+    !canTransitionConversationState(conversationState, "REQUIREMENTS_REVIEW")
+  ) {
+    return NextResponse.json(
+      {
+        error: `Cannot move conversation from ${conversationState} to REQUIREMENTS_REVIEW`,
+      },
+      { status: 409 }
+    );
+  }
+
   await supabase
     .from("conversations")
-    .update({ state: "FORM_SUBMITTED" })
+    .update({ state: "REQUIREMENTS_REVIEW" })
     .eq("id", conversationId);
 
   // 4. Create lead
   const needsReview =
     !data.productType || !data.dueDate || widthMm <= 0 || heightMm <= 0;
+  const holdReason = needsReview
+    ? "ยังมีข้อมูลไม่ครบสำหรับออกใบเสนอราคาอัตโนมัติ"
+    : null;
+  const leadDefaults = getLeadOperationalDefaults(data.fulfillmentMode);
 
   const { data: lead } = await supabase
     .from("leads")
@@ -97,6 +145,13 @@ export async function POST(request: NextRequest) {
       due_date: data.dueDate || null,
       note_from_form: data.note || null,
       reference_info: data.referenceInfo || null,
+      ai_image_prompt: data.aiImagePrompt || null,
+      ai_image_status: data.aiImagePrompt ? "pending" : "not_requested",
+      fulfillment_mode: leadDefaults.fulfillment_mode,
+      design_assignment_mode: leadDefaults.design_assignment_mode,
+      design_executor: leadDefaults.design_executor,
+      design_status: leadDefaults.design_status,
+      hold_reason: holdReason,
       status: needsReview ? "new" : "quoted",
     })
     .select("id")
@@ -109,24 +164,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 5. If data incomplete, create escalation
+  // 5. If data incomplete, park the conversation until the customer adds more info
   if (needsReview) {
-    await supabase.from("escalations").insert({
-      conversation_id: conversationId,
-      reason: "Incomplete intake data — admin review needed",
-      status: "open",
-    });
-
     await supabase
       .from("conversations")
-      .update({ state: "HUMAN_REVIEW_REQUIRED" })
+      .update({ state: "ON_HOLD_CUSTOMER_INPUT" })
       .eq("id", conversationId);
 
     return NextResponse.json({
       success: true,
       leadId: lead.id,
       needsReview: true,
-      message: "Lead created — escalated for admin review",
+      message: "Lead created — waiting for more customer input",
     });
   }
 
@@ -134,6 +183,7 @@ export async function POST(request: NextRequest) {
   const subtotal = calculatePrice(data.productType, widthMm, heightMm, qty);
   const vat = Math.round(subtotal * 0.07 * 100) / 100;
   const total = subtotal + vat;
+  const paymentTerms = data.paymentTerms || "prepaid";
 
   const productLabel =
     PRODUCT_TYPES.find((p) => p.value === data.productType)?.label ||
@@ -148,6 +198,8 @@ export async function POST(request: NextRequest) {
       vat,
       total,
       status: "sent",
+      payment_terms: paymentTerms,
+      payment_status: paymentTerms === "credit" ? "not_required" : "unpaid",
     })
     .select("id, public_token")
     .single();
@@ -167,10 +219,10 @@ export async function POST(request: NextRequest) {
     unit_price: subtotal,
   });
 
-  // 8. Update conversation to QUOTE_DRAFTED → WAITING_CUSTOMER_APPROVAL
+  // 8. Move the conversation into the customer approval stage
   await supabase
     .from("conversations")
-    .update({ state: "WAITING_CUSTOMER_APPROVAL" })
+    .update({ state: "WAITING_QUOTE_APPROVAL" })
     .eq("id", conversationId);
 
   // 9. Send quote link to customer via LINE push

@@ -1,206 +1,178 @@
-# FOGUS — Digital Signage & Print ERP 2026
+# CLAUDE.md
 
-## Identity
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-You are building a LINE OA + LIFF + Next.js ERP system for a Thai print & signage shop.
-Stack is locked: Next.js 16.2, Supabase, Vercel, LINE Messaging API, LIFF v2.28.
+## What This Is
 
-## Critical 2026 Constraints
+FOGUS is a LINE OA + LIFF + Next.js 16.2 ERP for a Thai print & signage shop. Customers interact via LINE chat and a LIFF mini-app form. Staff manage jobs through an admin dashboard. The entire lifecycle — intake → quoting → payment → production → fulfillment — is tracked as a workflow state machine.
 
-These are NON-NEGOTIABLE. Every file you write must follow these:
+**Stack (locked):** Next.js 16.2, React 19, Tailwind CSS v4, shadcn/ui, Supabase, Vercel, LINE Messaging API, LIFF v2.28.
 
-1. **Supabase keys**: Use `sb_publishable_` / `sb_secret_` — NEVER legacy `anon` / `service_role`
-2. **Next.js 16 async params**: All dynamic routes use `async (request, props) => { const { id } = await props.params; }`
-3. **LIFF safe area**: Every LIFF page must have `padding-bottom: env(safe-area-inset-bottom)` (Android edge-to-edge since 9 Mar 2026)
-4. **LIFF endpoint URL**: Registered as `/liff` in LINE Console, NOT `/liff/intake`
-5. **liff.requestFriendship()**: Must be called after `liff.init()` in the intake page
-6. **Next.js version**: Pin `^16.2.0` — must include CVE-2026-23869 patch
-7. **Turbopack**: Default in Next.js 16 — no `--turbopack` flag needed
-8. **React Compiler**: Enabled via `reactCompiler: true` in next.config.ts
+---
 
-## Architecture Overview
-
-```
-Customer (LINE) → Webhook → Save msg → Reply LIFF link
-                                         ↓
-                               LIFF intake form
-                                         ↓
-                              POST /api/intake
-                         (normalize mm, create lead+quote)
-                                         ↓
-                          Push quote link via LINE
-                                         ↓
-                        Customer opens /quote/:token
-                              clicks approve
-                                         ↓
-                     POST /api/quotes/:id/approve
-                        (create job + timeline)
-                                         ↓
-                    Admin updates status in /admin
-                  POST /api/jobs/:id/status
-                                         ↓
-                     Push notification → LINE
-                   Customer views /status/:token
-```
-
-## Workflow States (hardcoded, never derived)
-
-```
-NEW_MESSAGE → COLLECTING_INFO → FORM_SUBMITTED → QUOTE_DRAFTED →
-WAITING_CUSTOMER_APPROVAL → JOB_CREATED → IN_PROGRESS → COMPLETED
-
-Branch: HUMAN_REVIEW_REQUIRED (keyword escalation or incomplete data)
-```
-
-## Project Structure
-
-```
-src/
-├── app/
-│   ├── layout.tsx                        # Root layout
-│   ├── page.tsx                          # Redirect → /admin
-│   ├── globals.css                       # Tailwind v4
-│   ├── api/
-│   │   ├── webhook/route.ts             # LINE webhook (verify sig → save → reply)
-│   │   ├── intake/route.ts              # LIFF form → lead + quote
-│   │   ├── quotes/[id]/approve/route.ts # Approve → create job
-│   │   └── jobs/[id]/status/route.ts    # Admin status update
-│   ├── liff/
-│   │   ├── layout.tsx                   # LIFF SDK CDN + viewport
-│   │   ├── page.tsx                     # /liff → redirect /liff/intake
-│   │   └── intake/page.tsx              # Intake form (client component)
-│   ├── quote/[token]/
-│   │   ├── page.tsx                     # Public quote (server component)
-│   │   └── approve-button.tsx           # Approve button (client)
-│   ├── status/[token]/page.tsx          # Customer status (server)
-│   ├── auth/login/page.tsx              # Admin login (client)
-│   └── admin/
-│       ├── page.tsx                     # Dashboard (server)
-│       └── job-actions.tsx              # Status dropdown (client)
-├── lib/
-│   ├── line.ts                          # LINE SDK: verify, reply, push
-│   ├── types.ts                         # Types, constants, pricing, unit conversion
-│   └── supabase/
-│       ├── client.ts                    # Browser (publishable key)
-│       ├── server.ts                    # SSR (publishable key)
-│       └── admin.ts                     # Server-only (secret key)
-└── middleware.ts                        # Auth check for /admin, exclude webhook/liff/quote/status/auth
-```
-
-## Database (9 tables)
-
-conversations, messages, customers, leads, quotes, quote_items, jobs, job_timeline, escalations
-
-Schema: `supabase/migrations/001_initial.sql`
-
-Realtime enabled: conversations, jobs, escalations
-
-## Environment Variables
-
-```
-LINE_CHANNEL_SECRET=
-LINE_CHANNEL_ACCESS_TOKEN=
-LIFF_ID=
-NEXT_PUBLIC_LIFF_ID=           # same value, client-side
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=   # sb_publishable_...
-SUPABASE_SECRET_KEY=                     # sb_secret_...
-NEXT_PUBLIC_BASE_URL=                    # https://your-app.vercel.app
-```
-
-## Code Patterns
-
-### Dynamic Route Handler (Next.js 16)
-```typescript
-export async function POST(
-  request: NextRequest,
-  props: { params: Promise<{ id: string }> }
-) {
-  const { id } = await props.params;
-  // ...
-}
-```
-
-### Supabase Client Usage
-```
-Frontend (LIFF, quote page): src/lib/supabase/client.ts (publishable key)
-Server Components:           src/lib/supabase/server.ts (publishable key)
-API Routes (webhook, intake): src/lib/supabase/admin.ts (secret key)
-```
-
-### LINE SDK Usage
-```
-Webhook:     verifySignature() before any processing
-Reply:       replyWithIntakeLink() — Flex Message with LIFF link
-Push:        pushQuoteLink() — send quote to customer
-             pushStatusUpdate() — notify status change
-```
-
-### Unit Conversion
-```
-All dimensions stored as mm in DB.
-toMM(value, unit) converts cm/m/inch/ft → mm.
-calculatePrice(productType, widthMm, heightMm, qty) returns subtotal in THB.
-```
-
-## Anti-Patterns — DO NOT
-
-- ❌ Use `any` type in TypeScript
-- ❌ Use legacy Supabase `anon` / `service_role` keys
-- ❌ Use sync params in dynamic routes (removed in Next.js 16)
-- ❌ Put `SUPABASE_SECRET_KEY` in client-side code
-- ❌ Use Reply Message for async notifications (use Push Message)
-- ❌ Store conversation state in memory (serverless = stateless, use DB)
-- ❌ Call LINE API without try-catch (push can fail, don't crash the handler)
-- ❌ Skip signature verification on webhook
-- ❌ Forget safe-area-inset-bottom on LIFF pages
-- ❌ Deploy without testing escalation flow
-
-## Testing Commands
+## Commands
 
 ```bash
-npm run dev          # Local dev (Turbopack, default)
-npm run build        # Production build
-npm run start        # Start production server
-
-# Smoke test webhook locally:
-# Use ngrok to expose localhost, set webhook URL in LINE Console
+npm run dev                        # local development
+npm run build                      # validate production compilation
+npm run lint                       # ESLint (run after route/middleware/TS changes)
+npm run check:workflow-policy      # smoke-test workflow policy consistency
 ```
 
-## Escalation Keywords
+No automated test script exists. Validate with lint + build + manual flow verification.
 
-Bot checks for these Thai keywords in every message:
-"คุยกับคน", "คุยกับแอดมิน", "ขอคุยกับคน", "ต้องการคุยกับคน", "admin"
+---
 
-Match → create escalation + set HUMAN_REVIEW_REQUIRED + reply "ทีมงานจะติดต่อกลับ"
+## Architecture
 
-## Pricing Config (types.ts)
+### Layer Boundaries
 
-| Product | Per sqm (฿) | Min charge (฿) |
-|---------|------------|-----------------|
-| vinyl_banner | 250 | 500 |
-| acrylic_sign | 3,500 | 1,500 |
-| sticker | 350 | 300 |
-| foam_board | 800 | 500 |
-| aluminium | 4,500 | 2,000 |
-| other | 500 | 500 |
+| Layer | Path | Role |
+|---|---|---|
+| Route layer | `src/app/` | Pages, API routes, Server Actions |
+| Domain/integration | `src/lib/` | Shared business logic, LINE SDK, workflow helpers |
+| Supabase boundary | `src/lib/supabase/` | `client.ts` (browser), `server.ts` (SSR), `admin.ts` (secret key — server only) |
+| Auth boundary | `src/lib/middleware.ts` | Protects `/admin`; public paths: `/auth`, `/liff`, `/quote`, `/status`, `/flow`, `/api/webhook`, `/api/intake`, `/api/quotes/*` |
 
-VAT: 7% on top of subtotal. Quote valid for 30 days.
+### Key API Routes
 
-## Deployment
+| Route | Purpose |
+|---|---|
+| `POST /api/webhook` | LINE webhook — receives messages, triggers auto-replies |
+| `POST /api/intake` | LIFF form submission — creates lead + quote |
+| `POST /api/quotes/[id]/approve` | Customer approves quote → routes to `WAITING_PAYMENT` or `IN_DESIGN` |
+| `POST /api/quotes/[id]/commercial` | Admin adjusts payment term/status → may unlock `IN_DESIGN` |
+| `POST /api/jobs/[id]/status` | Admin advances job status |
+| `GET/POST /api/settings` | Runtime business, LINE, LIFF, and AI settings management |
 
-```bash
-git init && git add . && git commit -m "init fogus"
-npx vercel --prod
-# Add env vars in Vercel dashboard
-# Set webhook URL in LINE Console: https://your-app.vercel.app/api/webhook
-# Set LIFF endpoint URL: https://your-app.vercel.app/liff
+### Public-Facing Pages
+
+- `/liff` → registered LIFF endpoint, redirects to `/liff/intake`
+- `/quote/[token]` → customer quote approval page
+- `/status/[token]` → customer job status page
+
+---
+
+## Workflow State Machine
+
+### Canonical Sources (in priority order)
+
+1. `docs/workflow-policy.json` — machine-readable contract; wins over all prose
+2. `src/lib/workflow-policy-core.mjs` — runtime helpers (`getWorkflowPolicy`, `validateTransition`, `getAllowedActions`, `getUiContract`)
+3. `src/lib/types.ts` — TypeScript state/status enums and pricing helpers
+4. `src/lib/workflow-transitions.ts` — `ALLOWED_CONVERSATION_TRANSITIONS` and `ALLOWED_JOB_TRANSITIONS` maps
+5. `src/lib/quote-workflow.ts` — approval + payment gate logic
+6. `src/app/api/quotes/[id]/approve/route.ts` — quote approval endpoint behavior
+7. `src/app/api/jobs/[id]/status/route.ts` — job status transition enforcement
+8. `supabase/migrations/006_workflow_state_model.sql` — persisted schema
+
+**Read `AI_WORKFLOW_GUARD.md` before any workflow-sensitive changes.**
+
+### Conversation States (linear happy path)
+
+```
+NEW_MESSAGE → COLLECTING_REQUIREMENTS → REQUIREMENTS_REVIEW → WAITING_QUOTE_APPROVAL
+  → WAITING_PAYMENT → IN_DESIGN → IN_PRODUCTION → READY_FOR_FULFILLMENT → COMPLETED
 ```
 
-## When Compacting
+Side branches: `ON_HOLD_CUSTOMER_INPUT`, `HUMAN_REVIEW_REQUIRED`, `CANCELLED`.
 
-Preserve:
-- List of modified files
-- Current task and progress
-- Any bugs found / fixed
-- Which workflow states have been tested
+### Transition Table Snapshot
+
+| State | Actor | Trigger | Next State |
+|---|---|---|---|
+| none | system (`/api/webhook`) | First inbound LINE text creates a conversation row | `NEW_MESSAGE` |
+| `NEW_MESSAGE` | customer | Sends a normal LINE message and bot replies with LIFF link | `COLLECTING_REQUIREMENTS` |
+| `COLLECTING_REQUIREMENTS` | customer | Submits LIFF intake form | `REQUIREMENTS_REVIEW` |
+| `REQUIREMENTS_REVIEW` | system (`/api/intake`) | Missing data for automatic quoting | `ON_HOLD_CUSTOMER_INPUT` |
+| `REQUIREMENTS_REVIEW` | system (`/api/intake`) | Intake is complete and quote is generated | `WAITING_QUOTE_APPROVAL` |
+| `ON_HOLD_CUSTOMER_INPUT` | customer | Sends more details; webhook reopens collection loop | `COLLECTING_REQUIREMENTS` |
+| `WAITING_QUOTE_APPROVAL` | customer | Approves quote, but payment still blocks production | `WAITING_PAYMENT` |
+| `WAITING_QUOTE_APPROVAL` | customer | Approves quote and payment already unlocks production | `IN_DESIGN` |
+| `WAITING_PAYMENT` | admin | Updates commercial status but production is still locked | `WAITING_PAYMENT` |
+| `WAITING_PAYMENT` | admin | Updates commercial status so production unlocks | `IN_DESIGN` |
+| `IN_DESIGN` | admin | Starts production after payment/design gates are satisfied | `IN_PRODUCTION` |
+| `IN_DESIGN` | admin | Puts job on hold for customer input | `ON_HOLD_CUSTOMER_INPUT` |
+| `IN_DESIGN` | admin | Escalates for manual review | `HUMAN_REVIEW_REQUIRED` |
+| `IN_DESIGN` | admin | Cancels the job | `CANCELLED` |
+| `ON_HOLD_CUSTOMER_INPUT` | admin | Resumes after customer responds | `IN_DESIGN` |
+| `HUMAN_REVIEW_REQUIRED` | admin | Resolves review and resumes | `IN_DESIGN` |
+| `IN_PRODUCTION` | admin | Production finishes | `READY_FOR_FULFILLMENT` |
+| `READY_FOR_FULFILLMENT` | admin | Marks pickup or delivery complete | `COMPLETED` |
+| any active conversation state | customer | Uses escalation keywords such as `คุยกับแอดมิน`, `ขอคุยกับคน`, `admin` | `HUMAN_REVIEW_REQUIRED` |
+
+### Approval + Payment Gate
+
+Approving a quote does **not** always create a job. The unlock matrix:
+
+| Payment term | Unlocks production when |
+|---|---|
+| `credit` | immediately on approval |
+| `deposit` | `payment_status` is `partial` or `paid` |
+| `prepaid` | `payment_status` is `paid` |
+
+If production is not unlocked → conversation moves to `WAITING_PAYMENT`, no job created.
+If production is unlocked → job is created (or reused) and conversation moves to `IN_DESIGN`.
+
+### Non-Negotiables
+
+- Do not invent workflow states, shortcut transitions, or UI CTAs outside `docs/workflow-policy.json`.
+- Do not reuse `COMPLETED` or `CANCELLED` conversations for new intake.
+- If workflow behavior changes, update the policy JSON, runtime helpers, affected routes, and derivative docs **in the same change**.
+- Run `npm run check:workflow-policy` after any workflow policy change.
+
+---
+
+## Coding Conventions
+
+- **Supabase keys:** Use only `sb_publishable_*` (browser/SSR) and `sb_secret_*` (server admin). Never use legacy `anon` or `service_role` naming.
+- **Next.js 16 dynamic params:** Always use `props: { params: Promise<{...}> }` with `await props.params` in route handlers and pages.
+- **LIFF:** Endpoint registered at `/liff` (not `/liff/intake`). `liff/layout.tsx` must preserve `env(safe-area-inset-bottom)` padding. Call `liff.requestFriendship()` after `liff.init()`.
+- **LINE webhook:** Verify signatures before processing; keep push/reply calls failure-tolerant.
+- **Dimensions:** Store in mm; use the conversion and pricing helpers in `src/lib/types.ts` — don't duplicate them.
+- **TypeScript:** Keep strict boundaries; avoid `any` unless a genuine boundary case requires it.
+- **React Compiler:** `next.config.ts` enables `reactCompiler: true`. Do not add legacy `useMemo`/`useCallback` optimizations.
+- **Server/client boundaries:** Be explicit about `"use client"` / `"use server"` when editing under `src/app`.
+
+---
+
+## Styling
+
+- Tailwind CSS v4, utility-first — no CSS Modules or Styled Components.
+- Tokens defined in `src/app/globals.css` via `@theme inline` (OKLCH color space).
+- Merge classes with `cn()` from `src/lib/utils.ts` (`clsx` + `tailwind-merge`).
+- Two major surface patterns:
+  - **LIFF (customer):** `.liff-shell` + `.liff-panel` (frosted glass, `rounded-3xl`)
+  - **Admin (staff):** `.admin-shell` + `.admin-panel` + `.admin-kpi-card`
+- Icons from `lucide-react`; components from `src/components/ui/` (shadcn/ui + CVA variants).
+
+---
+
+## Database
+
+Migrations in `supabase/migrations/` (run in order):
+
+| File | Purpose |
+|---|---|
+| `001_initial.sql` | Core schema: conversations, messages, leads, quotes, jobs |
+| `002_enable_rls.sql` | Row-level security policies |
+| `003_quote_payment_terms.sql` | Payment term + status columns |
+| `004_app_settings.sql` | Runtime settings table (LINE keys, LIFF ID, etc.) |
+| `005_settings_assets_and_ai.sql` | Asset storage + AI prompt columns |
+| `006_workflow_state_model.sql` | Canonical workflow state column + backfill |
+
+Admin settings (LINE Channel Secret, Channel Access Token, LIFF ID, Base URL) can be managed at runtime via `/admin/settings` — no redeploy required.
+
+---
+
+## Reference Docs
+
+| File | Purpose |
+|---|---|
+| `AI_WORKFLOW_GUARD.md` | Required read before workflow changes |
+| `docs/workflow-policy.json` | Canonical machine-readable workflow contract |
+| `docs/WORKFLOW_TRANSITION_TABLE.md` | Human-readable derivative (read-only reference) |
+| `docs/ENV_AND_LINE_SETUP.md` | Env vars, LINE vs LIFF setup guide |
+| `.env.example` | All env var names with descriptions |
+| `docs/INVOICE_FLOW_PATCH.md` | Proposed invoice-first patch — **not current behavior** |
+| `docs/FIGMA_DESIGN_SYSTEM_RULES.md` | Figma → code translation rules for this project |

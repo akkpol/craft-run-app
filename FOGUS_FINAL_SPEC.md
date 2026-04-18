@@ -34,10 +34,28 @@ ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=change-me-in-production
 ```
 
+## Workflow Source Of Truth
+- `src/lib/types.ts` = canonical workflow states
+- `src/lib/quote-workflow.ts` = payment gate and job-creation rules
+- `src/app/api/quotes/[id]/approve/route.ts` = quote approval behavior
+- `src/app/api/quotes/[id]/commercial/route.ts` = post-approval payment/commercial updates
+- `src/app/api/jobs/[id]/status/route.ts` = allowed downstream job transitions
+- `docs/WORKFLOW_TRANSITION_TABLE.md` = central transition table for humans and agents
+
 ## Workflow States
-NEW_MESSAGE → COLLECTING_INFO → FORM_SUBMITTED → QUOTE_DRAFTED →
-WAITING_CUSTOMER_APPROVAL → JOB_CREATED → IN_PROGRESS → COMPLETED
-(branch: HUMAN_REVIEW_REQUIRED at any point)
+Main path:
+
+`NEW_MESSAGE → COLLECTING_REQUIREMENTS → REQUIREMENTS_REVIEW → WAITING_QUOTE_APPROVAL → WAITING_PAYMENT / IN_DESIGN → IN_PRODUCTION → READY_FOR_FULFILLMENT → COMPLETED`
+
+Explicit side branches:
+
+`ON_HOLD_CUSTOMER_INPUT`, `HUMAN_REVIEW_REQUIRED`, `CANCELLED`
+
+## Approval And Payment Gate
+- `credit` unlocks production immediately
+- `deposit` unlocks production only when `payment_status` is `partial` or `paid`
+- `prepaid` unlocks production only when `payment_status` is `paid`
+- Approving a quote may stop at `WAITING_PAYMENT`; it does not always create a job
 
 ## Routes
 - POST /api/webhook
@@ -58,7 +76,8 @@ WAITING_CUSTOMER_APPROVAL → JOB_CREATED → IN_PROGRESS → COMPLETED
 - [ ] liff.requestFriendship() prompts add-friend
 - [ ] Intake form submits → lead + quote created in DB
 - [ ] Quote page loads at /quote/:token
-- [ ] Approve button creates job + timeline entry
+- [ ] Approve button moves conversation to WAITING_PAYMENT or creates/reuses a job depending on payment unlock status
+- [ ] Admin commercial update can move an approved quote from WAITING_PAYMENT to IN_DESIGN
 - [ ] Admin page shows leads/quotes/jobs/escalations
 - [ ] Status page shows latest job status
 - [ ] Escalation flag works (HUMAN_REVIEW_REQUIRED)

@@ -6,10 +6,13 @@ const PUBLIC_ROUTE_PREFIXES = [
   '/liff',
   '/quote',
   '/status',
+  '/production',
   '/flow',
   '/api/webhook',
   '/api/intake',
   '/api/quotes/',
+  '/api/production/',
+  '/api/internal/production-media/cleanup',
 ]
 
 function isPublicRoute(pathname: string) {

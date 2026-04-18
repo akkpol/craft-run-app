@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySignature, replyWithIntakeLink, lineClient } from "@/lib/line";
+import { verifySignature, replyWithIntakeLink, getLineClient } from "@/lib/line";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { WebhookEvent } from "@line/bot-sdk";
+import { canTransitionConversationState } from "@/lib/workflow-transitions";
+import { isWorkflowState } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   // 1. Read raw body for signature verification
   const rawBody = await request.text();
   const signature = request.headers.get("x-line-signature");
 
-  if (!signature || !verifySignature(rawBody, signature)) {
+  if (!signature || !(await verifySignature(rawBody, signature))) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
@@ -21,6 +23,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
+  const lineClient = await getLineClient();
 
   // 3. Process each event — keep it lean and fast
   for (const event of body.events) {
@@ -94,6 +97,18 @@ export async function POST(request: NextRequest) {
         );
 
         if (isEscalation) {
+          if (
+            existingConv?.state &&
+            isWorkflowState(existingConv.state) &&
+            existingConv.state !== "HUMAN_REVIEW_REQUIRED" &&
+            !canTransitionConversationState(
+              existingConv.state,
+              "HUMAN_REVIEW_REQUIRED"
+            )
+          ) {
+            continue;
+          }
+
           // Create escalation
           await supabase.from("escalations").insert({
             conversation_id: conversationId,
@@ -120,17 +135,43 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        if (existingConv?.state === "HUMAN_REVIEW_REQUIRED") {
+          if (event.replyToken) {
+            await lineClient.replyMessage({
+              replyToken: event.replyToken,
+              messages: [
+                {
+                  type: "text",
+                  text: "ทีมงานได้รับเรื่องแล้ว ตอนนี้กำลังตรวจสอบและจะติดต่อกลับโดยเร็วที่สุดค่ะ",
+                },
+              ],
+            });
+          }
+          continue;
+        }
+
         // 3e. Reply with LIFF intake link
         if (event.replyToken) {
-          // Update state to COLLECTING_INFO
-          await supabase
-            .from("conversations")
-            .update({ state: "COLLECTING_INFO" })
-            .eq("id", conversationId);
+          // Update state to COLLECTING_REQUIREMENTS
+          if (
+            !existingConv?.state ||
+            existingConv.state === "COLLECTING_REQUIREMENTS" ||
+            (isWorkflowState(existingConv.state) &&
+            canTransitionConversationState(
+              existingConv.state,
+              "COLLECTING_REQUIREMENTS"
+            ))
+          ) {
+            await supabase
+              .from("conversations")
+              .update({ state: "COLLECTING_REQUIREMENTS" })
+              .eq("id", conversationId);
+          }
 
           // Accumulate chat notes
           const noteUpdate =
-            existingConv?.state === "COLLECTING_INFO"
+            existingConv?.state === "COLLECTING_REQUIREMENTS" ||
+            existingConv?.state === "ON_HOLD_CUSTOMER_INPUT"
               ? messageText
               : undefined;
 
