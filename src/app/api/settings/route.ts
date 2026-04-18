@@ -1,0 +1,187 @@
+import { NextRequest, NextResponse } from "next/server";
+import {
+  APP_SETTINGS_ID,
+  getAppSettings,
+  getRuntimeAppConfig,
+  getWebhookUrlFromBase,
+  getLiffEndpointUrlFromBase,
+} from "@/lib/app-settings";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  getDefaultProductionSettings,
+  normalizeProductionRetentionDays,
+} from "@/lib/production-settings";
+
+type SettingsPayload = {
+  businessName?: string;
+  businessPhone?: string;
+  businessEmail?: string;
+  businessLogoUrl?: string;
+  businessCatalogUrl?: string;
+  businessCatalogName?: string;
+  customerUploadUrl?: string;
+  customerUploadLabel?: string;
+  productionUploadEnabled?: boolean;
+  productionCustomerAutoSendEnabled?: boolean;
+  productionAssetRetentionDays?: number;
+  lineChannelAccessToken?: string;
+  lineChannelSecret?: string;
+  liffId?: string;
+  baseUrl?: string;
+  aiImageEnabled?: boolean;
+  aiImageProvider?: string;
+  aiImageModel?: string;
+  aiImageApiKey?: string;
+};
+
+export async function GET() {
+  const settings = await getAppSettings();
+  const runtimeConfig = await getRuntimeAppConfig();
+  const defaultProductionSettings = getDefaultProductionSettings();
+
+  return NextResponse.json({
+    settings: {
+      businessName: settings?.business_name || runtimeConfig.businessName || "",
+      businessPhone: settings?.business_phone || runtimeConfig.businessPhone || "",
+      businessEmail: settings?.business_email || runtimeConfig.businessEmail || "",
+      businessLogoUrl: settings?.business_logo_url || runtimeConfig.businessLogoUrl || "",
+      businessCatalogUrl: settings?.business_catalog_url || runtimeConfig.businessCatalogUrl || "",
+      businessCatalogName: settings?.business_catalog_name || runtimeConfig.businessCatalogName || "",
+      customerUploadUrl: settings?.customer_upload_url || runtimeConfig.customerUploadUrl || "",
+      customerUploadLabel: settings?.customer_upload_label || runtimeConfig.customerUploadLabel || "",
+      productionUploadEnabled:
+        settings?.production_upload_enabled ??
+        runtimeConfig.productionUploadEnabled ??
+        defaultProductionSettings.productionUploadEnabled,
+      productionCustomerAutoSendEnabled:
+        settings?.production_customer_auto_send_enabled ??
+        runtimeConfig.productionCustomerAutoSendEnabled ??
+        defaultProductionSettings.productionCustomerAutoSendEnabled,
+      productionAssetRetentionDays: normalizeProductionRetentionDays(
+        settings?.production_asset_retention_days ??
+          runtimeConfig.productionAssetRetentionDays ??
+          defaultProductionSettings.productionAssetRetentionDays
+      ),
+      lineChannelAccessToken:
+        settings?.line_channel_access_token || runtimeConfig.lineChannelAccessToken || "",
+      lineChannelSecret:
+        settings?.line_channel_secret || runtimeConfig.lineChannelSecret || "",
+      liffId: settings?.liff_id || runtimeConfig.liffId || "",
+      baseUrl: settings?.base_url || runtimeConfig.baseUrl || "",
+      webhookUrl: getWebhookUrlFromBase(runtimeConfig.baseUrl),
+      liffEndpointUrl: getLiffEndpointUrlFromBase(runtimeConfig.baseUrl),
+      aiImageEnabled: settings?.ai_image_enabled ?? runtimeConfig.aiImageEnabled,
+      aiImageProvider: settings?.ai_image_provider || runtimeConfig.aiImageProvider || "openai",
+      aiImageModel: settings?.ai_image_model || runtimeConfig.aiImageModel || "gpt-image-1",
+      hasAiImageApiKey: Boolean(settings?.ai_image_api_key || process.env.OPENAI_API_KEY),
+      updatedAt: settings?.updated_at || null,
+    },
+  });
+}
+
+export async function POST(request: NextRequest) {
+  let body: SettingsPayload;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const baseUrl = (body.baseUrl || "").trim().replace(/\/$/, "");
+  const businessLogoUrl = (body.businessLogoUrl || "").trim();
+  const businessCatalogUrl = (body.businessCatalogUrl || "").trim();
+  const businessCatalogName = (body.businessCatalogName || "").trim();
+  const customerUploadUrl = (body.customerUploadUrl || "").trim();
+  const customerUploadLabel = (body.customerUploadLabel || "").trim();
+  const productionAssetRetentionDays = normalizeProductionRetentionDays(
+    body.productionAssetRetentionDays
+  );
+  const aiImageProvider = (body.aiImageProvider || "openai").trim() || "openai";
+  const aiImageModel = (body.aiImageModel || "gpt-image-1").trim() || "gpt-image-1";
+  const aiImageApiKey = (body.aiImageApiKey || "").trim();
+
+  if (baseUrl && !/^https?:\/\//i.test(baseUrl)) {
+    return NextResponse.json(
+      { error: "Base URL must start with http:// or https://" },
+      { status: 400 }
+    );
+  }
+
+  for (const assetUrl of [businessLogoUrl, businessCatalogUrl]) {
+    if (assetUrl && !/^https?:\/\//i.test(assetUrl)) {
+      return NextResponse.json(
+        { error: "Asset URL must start with http:// or https://" },
+        { status: 400 }
+      );
+    }
+  }
+
+  if (customerUploadUrl && !/^https?:\/\//i.test(customerUploadUrl)) {
+    return NextResponse.json(
+      { error: "Customer upload URL must start with http:// or https://" },
+      { status: 400 }
+    );
+  }
+
+  if (aiImageProvider !== "openai") {
+    return NextResponse.json({ error: "Unsupported AI image provider" }, { status: 400 });
+  }
+
+  const supabase = createAdminClient();
+  const currentSettings = await getAppSettings();
+  const defaultSettings = getDefaultProductionSettings();
+  const basePayload = {
+    id: APP_SETTINGS_ID,
+    business_name: (body.businessName || "").trim() || null,
+    business_phone: (body.businessPhone || "").trim() || null,
+    business_email: (body.businessEmail || "").trim() || null,
+    business_logo_url: businessLogoUrl || null,
+    business_catalog_url: businessCatalogUrl || null,
+    business_catalog_name: businessCatalogName || null,
+    line_channel_access_token: (body.lineChannelAccessToken || "").trim() || null,
+    line_channel_secret: (body.lineChannelSecret || "").trim() || null,
+    liff_id: (body.liffId || "").trim() || null,
+    base_url: baseUrl || null,
+    ai_image_enabled: Boolean(body.aiImageEnabled),
+    ai_image_provider: aiImageProvider,
+    ai_image_model: aiImageModel,
+    ai_image_api_key: aiImageApiKey || currentSettings?.ai_image_api_key || null,
+  };
+
+  let error: { message: string } | null = null;
+
+  const primaryResult = await supabase.from("app_settings").upsert(
+    {
+      ...basePayload,
+      customer_upload_url: customerUploadUrl || null,
+      customer_upload_label: customerUploadLabel || null,
+      production_upload_enabled:
+        body.productionUploadEnabled ?? defaultSettings.productionUploadEnabled,
+      production_customer_auto_send_enabled:
+        body.productionCustomerAutoSendEnabled ??
+        defaultSettings.productionCustomerAutoSendEnabled,
+      production_asset_retention_days: productionAssetRetentionDays,
+    },
+    { onConflict: "id" }
+  );
+
+  error = primaryResult.error;
+
+  if (
+    error &&
+    /(customer_upload_(url|label)|production_(upload_enabled|customer_auto_send_enabled|asset_retention_days))/i.test(
+      error.message
+    )
+  ) {
+    const fallbackResult = await supabase.from("app_settings").upsert(basePayload, {
+      onConflict: "id",
+    });
+    error = fallbackResult.error;
+  }
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}

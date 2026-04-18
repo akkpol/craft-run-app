@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build FOGUS ERP"
+  short_description: "FOGUS LINE + LIFF ERP implementation guide"
+  default_prompt: "Use $build-fogus-erp to implement or update the FOGUS ERP workflow in this project."

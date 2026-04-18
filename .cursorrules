@@ -1,0 +1,25 @@
+# FOGUS Cursor Rules
+
+This file is intentionally short. Use `.github/copilot-instructions.md` as the primary shared guidance.
+For workflow-sensitive work, read `AI_WORKFLOW_GUARD.md` and treat `docs/workflow-policy.json` as canonical.
+
+## Always Follow
+
+- Use Supabase `sb_publishable_` and `sb_secret_` keys only.
+- In Next.js 16 dynamic routes, use async params and `await props.params`.
+- Keep LINE LIFF registered at `/liff` and preserve LIFF safe-area padding.
+- Do not expose `SUPABASE_SECRET_KEY` to browser code.
+- Reuse workflow states, unit conversion, and pricing rules from `src/lib/types.ts`.
+
+## Source Of Truth
+
+- Workflow and domain constants: `src/lib/types.ts`
+- Auth and public route boundaries: `src/lib/middleware.ts`
+- Schema evolution: `supabase/migrations/`
+- Environment setup: `docs/ENV_AND_LINE_SETUP.md`
+
+## Validation
+
+- `npm run dev`
+- `npm run build`
+- `npm run lint`
