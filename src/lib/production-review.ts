@@ -16,11 +16,38 @@ export const PRODUCTION_REVIEW_STATUSES = [
 export type ProductionReviewStatus =
   (typeof PRODUCTION_REVIEW_STATUSES)[number];
 
-export const PRODUCTION_EVENT_TYPE_LABELS: Record<ProductionEventType, string> = {
-  proof: "Proof",
-  ready_for_production: "Ready for production",
-  completed: "Completed",
+type ProductionReviewLocale = "th" | "my" | "en";
+
+const LOCALIZED_PRODUCTION_EVENT_TYPE_LABELS: Record<
+  ProductionReviewLocale,
+  Record<ProductionEventType, string>
+> = {
+  th: {
+    proof: "Proof",
+    ready_for_production: "พร้อมผลิต",
+    completed: "ผลิตเสร็จ",
+  },
+  my: {
+    proof: "နမူနာစစ်ရန်",
+    ready_for_production: "ထုတ်လုပ်ရန် အသင့်",
+    completed: "ထုတ်လုပ်ပြီး",
+  },
+  en: {
+    proof: "Proof",
+    ready_for_production: "Ready for production",
+    completed: "Completed",
+  },
 };
+
+export const PRODUCTION_EVENT_TYPE_LABELS =
+  LOCALIZED_PRODUCTION_EVENT_TYPE_LABELS.th;
+
+export function getProductionEventTypeLabel(
+  eventType: ProductionEventType,
+  locale: ProductionReviewLocale = "th"
+): string {
+  return LOCALIZED_PRODUCTION_EVENT_TYPE_LABELS[locale][eventType];
+}
 
 export type ProductionTimelineAction =
   | "submitted"
@@ -29,11 +56,7 @@ export type ProductionTimelineAction =
   | "sent";
 
 function getEventTypeLabel(eventType: ProductionEventType): string {
-  if (eventType === "ready_for_production") {
-    return "ready_for_production";
-  }
-
-  return eventType;
+  return getProductionEventTypeLabel(eventType, "en").toLowerCase();
 }
 
 export function getReviewStatusAfterApproval(

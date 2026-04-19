@@ -30,6 +30,7 @@ export type SnapshotLead = {
   qty: number;
   status: string;
   created_at: string;
+  due_date?: string | null;
   note_from_form?: string | null;
   note_from_chat?: string | null;
   reference_info?: string | null;
@@ -38,6 +39,7 @@ export type SnapshotLead = {
   ai_generated_images?: string[] | null;
   design_status?: DesignStatus | null;
   assigned_designer?: string | null;
+  fulfillment_mode?: string | null;
   hold_reason?: string | null;
   human_review_reason?: string | null;
   customers?: SnapshotCustomer;
@@ -122,6 +124,11 @@ export type SnapshotJob = {
   lead_id: string;
   status: JobStatus;
   assigned_to: string | null;
+  production_status?: string | null;
+  fulfillment_status?: string | null;
+  completion_package_status?: string | null;
+  completed_at?: string | null;
+  cancel_reason?: string | null;
   created_at: string;
   quotes?: (SnapshotQuote & {
     leads?: (SnapshotLead & { customers?: SnapshotCustomer }) | null;
