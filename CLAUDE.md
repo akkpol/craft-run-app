@@ -9,7 +9,7 @@ FOGUS is a LINE OA + LIFF + Next.js 16.2 ERP for a Thai print & signage shop. Cu
 **Stack (locked):** Next.js 16.2, React 19, Tailwind CSS v4, shadcn/ui, Supabase, Vercel, LINE Messaging API, LIFF v2.28.
 
 ---
-
+เมื่อถามคำถามให้ใช้คำถามภาษาไทยเสมอ เว้นแต่จะระบุเป็นอย่างอื่น
 ## Commands
 
 ```bash

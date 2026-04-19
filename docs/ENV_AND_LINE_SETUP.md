@@ -15,6 +15,7 @@
 - `LIFF` = หน้าเว็บที่เปิดใน LINE
 - `Supabase` = database, auth, server data
 - `NEXT_PUBLIC_BASE_URL` = URL หลักของแอป
+- Backoffice ใช้ `Supabase Auth + email allowlist` ไม่ได้ใช้ password จาก env โดยตรง
 
 ## LINE แยกยังไง
 
@@ -65,8 +66,8 @@
 
 | ENV | เอามาจากไหน | ใช้ทำอะไร | ใช้ฝั่งไหน |
 |---|---|---|---|
-| `ADMIN_EMAIL` | กำหนดเอง | email แอดมินสำหรับ login | server/auth |
-| `ADMIN_PASSWORD` | กำหนดเอง | รหัสผ่านแอดมิน | server/auth |
+| `ADMIN_ALLOWED_EMAILS` | กำหนดเอง | allowlist ของอีเมลที่มีสิทธิ์เข้า `/admin` | server/auth |
+| `ADMIN_EMAIL` | กำหนดเอง | fallback แบบอีเมลเดียวสำหรับ allowlist รุ่นเก่า | server/auth |
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINE Developers Console > Messaging API | ส่ง reply/push message | server only |
 | `LINE_CHANNEL_SECRET` | LINE Developers Console > Messaging API | verify webhook signature | server only |
 | `LIFF_ID` | LINE Developers Console > LIFF | ใช้สร้าง LIFF URL และ init LIFF | server + client config |
@@ -108,6 +109,25 @@
 - Vercel Environment Variables = ที่ควรใช้สำหรับ production จริง
 - `/admin/settings` = หน้ากรอกค่า runtime สำหรับ LINE, LIFF และ Base URL หลังจากระบบบูตได้แล้ว
 
+## Backoffice Auth ตอนนี้ทำงานยังไง
+
+- ผู้ใช้หลังบ้านล็อกอินผ่าน `Supabase Auth`
+- password ไม่ได้อ่านจาก env แล้ว
+- env ฝั่ง admin ใช้แค่บอกว่า email ไหนเข้า `/admin` ได้
+- ถ้าไม่ได้ตั้ง `ADMIN_ALLOWED_EMAILS` หรือ `ADMIN_EMAIL` ระบบจะปิด `/admin` ไว้ก่อนแบบ fail-closed
+
+สิ่งที่ owner ต้องทำให้ครบ:
+
+- สร้าง user ใน `Supabase Auth`
+- ตั้ง password หรือส่ง invite ให้ user ผ่าน Supabase
+- ใส่อีเมลเดียวกันลงใน `ADMIN_ALLOWED_EMAILS`
+
+ตัวอย่าง:
+
+```env
+ADMIN_ALLOWED_EMAILS="admin@example.com,ops@example.com"
+```
+
 ถ้าค่าไหนเป็น `NEXT_PUBLIC_` แปลว่าค่านั้น browser มองเห็นได้
 
 ดังนั้น:
@@ -129,6 +149,10 @@
 ### `NEXT_PUBLIC_LIFF_ID` ต้องต่างจาก `LIFF_ID` ไหม
 
 ไม่ ต้องเป็นค่าเดียวกัน
+
+### password ของแอดมินอยู่ใน `.env` ไหม
+
+ไม่อยู่แล้ว password ของ backoffice ควรจัดการใน Supabase Auth เท่านั้น
 
 ### `VERCEL_OIDC_TOKEN` ต้องตั้งเองไหม
 

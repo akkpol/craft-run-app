@@ -2,6 +2,44 @@
 
 LINE OA + LIFF + Supabase + Next.js 16.2 + Vercel
 
+## System In 5 Seconds
+
+```text
+CUSTOMER (LINE)
+→ LINE OA + LIFF
+→ CONVERSATION BRAIN
+→ ERP CORE
+   Lead → Quote → Job
+→ PAYMENT GATE
+→ DESIGN (AI optional)
+→ PRODUCTION + DELIVERY
+
+REALTIME DASHBOARD = cross-cutting visibility layer, not the final business step.
+```
+
+## What Is Urgent First
+
+1. `P0 — Backbone`
+State machine, ERP core records, and payment gate must work first. This is the business control layer that prevents the system from creating or advancing work at the wrong time.
+
+2. `P1 — Operational Surfaces`
+Quote approval, payment unlock, admin status actions, customer status page, and production tracking must be usable next. This is what lets staff operate the workflow day to day without confusion.
+
+3. `P2 — Sales And Visibility Boosters`
+AI design assist, `/studio`, and dashboard polish come after the backbone and operational flow are stable. They improve conversion, clarity, and presentation, but they must not become blockers for the core business path.
+
+Shortest rule:
+
+- If forced to choose one, do `Payment Gate` before `AI Design`.
+
+Need a more detailed actor/use-case view?
+
+- See `FOGUS_FINAL_SPEC.md` for actor responsibilities, profile gaps, and which missing models are actually urgent.
+
+Need a wave-by-wave execution checklist?
+
+- See `plan/process-go-live-waves-1.md` for the 5-wave daily execution plan.
+
 ## Vercel Sandbox
 
 โปรเจกต์นี้ตั้งค่าพร้อมใช้ Vercel Sandbox CLI แล้วสำหรับรันโค้ดที่ไม่ไว้ใจใน Linux environment แบบแยกออกจากเครื่องหลักและฐานข้อมูลของแอป
@@ -32,6 +70,7 @@ LINE OA + LIFF + Supabase + Next.js 16.2 + Vercel
 - ไม่ควรใช้ repo นี้เป็นที่เก็บ secret จริงถาวร
 - production ควรกรอกค่าจริงใน Vercel Environment Variables
 - หลังจากระบบบูตได้แล้ว สามารถให้ user เข้าไปกรอกค่า LINE/LIFF/Base URL ใน `/admin/settings` ได้
+- บัญชีหลังบ้านใช้ `Supabase Auth` และ allowlist จาก env ไม่ได้ใช้ password จาก env โดยตรง
 
 ภาพจำสั้นที่สุด:
 
@@ -157,6 +196,8 @@ fogus/
 ## Environment Variables
 
 ```
+ADMIN_ALLOWED_EMAILS=
+ADMIN_EMAIL=
 LINE_CHANNEL_SECRET=
 LINE_CHANNEL_ACCESS_TOKEN=
 LIFF_ID=
@@ -175,6 +216,8 @@ NEXT_PUBLIC_LIFF_ID=  (same value as LIFF_ID)
 
 | ENV | Source | Purpose |
 |---|---|---|
+| `ADMIN_ALLOWED_EMAILS` | set by system owner | comma-separated allowlist for `/admin` access |
+| `ADMIN_EMAIL` | set by system owner | optional single-email fallback for older setups |
 | `LINE_CHANNEL_SECRET` | LINE Developers Console > Messaging API | verify webhook signature |
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINE Developers Console > Messaging API | send reply/push messages |
 | `LIFF_ID` | LINE Developers Console > LIFF | LIFF app id |
@@ -183,6 +226,12 @@ NEXT_PUBLIC_LIFF_ID=  (same value as LIFF_ID)
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase Project Settings | browser/SSR key |
 | `SUPABASE_SECRET_KEY` | Supabase Project Settings | server-only admin key |
 | `NEXT_PUBLIC_BASE_URL` | your deployed app URL | build public links |
+
+Backoffice note:
+
+- create staff accounts in `Supabase Auth`
+- add the same emails to `ADMIN_ALLOWED_EMAILS`
+- if allowlist env is missing, `/admin` stays closed by design
 
 รายละเอียดเต็มดูที่ `docs/ENV_AND_LINE_SETUP.md`
 
