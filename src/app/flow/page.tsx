@@ -165,7 +165,7 @@ export default function FlowPage() {
                 หมายเหตุการใช้งาน
               </p>
               <p className="mt-2 rounded-xl bg-white/80 px-3 py-3 font-semibold">
-                หน้านี้เป็น "คู่มืออธิบาย" ไม่ได้ใช้แก้สถานะงานโดยตรง
+                หน้านี้เป็น &quot;คู่มืออธิบาย&quot; ไม่ได้ใช้แก้สถานะงานโดยตรง
               </p>
             </div>
 
@@ -220,13 +220,13 @@ export default function FlowPage() {
             <div className="flow-theme-soft p-4">
               <p className="text-sm font-semibold">1) ดูสถานะปัจจุบัน</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                เริ่มที่ส่วน "เส้นทางหลัก" เพื่อเทียบว่างานอยู่ขั้นไหนในภาพรวม
+                เริ่มที่ส่วน &quot;เส้นทางหลัก&quot; เพื่อเทียบว่างานอยู่ขั้นไหนในภาพรวม
               </p>
             </div>
             <div className="flow-theme-soft p-4">
               <p className="text-sm font-semibold">2) ดูว่าลูกค้าต้องทำอะไร</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                ตรวจส่วน "กติกาการชำระเงิน" และ "ทางแยก/ข้อยกเว้น" ว่าต้องรออะไรหรือมี action อะไรบ้าง
+                ตรวจส่วน &quot;กติกาการชำระเงิน&quot; และ &quot;ทางแยก/ข้อยกเว้น&quot; ว่าต้องรออะไรหรือมี action อะไรบ้าง
               </p>
             </div>
             <div className="flow-theme-soft p-4">
