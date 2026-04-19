@@ -1,19 +1,48 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+import {
+  hasConfiguredAdminAllowlist,
+  isAdminEmailAllowed,
+} from '@/lib/admin-access'
+
 const PUBLIC_ROUTE_PREFIXES = [
   '/auth',
   '/liff',
   '/quote',
   '/status',
+  '/production',
   '/flow',
   '/api/webhook',
   '/api/intake',
   '/api/quotes/',
+  '/api/production/',
+  '/api/internal/production-media/cleanup',
 ]
 
 function isPublicRoute(pathname: string) {
   return PUBLIC_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+}
+
+function buildLoginRedirectUrl(
+  request: NextRequest,
+  errorCode?: 'admin_allowlist_missing' | 'admin_not_allowed'
+) {
+  const url = request.nextUrl.clone()
+  const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`
+
+  url.pathname = '/auth/login'
+  url.search = ''
+
+  if (errorCode) {
+    url.searchParams.set('error', errorCode)
+  }
+
+  if (nextPath && nextPath !== '/auth/login') {
+    url.searchParams.set('next', nextPath)
+  }
+
+  return url
 }
 
 export async function updateSession(request: NextRequest) {
@@ -55,16 +84,25 @@ export async function updateSession(request: NextRequest) {
   // IMPORTANT: If you remove getClaims() and you use server-side rendering
   // with the Supabase client, your users may be randomly logged out.
   const { data } = await supabase.auth.getClaims()
-  const user = data?.claims
+  const claims = data?.claims
+  const email = typeof claims?.email === 'string' ? claims.email : null
 
   if (
-    !user &&
+    !claims &&
     !request.nextUrl.pathname.startsWith('/login')
   ) {
     // no user, potentially respond by redirecting the user to the login page
-    const url = request.nextUrl.clone()
-    url.pathname = '/auth/login'
-    return NextResponse.redirect(url)
+    return NextResponse.redirect(buildLoginRedirectUrl(request))
+  }
+
+  if (!hasConfiguredAdminAllowlist()) {
+    return NextResponse.redirect(
+      buildLoginRedirectUrl(request, 'admin_allowlist_missing')
+    )
+  }
+
+  if (!isAdminEmailAllowed(email)) {
+    return NextResponse.redirect(buildLoginRedirectUrl(request, 'admin_not_allowed'))
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.

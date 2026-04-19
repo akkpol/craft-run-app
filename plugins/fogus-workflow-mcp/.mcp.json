@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "fogus-workflow": {
+      "command": "node",
+      "args": [
+        "./scripts/server.mjs"
+      ]
+    }
+  }
+}

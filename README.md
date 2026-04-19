@@ -2,6 +2,83 @@
 
 LINE OA + LIFF + Supabase + Next.js 16.2 + Vercel
 
+## System In 5 Seconds
+
+```text
+CUSTOMER (LINE)
+→ LINE OA + LIFF
+→ CONVERSATION BRAIN
+→ ERP CORE
+   Lead → Quote → Job
+→ PAYMENT GATE
+→ DESIGN (AI optional)
+→ PRODUCTION + DELIVERY
+
+REALTIME DASHBOARD = cross-cutting visibility layer, not the final business step.
+```
+
+## What Is Urgent First
+
+1. `P0 — Backbone`
+State machine, ERP core records, and payment gate must work first. This is the business control layer that prevents the system from creating or advancing work at the wrong time.
+
+2. `P1 — Operational Surfaces`
+Quote approval, payment unlock, admin status actions, customer status page, and production tracking must be usable next. This is what lets staff operate the workflow day to day without confusion.
+
+3. `P2 — Sales And Visibility Boosters`
+AI design assist, `/studio`, and dashboard polish come after the backbone and operational flow are stable. They improve conversion, clarity, and presentation, but they must not become blockers for the core business path.
+
+Shortest rule:
+
+- If forced to choose one, do `Payment Gate` before `AI Design`.
+
+Need a more detailed actor/use-case view?
+
+- See `FOGUS_FINAL_SPEC.md` for actor responsibilities, profile gaps, and which missing models are actually urgent.
+
+Need a wave-by-wave execution checklist?
+
+- See `plan/process-go-live-waves-1.md` for the 5-wave daily execution plan.
+
+## Vercel Sandbox
+
+โปรเจกต์นี้ตั้งค่าพร้อมใช้ Vercel Sandbox CLI แล้วสำหรับรันโค้ดที่ไม่ไว้ใจใน Linux environment แบบแยกออกจากเครื่องหลักและฐานข้อมูลของแอป
+
+ดูคู่มือเริ่มต้นที่ `docs/VERCEL_SANDBOX.md`
+
+## Workflow Source Of Truth
+
+ถ้าจะอ้างอิง customer flow หรือ state transition ของระบบ ให้ยึดตามลำดับนี้:
+
+- `src/lib/types.ts` = รายชื่อ workflow states ที่ใช้งานจริง
+- `src/lib/quote-workflow.ts` = approval/payment gate และ job creation rule
+- `src/app/api/quotes/[id]/approve/route.ts` = approve quote แล้วไป `WAITING_PAYMENT` หรือ `IN_DESIGN`
+- `src/app/api/quotes/[id]/commercial/route.ts` = admin ปรับ payment term/status แล้วปลดล็อกไป `IN_DESIGN`
+- `src/app/api/jobs/[id]/status/route.ts` = allowed job transitions หลังเริ่มงาน
+- `docs/WORKFLOW_TRANSITION_TABLE.md` = transition table กลางสำหรับคนและ agent
+
+## Quick Start For ENV
+
+ถ้า user งงเรื่อง `Messaging API` กับ `LIFF` ให้เริ่มจาก 2 ไฟล์นี้ก่อน:
+
+- `.env.example` = ตัวอย่าง env พร้อมคำอธิบายว่าแต่ละค่ามาจากไหน
+- `docs/ENV_AND_LINE_SETUP.md` = คู่มือแยกว่าอะไรคือ Messaging API, อะไรคือ LIFF, และ URL ไหนต้องใส่ที่ไหน
+
+หลักการของ repo นี้:
+
+- `.env.example` เป็นแม่แบบให้เจ้าของระบบหรือผู้ติดตั้งกรอก
+- ไม่ควรใช้ repo นี้เป็นที่เก็บ secret จริงถาวร
+- production ควรกรอกค่าจริงใน Vercel Environment Variables
+- หลังจากระบบบูตได้แล้ว สามารถให้ user เข้าไปกรอกค่า LINE/LIFF/Base URL ใน `/admin/settings` ได้
+- บัญชีหลังบ้านใช้ `Supabase Auth` และ allowlist จาก env ไม่ได้ใช้ password จาก env โดยตรง
+
+ภาพจำสั้นที่สุด:
+
+- `Messaging API` = แชต LINE OA + webhook + push/reply message
+- `LIFF` = หน้าเว็บใน LINE
+- `Webhook URL` ต้องเป็น `/api/webhook`
+- `LIFF Endpoint URL` ต้องเป็น `/liff`
+
 ## Project Structure
 
 ```
@@ -101,7 +178,8 @@ fogus/
 
 7. **Test quote approval**
    - Open quote link → click approve
-   - Check: jobs + job_timeline tables
+   - Check: conversation moves to `WAITING_PAYMENT` or `IN_DESIGN` based on payment terms/status
+   - Check: `jobs` + `job_timeline` are created only when production is unlocked
 
 ### Hour 3: Admin + Polish (60 min)
 
@@ -118,6 +196,8 @@ fogus/
 ## Environment Variables
 
 ```
+ADMIN_ALLOWED_EMAILS=
+ADMIN_EMAIL=
 LINE_CHANNEL_SECRET=
 LINE_CHANNEL_ACCESS_TOKEN=
 LIFF_ID=
@@ -132,14 +212,54 @@ Note: `LIFF_ID` also needs a client-side version:
 NEXT_PUBLIC_LIFF_ID=  (same value as LIFF_ID)
 ```
 
+### ENV Mapping Cheat Sheet
+
+| ENV | Source | Purpose |
+|---|---|---|
+| `ADMIN_ALLOWED_EMAILS` | set by system owner | comma-separated allowlist for `/admin` access |
+| `ADMIN_EMAIL` | set by system owner | optional single-email fallback for older setups |
+| `LINE_CHANNEL_SECRET` | LINE Developers Console > Messaging API | verify webhook signature |
+| `LINE_CHANNEL_ACCESS_TOKEN` | LINE Developers Console > Messaging API | send reply/push messages |
+| `LIFF_ID` | LINE Developers Console > LIFF | LIFF app id |
+| `NEXT_PUBLIC_LIFF_ID` | same as `LIFF_ID` | browser-side LIFF init |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project Settings | project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase Project Settings | browser/SSR key |
+| `SUPABASE_SECRET_KEY` | Supabase Project Settings | server-only admin key |
+| `NEXT_PUBLIC_BASE_URL` | your deployed app URL | build public links |
+
+Backoffice note:
+
+- create staff accounts in `Supabase Auth`
+- add the same emails to `ADMIN_ALLOWED_EMAILS`
+- if allowlist env is missing, `/admin` stays closed by design
+
+รายละเอียดเต็มดูที่ `docs/ENV_AND_LINE_SETUP.md`
+
 ## Workflow States
 
-```
-NEW_MESSAGE → COLLECTING_INFO → FORM_SUBMITTED → QUOTE_DRAFTED →
-WAITING_CUSTOMER_APPROVAL → JOB_CREATED → IN_PROGRESS → COMPLETED
+Canonical main path:
 
-Branch: HUMAN_REVIEW_REQUIRED (at any point when data incomplete or admin needed)
 ```
+NEW_MESSAGE → COLLECTING_REQUIREMENTS → REQUIREMENTS_REVIEW → WAITING_QUOTE_APPROVAL
+→ WAITING_PAYMENT / IN_DESIGN → IN_PRODUCTION → READY_FOR_FULFILLMENT → COMPLETED
+```
+
+Explicit side branches:
+
+```
+ON_HOLD_CUSTOMER_INPUT
+HUMAN_REVIEW_REQUIRED
+CANCELLED
+```
+
+ดู transition table แบบเต็มที่ `docs/WORKFLOW_TRANSITION_TABLE.md`
+
+## Quote Approval And Payment Gate
+
+- `credit` = อนุมัติแล้วปล่อยเข้า `IN_DESIGN` ได้ทันที
+- `deposit` = อนุมัติแล้วจะยังอยู่ `WAITING_PAYMENT` จนกว่าจะเป็น `partial` หรือ `paid`
+- `prepaid` = อนุมัติแล้วจะยังอยู่ `WAITING_PAYMENT` จนกว่าจะเป็น `paid`
+- การ approve quote ไม่ได้แปลว่าจะสร้าง job เสมอไป
 
 ## Smoke Test Checklist
 
@@ -152,7 +272,7 @@ Branch: HUMAN_REVIEW_REQUIRED (at any point when data incomplete or admin needed
 - [ ] Intake form submit → creates lead + quote in DB
 - [ ] Quote link sent to customer via LINE push message
 - [ ] `/quote/:token` shows quote with approve button
-- [ ] Approve creates job + timeline entry
+- [ ] Approve quote moves to `WAITING_PAYMENT` or creates/reuses a job based on payment unlock rules
 - [ ] Customer receives LINE notification on status change
 - [ ] `/status/:token` shows current job status + timeline
 - [ ] `/admin` shows all leads/quotes/jobs/escalations

@@ -1,0 +1,516 @@
+"use client";
+
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { UNITS } from "@/lib/types";
+import ProductTypePicker from "./product-type-picker";
+
+declare global {
+  interface Window {
+    liff: {
+      init: (config: { liffId: string }) => Promise<void>;
+      isLoggedIn: () => boolean;
+      login: (config?: { redirectUri?: string }) => void;
+      getProfile: () => Promise<{ userId: string; displayName: string }>;
+      requestFriendship: () => Promise<{ friendFlag: boolean }>;
+      closeWindow: () => void;
+      isInClient: () => boolean;
+    };
+  }
+}
+
+const inputClassName =
+  "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100";
+
+const selectClassName =
+  "rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100";
+
+const textareaClassName =
+  "w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100";
+
+const sectionToneStyles = {
+  emerald: {
+    badge: "bg-emerald-600 text-white shadow-[0_12px_24px_rgba(5,150,105,0.25)]",
+    pill: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  },
+  sky: {
+    badge: "bg-sky-600 text-white shadow-[0_12px_24px_rgba(2,132,199,0.24)]",
+    pill: "border-sky-200 bg-sky-50 text-sky-700",
+  },
+  amber: {
+    badge: "bg-amber-500 text-white shadow-[0_12px_24px_rgba(217,119,6,0.24)]",
+    pill: "border-amber-200 bg-amber-50 text-amber-700",
+  },
+} as const;
+
+function SectionCard({
+  step,
+  title,
+  description,
+  tone,
+  badgeLabel,
+  children,
+}: {
+  step: string;
+  title: string;
+  description: string;
+  tone: keyof typeof sectionToneStyles;
+  badgeLabel: string;
+  children: ReactNode;
+}) {
+  const toneStyles = sectionToneStyles[tone];
+
+  return (
+    <section className="rounded-[28px] border border-slate-200 bg-white/88 p-4 shadow-[0_16px_36px_rgba(15,23,42,0.06)] backdrop-blur sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold ${toneStyles.badge}`}
+          >
+            {step}
+          </div>
+
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
+          </div>
+        </div>
+
+        <span
+          className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${toneStyles.pill}`}
+        >
+          {badgeLabel}
+        </span>
+      </div>
+
+      <div className="mt-4 space-y-4">{children}</div>
+    </section>
+  );
+}
+
+function FieldLabel({
+  htmlFor,
+  label,
+  required,
+}: {
+  htmlFor: string;
+  label: string;
+  required?: boolean;
+}) {
+  return (
+    <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-medium text-slate-800">
+      {label} {required ? <span className="text-rose-500">*</span> : null}
+    </label>
+  );
+}
+
+export default function IntakeForm({
+  liffId,
+  uploadUrl,
+  uploadLabel,
+  initialCategory,
+  initialProduct,
+}: {
+  liffId: string;
+  uploadUrl?: string;
+  uploadLabel?: string;
+  initialCategory?: string;
+  initialProduct?: string;
+}) {
+  const [ready, setReady] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [submitOutcome, setSubmitOutcome] = useState<"quote" | "review" | null>(null);
+  const [submitMessage, setSubmitMessage] = useState("");
+  const [error, setError] = useState("");
+  const [lineUserId, setLineUserId] = useState("");
+  const [displayName, setDisplayName] = useState("");
+
+  const [productType, setProductType] = useState("");
+  const [width, setWidth] = useState("");
+  const [height, setHeight] = useState("");
+  const [unit, setUnit] = useState("cm");
+  const [qty, setQty] = useState("1");
+  const [dueDate, setDueDate] = useState("");
+  const [phone, setPhone] = useState("");
+  const [note, setNote] = useState("");
+  const [referenceInfo, setReferenceInfo] = useState("");
+  const [aiImagePrompt, setAiImagePrompt] = useState("");
+
+  useEffect(() => {
+    async function initLiff() {
+      try {
+        if (!liffId) {
+          setReady(true);
+          return;
+        }
+
+        await window.liff.init({ liffId });
+
+        if (!window.liff.isLoggedIn()) {
+          window.liff.login({ redirectUri: window.location.href });
+          return;
+        }
+
+        try {
+          await window.liff.requestFriendship();
+        } catch {
+          // non-critical
+        }
+
+        const profile = await window.liff.getProfile();
+        setLineUserId(profile.userId);
+        setDisplayName(profile.displayName);
+        setReady(true);
+      } catch (err) {
+        console.error("LIFF init error:", err);
+        setReady(true);
+      }
+    }
+
+    if (typeof window !== "undefined" && window.liff) {
+      initLiff();
+    } else {
+      const check = setInterval(() => {
+        if (typeof window !== "undefined" && window.liff) {
+          clearInterval(check);
+          initLiff();
+        }
+      }, 200);
+      setTimeout(() => {
+        clearInterval(check);
+        setReady(true);
+      }, 5000);
+    }
+  }, [liffId]);
+
+  const handleSubmit = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      setLoading(true);
+      setError("");
+
+      if (!productType) {
+        setError("กรุณาเลือกประเภทงาน");
+        setLoading(false);
+        return;
+      }
+      if (!width || Number(width) <= 0) {
+        setError("กรุณาระบุความกว้าง");
+        setLoading(false);
+        return;
+      }
+      if (!height || Number(height) <= 0) {
+        setError("กรุณาระบุความสูง");
+        setLoading(false);
+        return;
+      }
+      if (!phone) {
+        setError("กรุณาระบุเบอร์โทร");
+        setLoading(false);
+        return;
+      }
+      if (!dueDate) {
+        setError("กรุณาระบุวันที่ต้องการใช้งาน");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/intake", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lineUserId: lineUserId || "dev-user",
+            displayName: displayName || "Dev User",
+            productType,
+            width: Number(width),
+            height: Number(height),
+            unit,
+            qty: Number(qty) || 1,
+            dueDate,
+            phone,
+            note,
+            referenceInfo,
+            aiImagePrompt,
+          }),
+        });
+
+        const result = await res.json();
+        if (!res.ok) {
+          setError(result.error || "เกิดข้อผิดพลาด");
+          setLoading(false);
+          return;
+        }
+
+        setSubmitOutcome(result.needsReview ? "review" : "quote");
+        setSubmitMessage(
+          result.needsReview
+            ? "ทีมงานได้รับข้อมูลแล้ว และจะติดต่อกลับทาง LINE เพื่อช่วยสรุปรายละเอียดเพิ่มเติมค่ะ"
+            : "เราจะส่งใบเสนอราคาให้ทาง LINE ค่ะ"
+        );
+        if (typeof window !== "undefined" && window.liff?.isInClient()) {
+          setTimeout(() => window.liff.closeWindow(), 3000);
+        }
+      } catch {
+        setError("ไม่สามารถส่งข้อมูลได้ กรุณาลองใหม่");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [productType, width, height, unit, qty, dueDate, phone, note, referenceInfo, aiImagePrompt, lineUserId, displayName]
+  );
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4 py-6">
+        <div className="liff-panel w-full max-w-sm p-8 text-center">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-emerald-600" />
+          <p className="mt-4 text-sm font-medium text-slate-700">กำลังเปิดฟอร์มใน LINE...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (submitOutcome) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="liff-panel w-full max-w-sm p-8 text-center">
+          <div className="mb-4 text-5xl">{submitOutcome === "review" ? "📞" : "✅"}</div>
+          <h2 className="mb-2 text-xl font-bold text-slate-900">
+            {submitOutcome === "review" ? "ทีมงานรับเคสแล้ว" : "ส่งข้อมูลเรียบร้อยแล้ว!"}
+          </h2>
+          <p className="text-sm text-slate-600">{submitMessage}</p>
+          <p className="mt-4 text-xs text-slate-400">หน้าต่างจะปิดอัตโนมัติ...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-3 py-4" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+      <div className="mx-auto max-w-lg">
+        <div className="liff-panel overflow-hidden">
+          <div className="bg-[linear-gradient(135deg,#dcfce7_0%,#f0fdf4_48%,#ecfeff_100%)] px-4 py-5 text-slate-900">
+            <div className="inline-flex rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700">
+              LINE LIFF
+            </div>
+            <h1 className="mt-3 text-xl font-bold">ส่งรายละเอียดงานกับ FOGUS</h1>
+            <p className="mt-1 text-sm text-slate-600">จัดข้อมูลเป็น 3 ช่วงสั้น ๆ: เลือกหมวดงาน, กรอกรายละเอียดหลัก, แล้วเพิ่มข้อมูลเสริมถ้ามี เพื่อให้ทีมสรุปและส่งใบเสนอราคากลับทาง LINE</p>
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600">
+              <span className="rounded-full border border-emerald-200 bg-white/80 px-3 py-1">1 Category Select</span>
+              <span className="rounded-full border border-sky-200 bg-white/80 px-3 py-1">2 Essentials</span>
+              <span className="rounded-full border border-amber-200 bg-white/80 px-3 py-1">3 Optional Details</span>
+            </div>
+            {displayName ? (
+              <p className="mt-3 text-xs font-medium text-emerald-700">กำลังช่วยคุณ {displayName}</p>
+            ) : null}
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4 px-4 py-5">
+            <SectionCard
+              step="1"
+              title="Category select"
+              description="เริ่มจากเลือกหมวดและประเภทงานก่อน ระบบสามารถ preselect ให้ได้ถ้าคุณเปิดมาจาก LINE list menu"
+              tone="emerald"
+              badgeLabel="Required"
+            >
+              <div>
+                <p className="mb-2 block text-sm font-medium text-slate-800">
+                  ประเภทงาน <span className="text-rose-500">*</span>
+                </p>
+                <ProductTypePicker
+                  value={productType}
+                  onChange={setProductType}
+                  initialCategory={initialCategory}
+                  initialProduct={initialProduct}
+                />
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  ถ้าเปิดมาจาก LINE list menu ระบบสามารถพาคุณเข้าหมวดงานที่เกี่ยวข้องให้ได้ทันที
+                </p>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              step="2"
+              title="Essentials"
+              description="ข้อมูลส่วนนี้ใช้คำนวณราคาเบื้องต้นและติดต่อกลับทาง LINE จึงควรกรอกให้ครบ"
+              tone="sky"
+              badgeLabel="Core"
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <FieldLabel htmlFor="width" label="ขนาด" required />
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-end gap-2">
+                    <input
+                      id="width"
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="กว้าง"
+                      value={width}
+                      onChange={(e) => setWidth(e.target.value)}
+                      className={inputClassName}
+                      step="any"
+                      min="0"
+                    />
+                    <span className="pb-3 text-slate-400">×</span>
+                    <input
+                      id="height"
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="สูง"
+                      value={height}
+                      onChange={(e) => setHeight(e.target.value)}
+                      className={inputClassName}
+                      step="any"
+                      min="0"
+                    />
+                    <select
+                      aria-label="หน่วยวัด"
+                      value={unit}
+                      onChange={(e) => setUnit(e.target.value)}
+                      className={`${selectClassName} w-auto min-w-[88px]`}
+                    >
+                      {UNITS.map((u) => (
+                        <option key={u.value} value={u.value}>
+                          {u.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <FieldLabel htmlFor="qty" label="จำนวน" />
+                  <input
+                    id="qty"
+                    type="number"
+                    inputMode="numeric"
+                    value={qty}
+                    onChange={(e) => setQty(e.target.value)}
+                    className={inputClassName}
+                    min="1"
+                  />
+                </div>
+
+                <div>
+                  <FieldLabel htmlFor="dueDate" label="ต้องการใช้งานวันที่" required />
+                  <input
+                    id="dueDate"
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className={inputClassName}
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <FieldLabel htmlFor="phone" label="เบอร์โทร" required />
+                  <input
+                    id="phone"
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="08x-xxx-xxxx"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className={inputClassName}
+                  />
+                </div>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              step="3"
+              title="Optional details"
+              description="ข้อมูลเสริมช่วยให้ทีมตีโจทย์ได้เร็วขึ้น โดยเฉพาะไฟล์อ้างอิง สี และ prompt สำหรับร่างภาพตัวอย่าง"
+              tone="amber"
+              badgeLabel="Optional"
+            >
+              {uploadUrl ? (
+                <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+                  <p className="font-semibold">มีไฟล์งานหรือรูปตัวอย่างอยู่แล้ว?</p>
+                  <p className="mt-1 leading-6 text-sky-800">
+                    อัปโหลดไฟล์ไว้ก่อน แล้วค่อยวางลิงก์ลงในฟอร์มด้านล่างได้เลย
+                  </p>
+                  <a
+                    href={uploadUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex rounded-full bg-sky-600 px-4 py-2 font-semibold text-white transition hover:bg-sky-700"
+                  >
+                    {uploadLabel || "เปิดลิงก์รับไฟล์"}
+                  </a>
+                </div>
+              ) : null}
+
+              <div>
+                <FieldLabel htmlFor="note" label="รายละเอียดเพิ่มเติม" />
+                <textarea
+                  id="note"
+                  placeholder="เช่น ต้องการออกแบบ, มีไฟล์แล้ว, สีที่ต้องการ..."
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={3}
+                  className={textareaClassName}
+                />
+              </div>
+
+              <div>
+                <FieldLabel htmlFor="referenceInfo" label="ลิงก์ไฟล์อ้างอิง / รูปตัวอย่าง" />
+                <input
+                  id="referenceInfo"
+                  type="text"
+                  placeholder="วางลิงก์ Google Drive / Dropbox / LINE Album หรือรายละเอียดไฟล์"
+                  value={referenceInfo}
+                  onChange={(e) => setReferenceInfo(e.target.value)}
+                  className={inputClassName}
+                />
+                <p className="mt-1.5 text-xs leading-5 text-slate-500">
+                  ถ้าอัปโหลดไฟล์ไว้แล้ว ให้วางลิงก์ไว้ช่องนี้เพื่อให้ทีมงานเปิดดูได้ทันที
+                </p>
+              </div>
+
+              <div>
+                <FieldLabel htmlFor="aiImagePrompt" label="อยากให้ AI ร่างภาพตัวอย่าง" />
+                <textarea
+                  id="aiImagePrompt"
+                  placeholder="เช่น ป้ายร้านกาแฟสไตล์มินิมอล พื้นไม้ โลโก้สีขาว มีไฟนีออนด้านหลัง"
+                  value={aiImagePrompt}
+                  onChange={(e) => setAiImagePrompt(e.target.value)}
+                  rows={3}
+                  className={textareaClassName}
+                />
+                <p className="mt-1.5 text-xs leading-5 text-slate-500">
+                  ถ้ากรอก ทีมงานจะเห็น prompt นี้ในหลังบ้านและกดสร้างภาพตัวอย่างจาก admin ได้ทันที
+                </p>
+              </div>
+            </SectionCard>
+
+            {error ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
+
+            <div className="rounded-[28px] border border-emerald-100 bg-[linear-gradient(135deg,#f0fdf4_0%,#ffffff_58%,#ecfeff_100%)] p-4 shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">พร้อมส่งรายละเอียดแล้ว</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    ช่องที่มี * ช่วยให้ระบบประเมินราคาเบื้องต้นและส่งกลับทาง LINE ได้เร็วขึ้น
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                >
+                  {loading ? "กำลังส่ง..." : "ส่งรายละเอียดงาน"}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

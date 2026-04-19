@@ -1,7 +1,15 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PRODUCT_TYPES } from "@/lib/types";
+import {
+  PAYMENT_STATUS_LABELS,
+  PAYMENT_TERM_LABELS,
+  PRODUCT_TYPES,
+  type PaymentStatus,
+  type PaymentTerm,
+} from "@/lib/types";
 import QuoteApproveButton from "./approve-button";
+import { paymentUnlocksProduction } from "@/lib/quote-workflow";
 
 export default async function QuotePage(props: { params: Promise<{ token: string }> }) {
   const { token } = await props.params;
@@ -9,7 +17,7 @@ export default async function QuotePage(props: { params: Promise<{ token: string
 
   const { data: quote } = await supabase
     .from("quotes")
-    .select("*, quote_items(*), leads(*, customers(*))")
+    .select("*, quote_items(*), leads(*, customers(*)), jobs(id, status)")
     .eq("public_token", token)
     .single();
 
@@ -20,7 +28,16 @@ export default async function QuotePage(props: { params: Promise<{ token: string
   const items = quote.quote_items || [];
   const productLabel = PRODUCT_TYPES.find((p) => p.value === lead?.product_type)?.label || lead?.product_type || "ไม่ระบุ";
   const isApproved = quote.status === "approved";
+  const isRejected = quote.status === "rejected";
   const isExpired = quote.valid_until && new Date(quote.valid_until) < new Date();
+  const paymentTerms = quote.payment_terms as PaymentTerm;
+  const paymentStatus = quote.payment_status as PaymentStatus;
+  const hasJob = Array.isArray(quote.jobs) && quote.jobs.length > 0;
+  const productionReady = paymentUnlocksProduction(paymentTerms, paymentStatus);
+  const waitingPayment = isApproved && !hasJob && !productionReady;
+  const canRejectQuote = quote.status === "sent" && !isExpired;
+  const canRescopeQuote = !hasJob && !isExpired && (quote.status === "sent" || waitingPayment);
+  const downloadUrl = `/quote/${token}/download`;
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -31,8 +48,26 @@ export default async function QuotePage(props: { params: Promise<{ token: string
               <h1 className="text-lg font-bold text-gray-900">📄 ใบเสนอราคา</h1>
               <p className="text-xs text-gray-400 mt-1">FOGUS Print &amp; Sign</p>
             </div>
-            <div className={`px-3 py-1 rounded-full text-xs font-medium ${isApproved ? "bg-green-100 text-green-700" : isExpired ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
-              {isApproved ? "อนุมัติแล้ว" : isExpired ? "หมดอายุ" : "รอการอนุมัติ"}
+            <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+              waitingPayment
+                ? "bg-amber-100 text-amber-700"
+                : isApproved
+                  ? "bg-green-100 text-green-700"
+                  : isRejected
+                    ? "bg-rose-100 text-rose-700"
+                  : isExpired
+                    ? "bg-red-100 text-red-700"
+                    : "bg-yellow-100 text-yellow-700"
+            }`}>
+              {waitingPayment
+                ? "อนุมัติแล้ว รอชำระ"
+                : isApproved
+                  ? "อนุมัติแล้ว"
+                  : isRejected
+                    ? "ปฏิเสธแล้ว"
+                    : isExpired
+                      ? "หมดอายุ"
+                      : "รอการอนุมัติ"}
             </div>
           </div>
         </div>
@@ -70,19 +105,66 @@ export default async function QuotePage(props: { params: Promise<{ token: string
           <div className="flex justify-between text-base font-bold pt-2 border-t border-gray-100"><span>รวมทั้งสิ้น</span><span className="text-[#1a1a2e]">฿{Number(quote.total).toLocaleString()}</span></div>
         </div>
 
+        <div className="bg-white px-6 py-4 border-b border-gray-100 space-y-1 text-sm">
+          <div className="flex justify-between"><span className="text-gray-500">เงื่อนไขชำระเงิน</span><span>{PAYMENT_TERM_LABELS[paymentTerms]}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">สถานะชำระเงิน</span><span>{PAYMENT_STATUS_LABELS[paymentStatus]}</span></div>
+        </div>
+
         {quote.valid_until && (
           <div className="bg-white px-6 py-3 border-b border-gray-100">
             <p className="text-xs text-gray-400 text-center">ใบเสนอราคาใช้ได้ถึง {new Date(quote.valid_until).toLocaleDateString("th-TH")}</p>
           </div>
         )}
 
+        <div className="bg-white px-6 py-4 border-b border-gray-100">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">ต้องการเก็บเอกสารไว้ก่อน?</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  ดาวน์โหลดใบเสนอราคาแยกได้ โดยไม่เปลี่ยนสถานะการอนุมัติ
+                </p>
+              </div>
+              <Link
+                href={downloadUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+              >
+                ดาวน์โหลดใบเสนอราคา
+              </Link>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-white rounded-b-2xl px-6 py-5">
-          {isApproved ? (
+          {hasJob ? (
             <div className="text-center text-green-600 font-medium">✅ อนุมัติแล้ว — ทีมงานกำลังดำเนินการ</div>
+          ) : waitingPayment ? (
+            <div className="space-y-4">
+              <div className="text-center text-amber-600 font-medium">⏳ อนุมัติแล้ว รอทีมงานยืนยันการชำระเงินก่อนเริ่มผลิต</div>
+              {canRescopeQuote ? (
+                <QuoteApproveButton
+                  quoteToken={token}
+                  allowApprove={false}
+                  allowReject={false}
+                  allowRescope
+                />
+              ) : null}
+            </div>
+          ) : isApproved ? (
+            <div className="text-center text-green-600 font-medium">✅ อนุมัติแล้ว — ทีมงานได้รับรายการแล้ว</div>
+          ) : isRejected ? (
+            <div className="text-center text-rose-600 font-medium">🛑 ใบเสนอราคานี้ถูกปฏิเสธแล้ว</div>
           ) : isExpired ? (
             <div className="text-center text-red-500 text-sm">ใบเสนอราคานี้หมดอายุแล้ว</div>
           ) : (
-            <QuoteApproveButton quoteId={quote.id} />
+            <QuoteApproveButton
+              quoteToken={token}
+              allowApprove
+              allowReject={canRejectQuote}
+              allowRescope={canRescopeQuote}
+            />
           )}
         </div>
       </div>

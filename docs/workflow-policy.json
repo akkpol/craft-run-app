@@ -1,0 +1,382 @@
+{
+  "meta": {
+    "version": "1.0.0",
+    "mode": "current_runtime",
+    "canonicalSources": [
+      "src/lib/types.ts",
+      "src/lib/quote-workflow.ts",
+      "src/lib/workflow-transitions.ts",
+      "src/app/api/intake/route.ts",
+      "src/app/api/quotes/public/[token]/route.ts",
+      "src/app/api/quotes/[id]/commercial/route.ts",
+      "src/app/status/[token]/customer-status-actions.tsx",
+      "src/app/quote/[token]/approve-button.tsx",
+      "docs/WORKFLOW_TRANSITION_TABLE.md"
+    ],
+    "mainPath": [
+      "NEW_MESSAGE",
+      "COLLECTING_REQUIREMENTS",
+      "REQUIREMENTS_REVIEW",
+      "WAITING_QUOTE_APPROVAL",
+      "WAITING_PAYMENT|IN_DESIGN",
+      "IN_PRODUCTION",
+      "READY_FOR_FULFILLMENT",
+      "COMPLETED"
+    ],
+    "branches": [
+      "ON_HOLD_CUSTOMER_INPUT",
+      "HUMAN_REVIEW_REQUIRED",
+      "CANCELLED"
+    ],
+    "notes": [
+      "Quote approval does not always create a job.",
+      "WAITING_PAYMENT is a payment gate, not a customer quote-decision state.",
+      "revision_requested returns the next step to the team until a new preview is sent.",
+      "COMPLETED and CANCELLED are terminal conversation states."
+    ]
+  },
+  "conversation": {
+    "states": [
+      "NEW_MESSAGE",
+      "COLLECTING_REQUIREMENTS",
+      "REQUIREMENTS_REVIEW",
+      "WAITING_QUOTE_APPROVAL",
+      "WAITING_PAYMENT",
+      "IN_DESIGN",
+      "IN_PRODUCTION",
+      "READY_FOR_FULFILLMENT",
+      "ON_HOLD_CUSTOMER_INPUT",
+      "HUMAN_REVIEW_REQUIRED",
+      "COMPLETED",
+      "CANCELLED"
+    ],
+    "terminalStates": [
+      "COMPLETED",
+      "CANCELLED"
+    ],
+    "transitions": {
+      "NEW_MESSAGE": [
+        "COLLECTING_REQUIREMENTS",
+        "REQUIREMENTS_REVIEW"
+      ],
+      "COLLECTING_REQUIREMENTS": [
+        "REQUIREMENTS_REVIEW",
+        "ON_HOLD_CUSTOMER_INPUT",
+        "HUMAN_REVIEW_REQUIRED",
+        "CANCELLED"
+      ],
+      "REQUIREMENTS_REVIEW": [
+        "WAITING_QUOTE_APPROVAL",
+        "ON_HOLD_CUSTOMER_INPUT",
+        "HUMAN_REVIEW_REQUIRED",
+        "CANCELLED"
+      ],
+      "WAITING_QUOTE_APPROVAL": [
+        "REQUIREMENTS_REVIEW",
+        "WAITING_PAYMENT",
+        "IN_DESIGN",
+        "HUMAN_REVIEW_REQUIRED",
+        "CANCELLED"
+      ],
+      "WAITING_PAYMENT": [
+        "REQUIREMENTS_REVIEW",
+        "IN_DESIGN",
+        "HUMAN_REVIEW_REQUIRED",
+        "CANCELLED"
+      ],
+      "IN_DESIGN": [
+        "ON_HOLD_CUSTOMER_INPUT",
+        "HUMAN_REVIEW_REQUIRED",
+        "IN_PRODUCTION",
+        "CANCELLED"
+      ],
+      "IN_PRODUCTION": [
+        "READY_FOR_FULFILLMENT",
+        "ON_HOLD_CUSTOMER_INPUT",
+        "HUMAN_REVIEW_REQUIRED",
+        "CANCELLED"
+      ],
+      "READY_FOR_FULFILLMENT": [
+        "COMPLETED",
+        "HUMAN_REVIEW_REQUIRED",
+        "CANCELLED"
+      ],
+      "ON_HOLD_CUSTOMER_INPUT": [
+        "COLLECTING_REQUIREMENTS",
+        "REQUIREMENTS_REVIEW",
+        "IN_DESIGN",
+        "HUMAN_REVIEW_REQUIRED",
+        "CANCELLED"
+      ],
+      "HUMAN_REVIEW_REQUIRED": [
+        "COLLECTING_REQUIREMENTS",
+        "REQUIREMENTS_REVIEW",
+        "WAITING_QUOTE_APPROVAL",
+        "WAITING_PAYMENT",
+        "IN_DESIGN",
+        "IN_PRODUCTION",
+        "READY_FOR_FULFILLMENT",
+        "CANCELLED"
+      ],
+      "COMPLETED": [],
+      "CANCELLED": []
+    }
+  },
+  "quote_payment": {
+    "quoteStatuses": [
+      "draft",
+      "sent",
+      "approved",
+      "rejected",
+      "expired"
+    ],
+    "paymentTerms": [
+      "prepaid",
+      "deposit",
+      "credit"
+    ],
+    "paymentStatuses": [
+      "unpaid",
+      "partial",
+      "paid",
+      "not_required"
+    ],
+    "unlockRules": {
+      "credit": [
+        "not_required",
+        "paid"
+      ],
+      "deposit": [
+        "partial",
+        "paid"
+      ],
+      "prepaid": [
+        "paid"
+      ]
+    },
+    "approvalDecisions": {
+      "unlockedNextState": "IN_DESIGN",
+      "lockedNextState": "WAITING_PAYMENT"
+    }
+  },
+  "design_job": {
+    "designStatuses": [
+      "not_started",
+      "drafting",
+      "preview_sent",
+      "revision_requested",
+      "approved"
+    ],
+    "customerResponseStatuses": [
+      "preview_sent"
+    ],
+    "teamOwnedStatuses": [
+      "revision_requested"
+    ],
+    "jobStatuses": [
+      "IN_DESIGN",
+      "IN_PRODUCTION",
+      "READY_FOR_FULFILLMENT",
+      "ON_HOLD_CUSTOMER_INPUT",
+      "HUMAN_REVIEW_REQUIRED",
+      "COMPLETED",
+      "CANCELLED"
+    ],
+    "jobTransitions": {
+      "IN_DESIGN": [
+        "ON_HOLD_CUSTOMER_INPUT",
+        "HUMAN_REVIEW_REQUIRED",
+        "IN_PRODUCTION",
+        "CANCELLED"
+      ],
+      "ON_HOLD_CUSTOMER_INPUT": [
+        "IN_DESIGN",
+        "CANCELLED"
+      ],
+      "HUMAN_REVIEW_REQUIRED": [
+        "IN_DESIGN",
+        "CANCELLED"
+      ],
+      "IN_PRODUCTION": [
+        "READY_FOR_FULFILLMENT",
+        "CANCELLED"
+      ],
+      "READY_FOR_FULFILLMENT": [
+        "COMPLETED",
+        "CANCELLED"
+      ],
+      "COMPLETED": [],
+      "CANCELLED": []
+    },
+    "constraints": {
+      "designApprovalConversationState": "IN_DESIGN",
+      "designRevisionConversationState": "ON_HOLD_CUSTOMER_INPUT",
+      "preJobDesignApprovalFallbackState": "REQUIREMENTS_REVIEW",
+      "productionRequiresPayment": true,
+      "productionAllowedDesignStatuses": [
+        "approved",
+        "not_started"
+      ]
+    }
+  },
+  "surfaces": {
+    "quote_page": {
+      "baseSections": [
+        "quote_header",
+        "quote_summary",
+        "quote_items",
+        "quote_totals"
+      ],
+      "ctaCatalog": [
+        "approve_quote",
+        "reject_quote",
+        "rescope_quote",
+        "view_payment_instruction",
+        "download_quote",
+        "contact_admin"
+      ],
+      "conditionalSections": {
+        "decision": "quote_decision_panel",
+        "waitingPayment": "waiting_payment_panel",
+        "closed": "quote_closed_notice"
+      }
+    },
+    "status_page": {
+      "baseSections": [
+        "current_status_badge",
+        "timeline",
+        "latest_note"
+      ],
+      "ctaCatalog": [
+        "resolve_hold",
+        "approve_design",
+        "request_design_revision",
+        "contact_admin"
+      ],
+      "conditionalSections": {
+        "preview": "design_preview_gallery",
+        "responseBox": "customer_response_box",
+        "teamOwned": "team_follow_up_notice"
+      }
+    },
+    "admin_dashboard": {
+      "baseSections": [
+        "lead_pipeline",
+        "quote_controls",
+        "payment_controls",
+        "job_controls"
+      ],
+      "ctaCatalog": [
+        "send_quote",
+        "record_payment",
+        "send_preview",
+        "move_to_production",
+        "cancel_job"
+      ]
+    },
+    "flow_page": {
+      "baseSections": [
+        "workflow_hero",
+        "customer_journey",
+        "workflow_states"
+      ],
+      "ctaCatalog": [
+        "inspect_policy",
+        "inspect_transition_table"
+      ]
+    }
+  },
+  "policies": {
+    "actors": [
+      "customer",
+      "admin",
+      "designer",
+      "production",
+      "finance",
+      "system",
+      "dev_ai"
+    ],
+    "reasons": {
+      "quoteAlreadyApproved": "Quote is already approved and the customer should move to payment or delivery of required input.",
+      "quoteClosed": "Quote is no longer open for customer decision.",
+      "paymentGate": "Customer should move toward payment confirmation, not quote approval.",
+      "designWaiting": "Customer can respond to the current preview.",
+      "teamOwnedRevision": "The team owns the next step until a new preview is sent.",
+      "holdResolution": "Customer can provide missing input to clear the hold.",
+      "terminalConversation": "Terminal conversations must not be reused for a fresh intake."
+    },
+    "surfacePolicies": {
+      "quote_page": {
+        "customer": {
+          "baseAllowedActions": [
+            "view_quote",
+            "download_quote",
+            "contact_admin"
+          ],
+          "decisionWindowStatuses": [
+            "sent"
+          ],
+          "rejectionWindowStatuses": [
+            "sent"
+          ],
+          "rescopeWindowStatuses": [
+            "sent",
+            "approved"
+          ],
+          "paymentGateCtas": [
+            "view_payment_instruction",
+            "contact_admin",
+            "rescope_quote"
+          ],
+          "decisionCtas": [
+            "approve_quote",
+            "reject_quote",
+            "rescope_quote"
+          ],
+          "closedCtas": [
+            "contact_admin"
+          ]
+        }
+      },
+      "status_page": {
+        "customer": {
+          "baseAllowedActions": [
+            "view_status",
+            "contact_admin"
+          ],
+          "previewResponseActions": [
+            "approve_design",
+            "request_design_revision"
+          ],
+          "holdResolutionActions": [
+            "resolve_hold"
+          ]
+        }
+      },
+      "admin_dashboard": {
+        "admin": {
+          "baseAllowedActions": [
+            "send_quote",
+            "record_payment",
+            "send_preview",
+            "move_to_production",
+            "cancel_job"
+          ]
+        }
+      },
+      "flow_page": {
+        "dev_ai": {
+          "baseAllowedActions": [
+            "inspect_policy",
+            "inspect_transition_table"
+          ]
+        }
+      }
+    },
+    "guardRails": [
+      "Do not offer approve_quote once the bundle is already payment-gated.",
+      "Treat revision_requested as team-owned until preview_sent appears again.",
+      "Do not reuse terminal conversations for new customer intake work."
+    ]
+  }
+}

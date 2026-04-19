@@ -1,10 +1,20 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notFound } from "next/navigation";
-import { PRODUCT_TYPES } from "@/lib/types";
+import {
+  DESIGN_STATUS_LABELS,
+  PRODUCT_TYPES,
+  designStatusNeedsCustomerResponse,
+  isDesignStatus,
+  type DesignStatus,
+} from "@/lib/types";
+import CustomerStatusActions from "./customer-status-actions";
 
 const STATUS_DISPLAY: Record<string, { label: string; color: string; icon: string }> = {
-  JOB_CREATED: { label: "สร้างงานแล้ว", color: "bg-blue-100 text-blue-700", icon: "📋" },
-  IN_PROGRESS: { label: "กำลังดำเนินการ", color: "bg-yellow-100 text-yellow-700", icon: "🔧" },
+  IN_DESIGN: { label: "กำลังออกแบบ", color: "bg-violet-100 text-violet-700", icon: "🎨" },
+  IN_PRODUCTION: { label: "กำลังผลิต", color: "bg-yellow-100 text-yellow-700", icon: "🏭" },
+  READY_FOR_FULFILLMENT: { label: "พร้อมส่งมอบ", color: "bg-blue-100 text-blue-700", icon: "📦" },
+  ON_HOLD_CUSTOMER_INPUT: { label: "รอข้อมูลจากลูกค้า", color: "bg-amber-100 text-amber-700", icon: "📝" },
+  HUMAN_REVIEW_REQUIRED: { label: "ทีมงานกำลังตรวจสอบ", color: "bg-rose-100 text-rose-700", icon: "🙋" },
   COMPLETED: { label: "เสร็จสมบูรณ์", color: "bg-green-100 text-green-700", icon: "✅" },
   CANCELLED: { label: "ยกเลิก", color: "bg-red-100 text-red-700", icon: "❌" },
 };
@@ -33,6 +43,14 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
 
   const productLabel = PRODUCT_TYPES.find((p) => p.value === lead?.product_type)?.label || lead?.product_type || "ไม่ระบุ";
   const statusInfo = STATUS_DISPLAY[job?.status] || { label: job?.status || "ไม่ระบุ", color: "bg-gray-100 text-gray-700", icon: "📋" };
+  const designStatus: DesignStatus | null = isDesignStatus(lead?.design_status || "")
+    ? (lead.design_status as DesignStatus)
+    : null;
+  const showDesignActions = designStatusNeedsCustomerResponse(designStatus);
+  const showHoldResolution =
+    job?.status === "ON_HOLD_CUSTOMER_INPUT" &&
+    !showDesignActions &&
+    Boolean(lead?.hold_reason);
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -62,6 +80,57 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
             <p><span className="text-gray-500">ราคารวม:</span> <span className="font-medium">฿{Number(quote.total).toLocaleString()}</span></p>
           </div>
         </div>
+
+        {(lead?.hold_reason || lead?.human_review_reason) && (
+          <div className="bg-white px-6 py-4 border-b border-gray-100">
+            <h2 className="text-sm font-medium text-gray-500 mb-2">หมายเหตุล่าสุด</h2>
+            {lead?.hold_reason ? (
+              <p className="text-sm text-amber-700">ลูกค้ายังต้องส่งข้อมูลเพิ่ม: {lead.hold_reason}</p>
+            ) : null}
+            {lead?.human_review_reason ? (
+              <p className="text-sm text-rose-700">ทีมงานกำลังตรวจสอบ: {lead.human_review_reason}</p>
+            ) : null}
+          </div>
+        )}
+
+        {(lead?.design_status || (Array.isArray(lead?.ai_generated_images) && lead.ai_generated_images.length > 0)) && (
+          <div className="bg-white px-6 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-medium text-gray-500">สถานะแบบ</h2>
+              {designStatus ? (
+                <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700">
+                  {DESIGN_STATUS_LABELS[designStatus]}
+                </span>
+              ) : null}
+            </div>
+
+            {Array.isArray(lead?.ai_generated_images) && lead.ai_generated_images.length > 0 ? (
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                {lead.ai_generated_images.map((imageUrl: string) => (
+                  <a
+                    key={imageUrl}
+                    href={imageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+                  >
+                    <img src={imageUrl} alt="Design preview" className="h-36 w-full object-cover" />
+                  </a>
+                ))}
+              </div>
+            ) : null}
+
+            {(showDesignActions || showHoldResolution) ? (
+              <div className="mt-4">
+                <CustomerStatusActions
+                  quoteToken={token}
+                  canResolveHold={showHoldResolution}
+                  canApproveDesign={showDesignActions}
+                />
+              </div>
+            ) : null}
+          </div>
+        )}
 
         {/* Timeline */}
         {timeline.length > 0 && (

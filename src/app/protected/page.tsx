@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation'
 
-import { LogoutButton } from '@/components/logout-button'
+import {
+  hasConfiguredAdminAllowlist,
+  isAdminEmailAllowed,
+} from '@/lib/admin-access'
 import { createClient } from '@/lib/supabase/server'
 
 export default async function ProtectedPage() {
@@ -11,12 +14,15 @@ export default async function ProtectedPage() {
     redirect('/auth/login')
   }
 
-  return (
-    <div className="flex h-svh w-full items-center justify-center gap-2">
-      <p>
-        Hello <span>{data.claims.email}</span>
-      </p>
-      <LogoutButton />
-    </div>
-  )
+  const email = typeof data.claims.email === 'string' ? data.claims.email : null
+
+  if (!hasConfiguredAdminAllowlist()) {
+    redirect('/auth/login?error=admin_allowlist_missing')
+  }
+
+  if (!isAdminEmailAllowed(email)) {
+    redirect('/auth/login?error=admin_not_allowed')
+  }
+
+  redirect('/admin')
 }

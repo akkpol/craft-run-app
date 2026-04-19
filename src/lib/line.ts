@@ -3,22 +3,28 @@ import {
   validateSignature,
   WebhookEvent,
 } from "@line/bot-sdk";
+import { getRuntimeAppConfig } from "@/lib/app-settings";
+import type { ProductionEventType } from "@/lib/production-review";
 
-const config = {
-  channelSecret: process.env.LINE_CHANNEL_SECRET!,
-  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN!,
-};
-
-export const lineClient = new messagingApi.MessagingApiClient({
-  channelAccessToken: config.channelAccessToken,
-});
-
-export function verifySignature(body: string, signature: string): boolean {
-  return validateSignature(body, config.channelSecret, signature);
+export async function getLineClient() {
+  const config = await getRuntimeAppConfig();
+  return new messagingApi.MessagingApiClient({
+    channelAccessToken: config.lineChannelAccessToken,
+  });
 }
 
-export function parseLiffUrl(path: string): string {
-  return `https://liff.line.me/${process.env.LIFF_ID}${path}`;
+export async function verifySignature(body: string, signature: string): Promise<boolean> {
+  const config = await getRuntimeAppConfig();
+  if (!config.lineChannelSecret) {
+    return false;
+  }
+
+  return validateSignature(body, config.lineChannelSecret, signature);
+}
+
+export async function parseLiffUrl(path: string): Promise<string> {
+  const config = await getRuntimeAppConfig();
+  return `https://liff.line.me/${config.liffId}${path}`;
 }
 
 // Reply with LIFF intake link + quick reply options
@@ -26,7 +32,8 @@ export async function replyWithIntakeLink(
   replyToken: string,
   displayName: string
 ) {
-  const liffUrl = parseLiffUrl("/intake");
+  const liffUrl = await parseLiffUrl("/intake");
+  const lineClient = await getLineClient();
 
   const bubble: messagingApi.FlexBubble = {
     type: "bubble",
@@ -117,7 +124,9 @@ export async function pushQuoteLink(
   quoteToken: string,
   leadSummary: string
 ) {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+  const config = await getRuntimeAppConfig();
+  const lineClient = await getLineClient();
+  const baseUrl = config.baseUrl;
   const quoteUrl = `${baseUrl}/quote/${quoteToken}`;
 
   const bubble: messagingApi.FlexBubble = {
@@ -142,7 +151,7 @@ export async function pushQuoteLink(
         },
         {
           type: "text",
-          text: "กรุณาตรวจสอบและอนุมัติใบเสนอราคาค่ะ",
+          text: "กรุณาตรวจสอบและอนุมัติใบเสนอราคา เมื่ออนุมัติแล้วทีมงานจะแจ้งขั้นตอนชำระเงินและเริ่มงานตามคิวให้ค่ะ",
           size: "sm",
           color: "#999999",
           margin: "md",
@@ -182,29 +191,96 @@ export async function pushQuoteLink(
   });
 }
 
+function getCustomerStatusCopy(status: string, statusUrl: string): string {
+  const statusCopy: Record<string, string> = {
+    WAITING_PAYMENT:
+      `💳 งานได้รับการยืนยันแล้ว\nกรุณารอทีมงานแจ้งยอดและยืนยันการชำระเงินก่อนเริ่มงาน\n\nดูสถานะงาน: ${statusUrl}`,
+    IN_DESIGN:
+      `🎨 ทีมออกแบบกำลังจัดทำแบบให้ค่ะ\nหากมีข้อมูลหรือไฟล์เพิ่มเติม สามารถส่งกลับมาในแชต LINE ได้เลย\n\nดูสถานะงาน: ${statusUrl}`,
+    IN_PRODUCTION:
+      `🏭 งานเข้าสู่ขั้นตอนผลิตแล้ว\nทีมงานกำลังดำเนินการตามแบบที่อนุมัติไว้ค่ะ\n\nดูสถานะงาน: ${statusUrl}`,
+    READY_FOR_FULFILLMENT:
+      `✅ งานผ่าน QC แล้วและพร้อมส่งมอบ\nทีมงานจะนัดรับงานหรือจัดส่งให้ตามรูปแบบที่เลือกไว้ค่ะ\n\nดูสถานะงาน: ${statusUrl}`,
+    ON_HOLD_CUSTOMER_INPUT:
+      `📝 งานรอข้อมูลเพิ่มเติมจากลูกค้า\nเมื่อส่งข้อมูลครบแล้ว ทีมงานจะเดินงานต่อให้ทันทีค่ะ\n\nดูสถานะงาน: ${statusUrl}`,
+    HUMAN_REVIEW_REQUIRED:
+      `🙋 ทีมงานกำลังตรวจสอบรายละเอียดเพิ่มเติม\nหากต้องมีการยืนยันข้อมูลเพิ่มเติม เราจะติดต่อกลับทาง LINE ค่ะ\n\nดูสถานะงาน: ${statusUrl}`,
+    COMPLETED:
+      `🎉 งานเสร็จสมบูรณ์แล้ว\nหากเป็นรับที่หน้าร้าน กรุณานัดรับงานได้เลย และหากเป็นจัดส่ง ทีมงานได้ดำเนินการส่งมอบเรียบร้อยค่ะ\n\nดูสถานะงาน: ${statusUrl}`,
+    CANCELLED:
+      `❌ งานถูกยกเลิกแล้ว\nหากต้องการเริ่มรายการใหม่หรือสอบถามเพิ่มเติม สามารถทักหาเราได้ทาง LINE ค่ะ\n\nดูสถานะงาน: ${statusUrl}`,
+  };
+
+  return statusCopy[status] || `📋 มีการอัปเดตสถานะงาน\nสถานะล่าสุด: ${status}\n\nดูสถานะงาน: ${statusUrl}`;
+}
+
+function getProductionEventLabel(eventType: ProductionEventType): string {
+  if (eventType === "ready_for_production") {
+    return "หลักฐานก่อนเริ่มผลิต";
+  }
+
+  if (eventType === "completed") {
+    return "หลักฐานงานเสร็จ";
+  }
+
+  return "หลักฐาน proof";
+}
+
 // Send status update to customer
 export async function pushStatusUpdate(
   userId: string,
   status: string,
   statusToken: string
 ) {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-  const statusLabels: Record<string, string> = {
-    JOB_CREATED: "✅ สร้างงานเรียบร้อย",
-    IN_PROGRESS: "🔧 กำลังดำเนินการ",
-    COMPLETED: "🎉 งานเสร็จสมบูรณ์",
-  };
-
-  const label = statusLabels[status] || `📋 สถานะ: ${status}`;
+  const config = await getRuntimeAppConfig();
+  const lineClient = await getLineClient();
+  const baseUrl = config.baseUrl;
+  const statusUrl = `${baseUrl}/status/${statusToken}`;
 
   const textMsg: messagingApi.TextMessage = {
     type: "text",
-    text: `${label}\n\nดูสถานะงาน: ${baseUrl}/status/${statusToken}`,
+    text: getCustomerStatusCopy(status, statusUrl),
   };
 
   await lineClient.pushMessage({
     to: userId,
     messages: [textMsg],
+  });
+}
+
+export async function pushProductionEvidenceUpdate(input: {
+  userId: string;
+  statusToken: string;
+  eventType: ProductionEventType;
+  note?: string | null;
+  assetUrls: string[];
+}) {
+  const config = await getRuntimeAppConfig();
+  const lineClient = await getLineClient();
+  const baseUrl = config.baseUrl;
+  const statusUrl = `${baseUrl}/status/${input.statusToken}`;
+  const assetLines = input.assetUrls
+    .slice(0, 3)
+    .map((url, index) => `${index + 1}. ${url}`)
+    .join("\n");
+
+  const text = [
+    `📷 มี${getProductionEventLabel(input.eventType)}จากทีมงาน`,
+    input.note ? `หมายเหตุ: ${input.note}` : null,
+    assetLines ? `ไฟล์แนบ:\n${assetLines}` : null,
+    `ดูสถานะงาน: ${statusUrl}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  await lineClient.pushMessage({
+    to: input.userId,
+    messages: [
+      {
+        type: "text",
+        text,
+      },
+    ],
   });
 }
 

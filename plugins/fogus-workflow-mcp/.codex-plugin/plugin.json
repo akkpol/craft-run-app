@@ -1,0 +1,41 @@
+{
+  "name": "fogus-workflow-mcp",
+  "version": "1.0.0",
+  "description": "Local MCP guard rail for FOGUS workflow decisions and UI scope.",
+  "author": {
+    "name": "OpenAI",
+    "email": "support@openai.com",
+    "url": "https://openai.com/"
+  },
+  "homepage": "https://openai.com/",
+  "repository": "https://github.com/openai/codex",
+  "license": "UNLICENSED",
+  "keywords": [
+    "fogus",
+    "workflow",
+    "mcp"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "FOGUS Workflow Guard",
+    "shortDescription": "Deterministic workflow checks for FOGUS agent work.",
+    "longDescription": "Exposes canonical workflow summary, allowed customer and admin actions, transition validation, and UI contracts from the repo's current runtime workflow policy.",
+    "developerName": "OpenAI",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://openai.com/",
+    "privacyPolicyURL": "https://openai.com/policies/privacy-policy/",
+    "termsOfServiceURL": "https://openai.com/policies/terms-of-use/",
+    "defaultPrompt": [
+      "Summarize the current FOGUS workflow and guard rails.",
+      "Validate whether this state transition is in scope.",
+      "Tell me which CTAs should render on this customer page."
+    ],
+    "brandColor": "#1A1A2E",
+    "screenshots": []
+  }
+}
