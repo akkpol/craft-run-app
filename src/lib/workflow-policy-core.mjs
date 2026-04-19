@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { URL, fileURLToPath } from "node:url";
+import { fileURLToPath } from "node:url";
 
 let cachedPolicy = null;
 
 function loadWorkflowPolicy() {
   if (!cachedPolicy) {
-    const moduleDir = fileURLToPath(new URL(".", import.meta.url));
+    const moduleDir = path.dirname(fileURLToPath(import.meta.url));
     const policyPath = path.join(
       moduleDir,
       "..",

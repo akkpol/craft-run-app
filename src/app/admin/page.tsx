@@ -162,6 +162,28 @@ export default async function AdminPage() {
         </div>
       </div>
 
+      {/* KPIs (Top-first layout for easier data binding) */}
+      <div className="px-4 py-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="admin-kpi-card p-4">
+            <p className="text-2xl font-bold text-[#1a1a2e]">{kpis.leadsCount}</p>
+            <p className="text-xs text-gray-500">Leads</p>
+          </div>
+          <div className="admin-kpi-card p-4">
+            <p className="text-2xl font-bold text-yellow-600">{kpis.quotesWaitingApproval}</p>
+            <p className="text-xs text-gray-500">รอลูกค้าอนุมัติ</p>
+          </div>
+          <div className="admin-kpi-card p-4">
+            <p className="text-2xl font-bold text-blue-600">{kpis.activeJobsCount}</p>
+            <p className="text-xs text-gray-500">งานที่กำลังทำ</p>
+          </div>
+          <div className="admin-kpi-card p-4">
+            <p className="text-2xl font-bold text-red-600">{kpis.escalationsCount}</p>
+            <p className="text-xs text-gray-500">Escalations</p>
+          </div>
+        </div>
+      </div>
+
       <div className="px-4 pb-4">
         <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
@@ -273,28 +295,6 @@ export default async function AdminPage() {
                 ))}
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* KPIs */}
-      <div className="px-4 py-4">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="admin-kpi-card p-4">
-            <p className="text-2xl font-bold text-[#1a1a2e]">{kpis.leadsCount}</p>
-            <p className="text-xs text-gray-500">Leads</p>
-          </div>
-          <div className="admin-kpi-card p-4">
-            <p className="text-2xl font-bold text-yellow-600">{kpis.quotesWaitingApproval}</p>
-            <p className="text-xs text-gray-500">รอลูกค้าอนุมัติ</p>
-          </div>
-          <div className="admin-kpi-card p-4">
-            <p className="text-2xl font-bold text-blue-600">{kpis.activeJobsCount}</p>
-            <p className="text-xs text-gray-500">งานที่กำลังทำ</p>
-          </div>
-          <div className="admin-kpi-card p-4">
-            <p className="text-2xl font-bold text-red-600">{kpis.escalationsCount}</p>
-            <p className="text-xs text-gray-500">Escalations</p>
           </div>
         </div>
       </div>
