@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createProductionSubmission } from "@/lib/production-media";
+import { logHumanAction } from "@/lib/action-log";
 
 export async function POST(
   request: NextRequest,
@@ -17,13 +18,23 @@ export async function POST(
     .filter((value): value is File => value instanceof File);
 
   try {
+    const supabase = createAdminClient();
     const result = await createProductionSubmission({
-      supabase: createAdminClient(),
+      supabase,
       token,
       eventType,
       note,
       submittedByLabel,
       files,
+    });
+
+    await logHumanAction(supabase, {
+      entityType: "job",
+      entityId: token,
+      actionType: "job.production_event",
+      actorLabel: submittedByLabel || "Factory",
+      note: note || undefined,
+      payload: { event_type: eventType, token, file_count: files.length },
     });
 
     return NextResponse.json({ success: true, ...result });

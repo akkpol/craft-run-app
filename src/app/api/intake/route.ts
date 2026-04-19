@@ -14,6 +14,7 @@ import {
   canTransitionConversationState,
   isTerminalConversationState,
 } from "@/lib/workflow-transitions";
+import { logSystemAction } from "@/lib/action-log";
 
 export async function POST(request: NextRequest) {
   let data: IntakeFormData;
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
   const qty = data.qty;
 
   // 1. Upsert customer
-  const { data: customer } = await supabase
+  const { data: customer, error: customerError } = await supabase
     .from("customers")
     .upsert(
       {
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
 
   if (!customer) {
     return NextResponse.json(
-      { error: "Failed to create customer" },
+      { error: `Failed to create customer${customerError ? `: ${customerError.message}` : ""}` },
       { status: 500 }
     );
   }
@@ -71,13 +72,21 @@ export async function POST(request: NextRequest) {
   // 2. Find or create conversation
   let conversationId: string;
   let conversationState: WorkflowState = "NEW_MESSAGE";
-  const { data: existingConv } = await supabase
+  const { data: existingConvRows, error: existingConvError } = await supabase
     .from("conversations")
     .select("id, state")
     .eq("line_user_id", data.lineUserId)
     .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
+    .limit(1);
+
+  if (existingConvError) {
+    return NextResponse.json(
+      { error: `Failed to load conversation: ${existingConvError.message}` },
+      { status: 500 }
+    );
+  }
+
+  const existingConv = existingConvRows?.[0] ?? null;
 
   if (existingConv) {
     if (!isWorkflowState(existingConv.state)) {
@@ -97,12 +106,22 @@ export async function POST(request: NextRequest) {
       );
     }
   } else {
-    const { data: newConv } = await supabase
+    const { data: newConv, error: newConvError } = await supabase
       .from("conversations")
       .insert({ line_user_id: data.lineUserId, state: "REQUIREMENTS_REVIEW" })
       .select("id")
       .single();
-    conversationId = newConv!.id;
+
+    if (!newConv?.id) {
+      return NextResponse.json(
+        {
+          error: `Failed to create conversation${newConvError ? `: ${newConvError.message}` : ""}`,
+        },
+        { status: 500 }
+      );
+    }
+
+    conversationId = newConv.id;
     conversationState = "REQUIREMENTS_REVIEW";
   }
 
@@ -133,7 +152,7 @@ export async function POST(request: NextRequest) {
     : null;
   const leadDefaults = getLeadOperationalDefaults(data.fulfillmentMode);
 
-  const { data: lead } = await supabase
+  const { data: lead, error: leadError } = await supabase
     .from("leads")
     .insert({
       conversation_id: conversationId,
@@ -159,7 +178,7 @@ export async function POST(request: NextRequest) {
 
   if (!lead) {
     return NextResponse.json(
-      { error: "Failed to create lead" },
+      { error: `Failed to create lead${leadError ? `: ${leadError.message}` : ""}` },
       { status: 500 }
     );
   }
@@ -170,6 +189,15 @@ export async function POST(request: NextRequest) {
       .from("conversations")
       .update({ state: "ON_HOLD_CUSTOMER_INPUT" })
       .eq("id", conversationId);
+
+    await logSystemAction(supabase, {
+      entityType: "lead",
+      entityId: lead.id,
+      actionType: "lead.created",
+      serviceName: "intake",
+      note: "Lead created — incomplete data, waiting for customer input",
+      payload: { conversation_id: conversationId, state: "ON_HOLD_CUSTOMER_INPUT", needs_review: true },
+    });
 
     return NextResponse.json({
       success: true,
@@ -189,7 +217,7 @@ export async function POST(request: NextRequest) {
     PRODUCT_TYPES.find((p) => p.value === data.productType)?.label ||
     data.productType;
 
-  const { data: quote } = await supabase
+  const { data: quote, error: quoteError } = await supabase
     .from("quotes")
     .insert({
       lead_id: lead.id,
@@ -206,7 +234,7 @@ export async function POST(request: NextRequest) {
 
   if (!quote) {
     return NextResponse.json(
-      { error: "Failed to create quote" },
+      { error: `Failed to create quote${quoteError ? `: ${quoteError.message}` : ""}` },
       { status: 500 }
     );
   }
@@ -224,6 +252,21 @@ export async function POST(request: NextRequest) {
     .from("conversations")
     .update({ state: "WAITING_QUOTE_APPROVAL" })
     .eq("id", conversationId);
+
+  await logSystemAction(supabase, {
+    entityType: "lead",
+    entityId: lead.id,
+    actionType: "lead.created",
+    serviceName: "intake",
+    payload: { conversation_id: conversationId, product_type: data.productType },
+  });
+  await logSystemAction(supabase, {
+    entityType: "quote",
+    entityId: quote.id,
+    actionType: "quote.created",
+    serviceName: "intake",
+    payload: { lead_id: lead.id, total, payment_terms: paymentTerms, to_state: "WAITING_QUOTE_APPROVAL" },
+  });
 
   // 9. Send quote link to customer via LINE push
   try {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { applyProductionReviewAction } from "@/lib/production-media";
+import { logHumanAction } from "@/lib/action-log";
 
 export async function POST(
   request: NextRequest,
@@ -17,12 +18,22 @@ export async function POST(
   }
 
   try {
+    const supabase = createAdminClient();
     const result = await applyProductionReviewAction({
-      supabase: createAdminClient(),
+      supabase,
       eventId: id,
       action: "reject",
       reviewNote: body.reviewNote,
       reviewedBy: "admin",
+    });
+
+    await logHumanAction(supabase, {
+      entityType: "job",
+      entityId: id,
+      actionType: "job.production_event",
+      actorLabel: "Admin",
+      note: body.reviewNote,
+      payload: { action: "reject", event_id: id },
     });
 
     return NextResponse.json({ success: true, ...result });

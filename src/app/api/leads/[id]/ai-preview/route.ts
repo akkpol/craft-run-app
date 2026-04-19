@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateLeadAiPreview } from "@/lib/ai-images";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAiAction } from "@/lib/action-log";
 
 export async function POST(
   _request: NextRequest,
@@ -87,6 +88,13 @@ export async function POST(
         : Promise.resolve(),
     ]);
 
+    await logAiAction(supabase, {
+      entityType: "lead",
+      entityId: id,
+      actionType: "lead.ai_preview_generated",
+      payload: { success: true, image_count: imageUrls.length, job_id: relatedJob?.id ?? null },
+    });
+
     return NextResponse.json({ success: true, imageUrls });
   } catch (generationError) {
     const message = generationError instanceof Error ? generationError.message : "AI image generation failed";
@@ -95,6 +103,14 @@ export async function POST(
       .from("leads")
       .update({ ai_image_status: "failed", ai_image_error: message })
       .eq("id", id);
+
+    await logAiAction(supabase, {
+      entityType: "lead",
+      entityId: id,
+      actionType: "lead.ai_preview_generated",
+      note: `AI image generation failed: ${message}`,
+      payload: { success: false, error: message },
+    });
 
     return NextResponse.json({ error: message }, { status: 500 });
   }

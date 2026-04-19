@@ -10,6 +10,7 @@ import {
 import { paymentUnlocksProduction } from "@/lib/quote-workflow";
 import { ALLOWED_JOB_TRANSITIONS } from "@/lib/workflow-transitions";
 import { createOrReuseActiveProductionLink } from "@/lib/production-media";
+import { logHumanAction } from "@/lib/action-log";
 
 function getLeadStatusForJobStatus(status: JobStatus): string {
   if (status === "COMPLETED") {
@@ -211,6 +212,15 @@ export async function POST(
   } catch (error) {
     console.error("Failed to notify customer:", error);
   }
+
+  await logHumanAction(supabase, {
+    entityType: "job",
+    entityId: id,
+    actionType: "job.status_changed",
+    actorLabel: "Admin",
+    note: body.note,
+    payload: { from: existingJob.status, to: nextStatus, production_link_url: productionLinkUrl },
+  });
 
   return NextResponse.json({
     success: true,

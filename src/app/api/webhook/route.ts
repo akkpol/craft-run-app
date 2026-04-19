@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { WebhookEvent } from "@line/bot-sdk";
 import { canTransitionConversationState } from "@/lib/workflow-transitions";
 import { isWorkflowState } from "@/lib/types";
+import { logSystemAction, logHumanAction } from "@/lib/action-log";
 
 export async function POST(request: NextRequest) {
   // 1. Read raw body for signature verification
@@ -35,13 +36,19 @@ export async function POST(request: NextRequest) {
         const messageText = event.message.text;
 
         // 3a. Upsert conversation
-        const { data: existingConv } = await supabase
+        const { data: existingConvRows, error: existingConvError } = await supabase
           .from("conversations")
           .select("id, state")
           .eq("line_user_id", userId)
           .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
+          .limit(1);
+
+        if (existingConvError) {
+          console.error("Failed to load existing conversation:", existingConvError.message);
+          continue;
+        }
+
+        const existingConv = existingConvRows?.[0] ?? null;
 
         let conversationId: string;
 
@@ -52,12 +59,29 @@ export async function POST(request: NextRequest) {
             .update({ last_message_at: new Date().toISOString() })
             .eq("id", conversationId);
         } else {
-          const { data: newConv } = await supabase
+          const { data: newConv, error: newConvError } = await supabase
             .from("conversations")
             .insert({ line_user_id: userId, state: "NEW_MESSAGE" })
             .select("id")
             .single();
-          conversationId = newConv!.id;
+
+          if (!newConv?.id) {
+            console.error(
+              "Failed to create conversation:",
+              newConvError?.message || "conversation insert returned null"
+            );
+            continue;
+          }
+
+          conversationId = newConv.id;
+          await logSystemAction(supabase, {
+            entityType: "conversation",
+            entityId: conversationId,
+            actionType: "conversation.created",
+            serviceName: "webhook",
+            note: "New conversation from LINE message",
+            payload: { state: "NEW_MESSAGE", line_user_id: userId },
+          });
         }
 
         // 3b. Save raw message (always first, before reply)
@@ -121,6 +145,16 @@ export async function POST(request: NextRequest) {
             .update({ state: "HUMAN_REVIEW_REQUIRED" })
             .eq("id", conversationId);
 
+          await logHumanAction(supabase, {
+            entityType: "conversation",
+            entityId: conversationId,
+            actionType: "conversation.escalated",
+            actorId: userId,
+            actorLabel: displayName,
+            note: "Customer requested human support",
+            payload: { to: "HUMAN_REVIEW_REQUIRED", trigger: messageText },
+          });
+
           if (event.replyToken) {
             await lineClient.replyMessage({
               replyToken: event.replyToken,
@@ -166,6 +200,14 @@ export async function POST(request: NextRequest) {
               .from("conversations")
               .update({ state: "COLLECTING_REQUIREMENTS" })
               .eq("id", conversationId);
+
+            await logSystemAction(supabase, {
+              entityType: "conversation",
+              entityId: conversationId,
+              actionType: "conversation.state_changed",
+              serviceName: "webhook",
+              payload: { from: existingConv?.state ?? "NEW_MESSAGE", to: "COLLECTING_REQUIREMENTS" },
+            });
           }
 
           // Accumulate chat notes

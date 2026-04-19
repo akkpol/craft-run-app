@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   approveQuote,
 } from "@/lib/quote-workflow";
+import { logHumanAction } from "@/lib/action-log";
 
 // Next.js 16: async params
 export async function POST(
@@ -25,6 +26,13 @@ export async function POST(
 
   try {
     const result = await approveQuote(supabase, quote);
+    await logHumanAction(supabase, {
+      entityType: "quote",
+      entityId: id,
+      actionType: "quote.approved",
+      actorLabel: "Admin",
+      payload: { result },
+    });
     return NextResponse.json(result);
   } catch {
     return NextResponse.json(
