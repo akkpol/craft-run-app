@@ -21,6 +21,8 @@ export default async function IntakePage(props: {
   const initialCategory = firstValue(searchParams.category);
   const initialProduct =
     firstValue(searchParams.product) || firstValue(searchParams.productType);
+  const intakeMode =
+    firstValue(searchParams.mode) === "fresh" ? "fresh" : "resume";
 
   return (
     <IntakeForm
@@ -29,6 +31,7 @@ export default async function IntakePage(props: {
       uploadLabel={config.customerUploadLabel}
       initialCategory={initialCategory}
       initialProduct={initialProduct}
+      intakeMode={intakeMode}
     />
   );
 }

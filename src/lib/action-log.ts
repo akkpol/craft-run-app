@@ -34,6 +34,7 @@ export type ActionType =
   | "lead.created"
   | "lead.design_status_changed"
   | "lead.hold_customer_input"
+  | "lead.superseded"
   // Quote
   | "quote.created"
   | "quote.sent"

@@ -1,4 +1,5 @@
-import type { JobStatus, WorkflowState } from "@/lib/types";
+import type { JobStatus } from "./types";
+import { normalizeWorkflowState, type WorkflowState } from "./workflow-state";
 
 export const ALLOWED_JOB_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
   IN_DESIGN: [
@@ -78,6 +79,22 @@ export const ALLOWED_CONVERSATION_TRANSITIONS: Record<
   COMPLETED: [],
   CANCELLED: [],
 };
+
+export function getReusableConversationState(
+  currentStateValue: string | null | undefined,
+  nextState: WorkflowState
+): WorkflowState | null {
+  const currentState = normalizeWorkflowState(currentStateValue);
+
+  if (!currentState) {
+    return null;
+  }
+
+  return currentState === nextState ||
+    canTransitionConversationState(currentState, nextState)
+    ? currentState
+    : null;
+}
 
 export function getAllowedConversationTransitions(
   currentState: WorkflowState

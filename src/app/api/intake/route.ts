@@ -6,15 +6,62 @@ import {
   calculatePrice,
   PRODUCT_TYPES,
   isPaymentTerm,
-  isWorkflowState,
 } from "@/lib/types";
 import type { IntakeFormData, WorkflowState } from "@/lib/types";
 import { getLeadOperationalDefaults } from "@/lib/quote-workflow";
 import {
   canTransitionConversationState,
-  isTerminalConversationState,
+  getReusableConversationState,
 } from "@/lib/workflow-transitions";
 import { logSystemAction } from "@/lib/action-log";
+
+const ACTIVE_JOB_STATUSES = new Set([
+  "IN_DESIGN",
+  "IN_PRODUCTION",
+  "READY_FOR_FULFILLMENT",
+  "ON_HOLD_CUSTOMER_INPUT",
+  "HUMAN_REVIEW_REQUIRED",
+]);
+
+const ACTIVE_QUOTE_STATUSES = new Set(["draft", "sent", "approved"]);
+
+type CandidateLead = {
+  id: string;
+  conversation_id: string | null;
+  status: string;
+  created_at: string;
+  superseded_at?: string | null;
+  quotes?:
+    | {
+        id: string;
+        status: string;
+        jobs?: Array<{ id: string; status: string }> | null;
+      }[]
+    | null;
+};
+
+function isLeadStillActive(lead: CandidateLead): boolean {
+  if (lead.superseded_at) {
+    return false;
+  }
+
+  if (lead.status === "superseded" || lead.status === "cancelled") {
+    return false;
+  }
+
+  const quotes = lead.quotes || [];
+  if (quotes.length === 0) {
+    return true;
+  }
+
+  return quotes.some((quote) => {
+    const jobs = quote.jobs || [];
+    return (
+      ACTIVE_QUOTE_STATUSES.has(quote.status) ||
+      jobs.some((job) => ACTIVE_JOB_STATUSES.has(job.status))
+    );
+  });
+}
 
 export async function POST(request: NextRequest) {
   let data: IntakeFormData;
@@ -35,6 +82,9 @@ export async function POST(request: NextRequest) {
   if (!data.phone) errors.push("phone is required");
   if (data.paymentTerms && !isPaymentTerm(data.paymentTerms)) {
     errors.push("paymentTerms is invalid");
+  }
+  if (data.intakeMode && !["resume", "fresh"].includes(data.intakeMode)) {
+    errors.push("intakeMode is invalid");
   }
 
   if (errors.length > 0) {
@@ -87,23 +137,33 @@ export async function POST(request: NextRequest) {
   }
 
   const existingConv = existingConvRows?.[0] ?? null;
+  const forceFreshConversation = data.intakeMode === "fresh";
+  const reusableConversationState = getReusableConversationState(
+    existingConv?.state,
+    "REQUIREMENTS_REVIEW"
+  );
+  const shouldReuseConversation = Boolean(
+    !forceFreshConversation && existingConv && reusableConversationState
+  );
 
-  if (existingConv) {
-    if (!isWorkflowState(existingConv.state)) {
-      return NextResponse.json(
-        { error: "Conversation has invalid workflow state" },
-        { status: 500 }
-      );
-    }
-
+  if (existingConv && reusableConversationState && !forceFreshConversation) {
     conversationId = existingConv.id;
-    conversationState = existingConv.state;
+    conversationState = reusableConversationState;
 
-    if (isTerminalConversationState(existingConv.state)) {
-      return NextResponse.json(
-        { error: `Conversation is already ${existingConv.state}` },
-        { status: 409 }
-      );
+    if (reusableConversationState !== existingConv.state) {
+      const { error: normalizeConversationError } = await supabase
+        .from("conversations")
+        .update({ state: reusableConversationState })
+        .eq("id", conversationId);
+
+      if (normalizeConversationError) {
+        return NextResponse.json(
+          {
+            error: `Failed to normalize conversation state: ${normalizeConversationError.message}`,
+          },
+          { status: 500 }
+        );
+      }
     }
   } else {
     const { data: newConv, error: newConvError } = await supabase
@@ -126,23 +186,21 @@ export async function POST(request: NextRequest) {
   }
 
   // 3. Update conversation state
-  if (
-    existingConv &&
-    conversationState !== "REQUIREMENTS_REVIEW" &&
-    !canTransitionConversationState(conversationState, "REQUIREMENTS_REVIEW")
-  ) {
-    return NextResponse.json(
-      {
-        error: `Cannot move conversation from ${conversationState} to REQUIREMENTS_REVIEW`,
-      },
-      { status: 409 }
-    );
-  }
+  if (shouldReuseConversation && conversationState !== "REQUIREMENTS_REVIEW") {
+    const { error: updateConversationError } = await supabase
+      .from("conversations")
+      .update({ state: "REQUIREMENTS_REVIEW" })
+      .eq("id", conversationId);
 
-  await supabase
-    .from("conversations")
-    .update({ state: "REQUIREMENTS_REVIEW" })
-    .eq("id", conversationId);
+    if (updateConversationError) {
+      return NextResponse.json(
+        {
+          error: `Failed to update conversation: ${updateConversationError.message}`,
+        },
+        { status: 500 }
+      );
+    }
+  }
 
   // 4. Create lead
   const needsReview =
@@ -183,6 +241,99 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (forceFreshConversation) {
+    const { data: priorLeadRows, error: priorLeadError } = await supabase
+      .from("leads")
+      .select(
+        "id, conversation_id, status, created_at, superseded_at, quotes(id, status, jobs(id, status)), conversations!inner(line_user_id)"
+      )
+      .eq("conversations.line_user_id", data.lineUserId)
+      .neq("id", lead.id)
+      .is("superseded_at", null)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (priorLeadError) {
+      return NextResponse.json(
+        { error: `Failed to load prior leads: ${priorLeadError.message}` },
+        { status: 500 }
+      );
+    }
+
+    const previousActiveLead = ((priorLeadRows || []) as CandidateLead[]).find(
+      isLeadStillActive
+    );
+
+    if (previousActiveLead) {
+      const supersededAt = new Date().toISOString();
+      const supersedeNote = `Superseded by fresh intake lead ${lead.id}`;
+
+      const { error: supersedeLeadError } = await supabase
+        .from("leads")
+        .update({
+          status: "superseded",
+          superseded_by_lead_id: lead.id,
+          superseded_at: supersededAt,
+          supersede_reason: "Customer started a fresh request in LINE",
+        })
+        .eq("id", previousActiveLead.id);
+
+      if (supersedeLeadError) {
+        return NextResponse.json(
+          { error: `Failed to supersede previous lead: ${supersedeLeadError.message}` },
+          { status: 500 }
+        );
+      }
+
+      if (previousActiveLead.conversation_id) {
+        const { data: previousConversation } = await supabase
+          .from("conversations")
+          .select("state")
+          .eq("id", previousActiveLead.conversation_id)
+          .maybeSingle();
+
+        if (
+          previousConversation?.state &&
+          previousConversation.state !== "CANCELLED" &&
+          previousConversation.state !== "COMPLETED" &&
+          canTransitionConversationState(previousConversation.state, "CANCELLED")
+        ) {
+          await supabase
+            .from("conversations")
+            .update({ state: "CANCELLED" })
+            .eq("id", previousActiveLead.conversation_id);
+
+          await logSystemAction(supabase, {
+            entityType: "conversation",
+            entityId: previousActiveLead.conversation_id,
+            actionType: "conversation.state_changed",
+            serviceName: "intake",
+            note: supersedeNote,
+            payload: {
+              from: previousConversation.state,
+              to: "CANCELLED",
+              replacement_lead_id: lead.id,
+              replacement_mode: "fresh",
+            },
+          });
+        }
+      }
+
+      await logSystemAction(supabase, {
+        entityType: "lead",
+        entityId: previousActiveLead.id,
+        actionType: "lead.superseded",
+        serviceName: "intake",
+        note: supersedeNote,
+        payload: {
+          superseded_by_lead_id: lead.id,
+          replacement_conversation_id: conversationId,
+          replacement_mode: "fresh",
+        },
+      });
+    }
+  }
+
   // 5. If data incomplete, park the conversation until the customer adds more info
   if (needsReview) {
     await supabase
@@ -196,7 +347,12 @@ export async function POST(request: NextRequest) {
       actionType: "lead.created",
       serviceName: "intake",
       note: "Lead created — incomplete data, waiting for customer input",
-      payload: { conversation_id: conversationId, state: "ON_HOLD_CUSTOMER_INPUT", needs_review: true },
+      payload: {
+        conversation_id: conversationId,
+        state: "ON_HOLD_CUSTOMER_INPUT",
+        needs_review: true,
+        intake_mode: data.intakeMode ?? "resume",
+      },
     });
 
     return NextResponse.json({
@@ -258,14 +414,24 @@ export async function POST(request: NextRequest) {
     entityId: lead.id,
     actionType: "lead.created",
     serviceName: "intake",
-    payload: { conversation_id: conversationId, product_type: data.productType },
+    payload: {
+      conversation_id: conversationId,
+      product_type: data.productType,
+      intake_mode: data.intakeMode ?? "resume",
+    },
   });
   await logSystemAction(supabase, {
     entityType: "quote",
     entityId: quote.id,
     actionType: "quote.created",
     serviceName: "intake",
-    payload: { lead_id: lead.id, total, payment_terms: paymentTerms, to_state: "WAITING_QUOTE_APPROVAL" },
+    payload: {
+      lead_id: lead.id,
+      total,
+      payment_terms: paymentTerms,
+      to_state: "WAITING_QUOTE_APPROVAL",
+      intake_mode: data.intakeMode ?? "resume",
+    },
   });
 
   // 9. Send quote link to customer via LINE push
