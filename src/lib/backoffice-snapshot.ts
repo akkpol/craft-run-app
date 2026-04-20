@@ -24,6 +24,9 @@ export type SnapshotConversation = {
 export type SnapshotLead = {
   id: string;
   conversation_id: string | null;
+  superseded_by_lead_id?: string | null;
+  superseded_at?: string | null;
+  supersede_reason?: string | null;
   product_type: string;
   width_mm: number;
   height_mm: number;
@@ -332,6 +335,7 @@ export async function fetchBackofficeSnapshot(): Promise<BackofficeSnapshot> {
 }
 
 export function getBackofficeKpis(snapshot: BackofficeSnapshot) {
+  const activeLeads = snapshot.leads.filter((lead) => !lead.superseded_at);
   const quotesWaitingApproval = snapshot.quotes.filter(
     (quote) => quote.status === "sent"
   ).length;
@@ -345,7 +349,7 @@ export function getBackofficeKpis(snapshot: BackofficeSnapshot) {
   ).length;
 
   return {
-    leadsCount: snapshot.leads.length,
+    leadsCount: activeLeads.length,
     quotesWaitingApproval,
     activeJobsCount,
     escalationsCount: snapshot.escalations.length,

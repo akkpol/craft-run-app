@@ -27,12 +27,17 @@ export async function parseLiffUrl(path: string): Promise<string> {
   return `https://liff.line.me/${config.liffId}${path}`;
 }
 
+async function buildLiffUrlWithMode(mode?: "resume" | "fresh"): Promise<string> {
+  const path = mode ? `/intake?mode=${mode}` : "/intake";
+  return parseLiffUrl(path);
+}
+
 // Reply with LIFF intake link + quick reply options
 export async function replyWithIntakeLink(
   replyToken: string,
   displayName: string
 ) {
-  const liffUrl = await parseLiffUrl("/intake");
+  const liffUrl = await buildLiffUrlWithMode("resume");
   const lineClient = await getLineClient();
 
   const bubble: messagingApi.FlexBubble = {
@@ -115,6 +120,129 @@ export async function replyWithIntakeLink(
   await lineClient.replyMessage({
     replyToken,
     messages: [flexMessage],
+  });
+}
+
+export async function replyWithResumeOrFreshChoice(
+  replyToken: string,
+  displayName: string
+) {
+  const resumeUrl = await buildLiffUrlWithMode("resume");
+  const freshUrl = await buildLiffUrlWithMode("fresh");
+  const lineClient = await getLineClient();
+
+  const bubble: messagingApi.FlexBubble = {
+    type: "bubble",
+    hero: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "FOGUS Workflow",
+          weight: "bold",
+          size: "lg",
+          align: "center",
+          color: "#0f172a",
+        },
+      ],
+      paddingAll: "20px",
+      backgroundColor: "#ecfeff",
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: `สวัสดีค่ะ คุณ${displayName}`,
+          weight: "bold",
+          size: "md",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: "ต้องการทำรายการเดิมต่อจากข้อมูลที่ค้างไว้ หรือเริ่มคำขอใหม่ตั้งแต่ต้นคะ",
+          size: "sm",
+          color: "#475569",
+          margin: "md",
+          wrap: true,
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          margin: "lg",
+          spacing: "sm",
+          contents: [
+            {
+              type: "text",
+              text: "ทำรายการเดิมต่อ: ใช้ flow เดิมและเติมข้อมูลที่ยังขาด",
+              size: "xs",
+              color: "#0f766e",
+              wrap: true,
+            },
+            {
+              type: "text",
+              text: "เริ่มงานใหม่: เปิดคำขอใหม่อีกชุดตั้งแต่ต้น",
+              size: "xs",
+              color: "#9a3412",
+              wrap: true,
+            },
+          ],
+        },
+      ],
+      paddingAll: "16px",
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          height: "md",
+          action: {
+            type: "uri",
+            label: "ทำรายการเดิมต่อ",
+            uri: resumeUrl,
+          },
+          color: "#0f766e",
+        },
+        {
+          type: "button",
+          style: "secondary",
+          height: "md",
+          action: {
+            type: "uri",
+            label: "เริ่มงานใหม่",
+            uri: freshUrl,
+          },
+        },
+        {
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: {
+            type: "message",
+            label: "คุยกับแอดมิน",
+            text: "ขอคุยกับแอดมิน",
+          },
+        },
+      ],
+      paddingAll: "16px",
+    },
+  };
+
+  await lineClient.replyMessage({
+    replyToken,
+    messages: [
+      {
+        type: "flex",
+        altText: "เลือกว่าจะทำรายการเดิมต่อหรือเริ่มงานใหม่",
+        contents: bubble,
+      },
+    ],
   });
 }
 

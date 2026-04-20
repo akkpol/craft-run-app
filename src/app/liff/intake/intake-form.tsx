@@ -109,12 +109,14 @@ export default function IntakeForm({
   uploadLabel,
   initialCategory,
   initialProduct,
+  intakeMode,
 }: {
   liffId: string;
   uploadUrl?: string;
   uploadLabel?: string;
   initialCategory?: string;
   initialProduct?: string;
+  intakeMode: "resume" | "fresh";
 }) {
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -231,6 +233,7 @@ export default function IntakeForm({
             note,
             referenceInfo,
             aiImagePrompt,
+            intakeMode,
           }),
         });
 
@@ -256,7 +259,21 @@ export default function IntakeForm({
         setLoading(false);
       }
     },
-    [productType, width, height, unit, qty, dueDate, phone, note, referenceInfo, aiImagePrompt, lineUserId, displayName]
+    [
+      productType,
+      width,
+      height,
+      unit,
+      qty,
+      dueDate,
+      phone,
+      note,
+      referenceInfo,
+      aiImagePrompt,
+      lineUserId,
+      displayName,
+      intakeMode,
+    ]
   );
 
   if (!ready) {
@@ -300,6 +317,11 @@ export default function IntakeForm({
               <span className="rounded-full border border-sky-200 bg-white/80 px-3 py-1">2 Essentials</span>
               <span className="rounded-full border border-amber-200 bg-white/80 px-3 py-1">3 Optional Details</span>
             </div>
+            <p className="mt-3 text-xs font-medium text-slate-500">
+              {intakeMode === "fresh"
+                ? "โหมดนี้จะเปิดคำขอใหม่ตั้งแต่ต้น"
+                : "โหมดนี้ใช้สำหรับทำรายการเดิมต่อหรือเติมข้อมูลที่ค้างไว้"}
+            </p>
             {displayName ? (
               <p className="mt-3 text-xs font-medium text-emerald-700">กำลังช่วยคุณ {displayName}</p>
             ) : null}

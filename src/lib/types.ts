@@ -1,22 +1,13 @@
 import { type AppLocale } from "./locale";
+import {
+  WORKFLOW_STATES,
+  isWorkflowState,
+  normalizeWorkflowState,
+  type WorkflowState,
+} from "./workflow-state";
 
-// Workflow states — hardcoded, never derived
-export const WORKFLOW_STATES = [
-  "NEW_MESSAGE",
-  "COLLECTING_REQUIREMENTS",
-  "REQUIREMENTS_REVIEW",
-  "WAITING_QUOTE_APPROVAL",
-  "WAITING_PAYMENT",
-  "IN_DESIGN",
-  "IN_PRODUCTION",
-  "READY_FOR_FULFILLMENT",
-  "ON_HOLD_CUSTOMER_INPUT",
-  "HUMAN_REVIEW_REQUIRED",
-  "COMPLETED",
-  "CANCELLED",
-] as const;
-
-export type WorkflowState = (typeof WORKFLOW_STATES)[number];
+export { WORKFLOW_STATES, isWorkflowState, normalizeWorkflowState };
+export type { WorkflowState };
 
 export const JOB_STATUSES = [
   "IN_DESIGN",
@@ -427,10 +418,6 @@ export function getProductTypeLabel(
   return localizedLabels[productType] ?? fallbackLabels[productType] ?? productType;
 }
 
-export function isWorkflowState(value: string): value is WorkflowState {
-  return WORKFLOW_STATES.includes(value as WorkflowState);
-}
-
 export function isJobStatus(value: string): value is JobStatus {
   return JOB_STATUSES.includes(value as JobStatus);
 }
@@ -493,6 +480,7 @@ export interface IntakeFormData {
   aiImagePrompt?: string;
   paymentTerms?: PaymentTerm;
   fulfillmentMode?: FulfillmentMode;
+  intakeMode?: "resume" | "fresh";
 }
 
 export interface ConversationRow {
