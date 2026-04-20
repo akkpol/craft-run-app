@@ -1,4 +1,4 @@
-import { type AppLocale } from "./locale";
+import { type AppLocale } from "./locale.ts";
 
 // Workflow states — hardcoded, never derived
 export const WORKFLOW_STATES = [
