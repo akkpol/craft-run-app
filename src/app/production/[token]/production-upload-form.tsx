@@ -1,16 +1,25 @@
 "use client";
 
 import { useState } from "react";
+import { type ProductionUploadFormCopy } from "@/lib/production-copy";
+import { type ProductionEventType } from "@/lib/production-review";
 
-const EVENT_OPTIONS = [
-  { value: "proof", label: "Proof" },
-  { value: "ready_for_production", label: "Ready for production" },
-  { value: "completed", label: "Completed" },
-] as const;
+type ProductionEventOption = {
+  value: ProductionEventType;
+  label: string;
+};
 
-export default function ProductionUploadForm({ token }: { token: string }) {
+export default function ProductionUploadForm({
+  token,
+  copy,
+  eventOptions,
+}: {
+  token: string;
+  copy: ProductionUploadFormCopy;
+  eventOptions: readonly ProductionEventOption[];
+}) {
   const [eventType, setEventType] =
-    useState<(typeof EVENT_OPTIONS)[number]["value"]>("proof");
+    useState<ProductionEventType>(eventOptions[0]?.value ?? "proof");
   const [submittedByLabel, setSubmittedByLabel] = useState("");
   const [note, setNote] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -41,17 +50,17 @@ export default function ProductionUploadForm({ token }: { token: string }) {
       const payload = await response.json();
 
       if (!response.ok) {
-        setError(payload.error || "Upload failed");
+        setError(payload.error || copy.uploadFailed);
         return;
       }
 
-      setMessage("อัปโหลดหลักฐานเรียบร้อยแล้ว รอแอดมินตรวจสอบก่อนส่งลูกค้า");
+      setMessage(copy.successMessage);
       setNote("");
       setFiles([]);
       const form = event.currentTarget;
       form.reset();
     } catch {
-      setError("Upload failed");
+      setError(copy.uploadFailed);
     } finally {
       setLoading(false);
     }
@@ -60,13 +69,13 @@ export default function ProductionUploadForm({ token }: { token: string }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <label className="grid gap-2 text-sm text-slate-700">
-        <span>ประเภทหลักฐาน</span>
+        <span>{copy.eventTypeLabel}</span>
         <select
           value={eventType}
-          onChange={(e) => setEventType(e.target.value as (typeof EVENT_OPTIONS)[number]["value"])}
+          onChange={(e) => setEventType(e.target.value as ProductionEventType)}
           className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400"
         >
-          {EVENT_OPTIONS.map((option) => (
+          {eventOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
@@ -75,28 +84,28 @@ export default function ProductionUploadForm({ token }: { token: string }) {
       </label>
 
       <label className="grid gap-2 text-sm text-slate-700">
-        <span>ชื่อผู้ส่ง</span>
+        <span>{copy.submittedByLabel}</span>
         <input
           value={submittedByLabel}
           onChange={(e) => setSubmittedByLabel(e.target.value)}
           className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400"
-          placeholder="เช่น ฝ่ายผลิต A"
+          placeholder={copy.submittedByPlaceholder}
         />
       </label>
 
       <label className="grid gap-2 text-sm text-slate-700">
-        <span>หมายเหตุ</span>
+        <span>{copy.noteLabel}</span>
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={3}
           className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400"
-          placeholder="เช่น งานพิมพ์ผ่านแล้ว รอเข้าเครื่อง"
+          placeholder={copy.notePlaceholder}
         />
       </label>
 
       <label className="grid gap-2 text-sm text-slate-700">
-        <span>รูปหลักฐาน</span>
+        <span>{copy.filesLabel}</span>
         <input
           type="file"
           accept="image/*"
@@ -105,9 +114,7 @@ export default function ProductionUploadForm({ token }: { token: string }) {
           onChange={(e) => setFiles(Array.from(e.target.files || []))}
           className="block text-sm"
         />
-        <p className="text-xs text-slate-500">
-          รองรับหลายรูปในครั้งเดียว และจะส่งเข้า queue รอแอดมินตรวจสอบก่อน
-        </p>
+        <p className="text-xs text-slate-500">{copy.filesHint}</p>
       </label>
 
       {error ? (
@@ -126,7 +133,7 @@ export default function ProductionUploadForm({ token }: { token: string }) {
         disabled={loading || files.length === 0}
         className="w-full rounded-full bg-[#0f172a] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#111c35] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {loading ? "กำลังอัปโหลด..." : "ส่งหลักฐานเข้าคิวตรวจ"}
+        {loading ? copy.submitLoadingLabel : copy.submitIdleLabel}
       </button>
     </form>
   );

@@ -52,6 +52,7 @@ This plan defines a deterministic production handoff process for delivering the 
 | TASK-007 | Configure LINE Messaging API webhook URL to `<base-url>/api/webhook`. |  |  |
 | TASK-008 | Configure LIFF endpoint URL to `<base-url>/liff` and verify LIFF ID mapping. |  |  |
 | TASK-009 | Verify admin runtime settings path `/admin/settings` updates base URL and LINE/LIFF settings correctly. |  |  |
+| TASK-010 | Verify company runtime settings auto-derive `webhookUrl` and `liffEndpointUrl` from `base_url`, and confirm which configuration values are manually entered versus computed. |  |  |
 
 ### Implementation Phase 3
 
@@ -59,12 +60,13 @@ This plan defines a deterministic production handoff process for delivering the 
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-010 | Validate webhook signature behavior (valid request returns success, invalid signature returns unauthorized). |  |  |
-| TASK-011 | Validate LINE chat to LIFF flow and intake submission creates lead + quote records. |  |  |
-| TASK-012 | Validate quote approval outcomes for `credit`, `deposit`, and `prepaid` payment terms. |  |  |
-| TASK-013 | Validate status timeline updates and customer status page rendering. |  |  |
-| TASK-014 | Validate admin status updates trigger expected LINE push notifications. |  |  |
-| TASK-015 | Validate escalation keyword flow creates escalation records and routing behavior. |  |  |
+| TASK-011 | Validate webhook signature behavior (valid request returns success, invalid signature returns unauthorized). |  |  |
+| TASK-012 | Validate LINE chat to LIFF flow and intake submission creates lead + quote records. |  |  |
+| TASK-013 | Validate quote approval outcomes for `credit`, `deposit`, and `prepaid` payment terms. |  |  |
+| TASK-014 | Validate downloadable quote PDF flow and confirm company branding appears correctly on the printable document. |  |  |
+| TASK-015 | Validate status timeline updates and customer status page rendering. |  |  |
+| TASK-016 | Validate admin status updates trigger expected LINE push notifications. |  |  |
+| TASK-017 | Validate escalation keyword flow creates escalation records and routing behavior. |  |  |
 
 ### Implementation Phase 4
 
@@ -72,17 +74,28 @@ This plan defines a deterministic production handoff process for delivering the 
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-016 | Prepare handoff dossier: deployed URL, admin URL, required env key list, and rotation instructions. |  |  |
-| TASK-017 | Deliver customer operations runbook (incident triage, restart/redeploy, key rotation, rollback trigger). |  |  |
-| TASK-018 | Record release evidence: command outputs, screenshots, and test outcomes mapped to requirements IDs. |  |  |
-| TASK-019 | Conduct Go/No-Go review using section 7 risks and assumptions. |  |  |
-| TASK-020 | Obtain customer acceptance sign-off and schedule hypercare window (48-72 hours). |  |  |
+| TASK-018 | Prepare handoff dossier: deployed URL, admin URL, required env key list, rotation instructions, and document/PDF access notes. |  |  |
+| TASK-019 | Deliver customer operations runbook (incident triage, restart/redeploy, key rotation, rollback trigger). |  |  |
+| TASK-020 | Record release evidence: command outputs, screenshots, quote PDF output, and test outcomes mapped to requirements IDs. |  |  |
+| TASK-021 | Conduct Go/No-Go review using section 7 risks and assumptions. |  |  |
+| TASK-022 | Obtain customer acceptance sign-off and schedule hypercare window (48-72 hours). |  |  |
+
+### Implementation Phase 5
+
+- GOAL-005: Define the finance-ready extension after the initial customer handoff path is stable.
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-023 | Design downloadable invoice and billing document flow using `docs/INVOICE_FLOW_PATCH.md` as future-state context, without silently changing the canonical runtime workflow first. |  |  |
+| TASK-024 | Define accounting export requirements, table structure, and period-end export format so records can be handed to an outsourced accountant. |  |  |
+| TASK-025 | Decide whether finance-ready handoff is a hard pre-launch requirement or a controlled post-launch phase for this customer. |  |  |
 
 ## 3. Alternatives
 
 - **ALT-001**: Skip workflow smoke verification to reduce time. Rejected because this repo treats workflow policy as canonical and requires enforcement checks.
 - **ALT-002**: Perform handoff before full LINE/LIFF E2E test completion. Rejected because integration misconfiguration is the highest-likelihood production failure mode.
 - **ALT-003**: Treat build failure caused by generated artifacts as source defect immediately. Rejected because clean build validated source integrity.
+- **ALT-004**: Assume invoice and accountant export already exist because quote PDF exists. Rejected because quote PDF is implemented, but invoice and accountant export are still future-state requirements.
 
 ## 4. Dependencies
 
@@ -91,6 +104,7 @@ This plan defines a deterministic production handoff process for delivering the 
 - **DEP-003**: LINE Developers Console access for Messaging API and LIFF app setup.
 - **DEP-004**: Customer decision owner availability for UAT sign-off.
 - **DEP-005**: Stable public base URL for webhook and LIFF endpoint registration.
+- **DEP-006**: Finance stakeholder decision on whether invoice and accountant export are launch blockers or post-launch additions.
 
 ## 5. Files
 
@@ -101,6 +115,8 @@ This plan defines a deterministic production handoff process for delivering the 
 - **FILE-005**: `AI_WORKFLOW_GUARD.md` - required policy enforcement process.
 - **FILE-006**: `scripts/workflow-policy-smoke.mjs` - workflow consistency smoke test entry point.
 - **FILE-007**: `package.json` - quality/build scripts and runtime metadata.
+- **FILE-008**: `src/app/quote/[token]/download/page.tsx` - printable quote document.
+- **FILE-009**: `docs/INVOICE_FLOW_PATCH.md` - invoice future-state design context.
 
 ## 6. Testing
 
@@ -110,7 +126,8 @@ This plan defines a deterministic production handoff process for delivering the 
 - **TEST-004**: Webhook endpoint verification test for valid and invalid signature cases.
 - **TEST-005**: LINE to LIFF to intake to quote creation end-to-end scenario.
 - **TEST-006**: Quote approval and payment-gate matrix test across payment term combinations.
-- **TEST-007**: Admin job status change to LINE push notification delivery test.
+- **TEST-007**: Quote PDF renders correctly with company branding and totals.
+- **TEST-008**: Admin job status change to LINE push notification delivery test.
 
 ## 7. Risks & Assumptions
 
@@ -118,6 +135,7 @@ This plan defines a deterministic production handoff process for delivering the 
 - **RISK-002**: Customer may register LIFF endpoint incorrectly (`/liff/intake` instead of `/liff`).
 - **RISK-003**: Stale local build artifacts may produce false-negative build outcomes during validation.
 - **RISK-004**: Existing lint warnings from raw `<img>` usage can evolve into stricter policy failures if CI rules change.
+- **RISK-005**: Finance requirements can expand significantly if invoice, payment confirmation, and accountant export are combined without a separate decision gate.
 - **ASSUMPTION-001**: Customer will provide full console access (Vercel, Supabase, LINE) before UAT window.
 - **ASSUMPTION-002**: Production domain and TLS are available before final webhook/LIFF registration.
 - **ASSUMPTION-003**: Workflow policy JSON remains unchanged during handoff window.

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDesignStatus } from "@/lib/types";
+import { logHumanAction } from "@/lib/action-log";
 
 function appendNote(existing: string | null | undefined, note: string) {
   return existing?.trim() ? `${existing.trim()}\n${note}` : note;
@@ -82,6 +83,15 @@ export async function POST(
         .eq("id", lead.conversation_id);
     }
 
+    await logHumanAction(supabase, {
+      entityType: "lead",
+      entityId: id,
+      actionType: "lead.design_status_changed",
+      actorLabel: "Admin",
+      note: note || "แอดมิน mark ว่าส่งแบบให้ลูกค้าตรวจแล้ว",
+      payload: { design_status: "preview_sent", job_id: job?.id ?? null },
+    });
+
     return NextResponse.json({ success: true, designStatus: "preview_sent" });
   }
 
@@ -114,6 +124,15 @@ export async function POST(
         .update({ state: "ON_HOLD_CUSTOMER_INPUT" })
         .eq("id", lead.conversation_id);
     }
+
+    await logHumanAction(supabase, {
+      entityType: "lead",
+      entityId: id,
+      actionType: "lead.design_status_changed",
+      actorLabel: "Admin",
+      note: note || "ลูกค้าขอแก้แบบ",
+      payload: { design_status: "revision_requested", job_id: job?.id ?? null },
+    });
 
     return NextResponse.json({ success: true, designStatus: "revision_requested" });
   }
@@ -179,6 +198,15 @@ export async function POST(
       .update({ state: "IN_DESIGN" })
       .eq("id", lead.conversation_id);
   }
+
+  await logHumanAction(supabase, {
+    entityType: "lead",
+    entityId: id,
+    actionType: "lead.design_status_changed",
+    actorLabel: "Admin",
+    note,
+    payload: { design_status: body.designStatus ?? "approved", job_id: job?.id ?? null },
+  });
 
   return NextResponse.json({ success: true, designStatus: "approved" });
 }

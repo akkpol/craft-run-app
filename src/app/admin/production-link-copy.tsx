@@ -31,7 +31,7 @@ export default function ProductionLinkCopy({
           : "rounded-full border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700"
       }
     >
-      {copied ? "คัดลอกแล้ว" : "คัดลอก production link"}
+      {copied ? "คัดลอกแล้ว" : "คัดลอกลิงก์ทีมผลิต"}
     </button>
   );
 }

@@ -1,20 +1,13 @@
-// Workflow states — hardcoded, never derived
-export const WORKFLOW_STATES = [
-  "NEW_MESSAGE",
-  "COLLECTING_REQUIREMENTS",
-  "REQUIREMENTS_REVIEW",
-  "WAITING_QUOTE_APPROVAL",
-  "WAITING_PAYMENT",
-  "IN_DESIGN",
-  "IN_PRODUCTION",
-  "READY_FOR_FULFILLMENT",
-  "ON_HOLD_CUSTOMER_INPUT",
-  "HUMAN_REVIEW_REQUIRED",
-  "COMPLETED",
-  "CANCELLED",
-] as const;
+import { type AppLocale } from "./locale";
+import {
+  WORKFLOW_STATES,
+  isWorkflowState,
+  normalizeWorkflowState,
+  type WorkflowState,
+} from "./workflow-state";
 
-export type WorkflowState = (typeof WORKFLOW_STATES)[number];
+export { WORKFLOW_STATES, isWorkflowState, normalizeWorkflowState };
+export type { WorkflowState };
 
 export const JOB_STATUSES = [
   "IN_DESIGN",
@@ -157,14 +150,203 @@ export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   CANCELLED: "ยกเลิก",
 };
 
+const LOCALIZED_DESIGN_STATUS_LABELS: Record<
+  AppLocale,
+  Record<DesignStatus, string>
+> = {
+  th: DESIGN_STATUS_LABELS,
+  my: {
+    not_started: "ဒီဇိုင်း မစရသေးပါ",
+    drafting: "ဒီဇိုင်းရေးဆွဲနေသည်",
+    preview_sent: "နမူနာပေးပို့ပြီး",
+    revision_requested: "ပြင်ဆင်ရန် တောင်းဆိုထားသည်",
+    approved: "ဖောက်သည် အတည်ပြုပြီး",
+  },
+  en: {
+    not_started: "Not started",
+    drafting: "Drafting",
+    preview_sent: "Preview sent",
+    revision_requested: "Revision requested",
+    approved: "Approved",
+  },
+};
+
+const LOCALIZED_PAYMENT_TERM_LABELS: Record<
+  AppLocale,
+  Record<PaymentTerm, string>
+> = {
+  th: PAYMENT_TERM_LABELS,
+  my: {
+    prepaid: "အလုပ်မစမီ အပြည့်ပေးချေ",
+    deposit: "အလုပ်မစမီ စပေါ်ငွေ",
+    credit: "ဖောက်သည် ခရက်ဒစ်",
+  },
+  en: {
+    prepaid: "Pay in full before production",
+    deposit: "Deposit before production",
+    credit: "Customer credit",
+  },
+};
+
+const LOCALIZED_PAYMENT_STATUS_LABELS: Record<
+  AppLocale,
+  Record<PaymentStatus, string>
+> = {
+  th: PAYMENT_STATUS_LABELS,
+  my: {
+    unpaid: "မပေးချေရသေး",
+    partial: "စပေါ်ငွေ လက်ခံပြီး",
+    paid: "အပြည့် ပေးချေပြီး",
+    not_required: "မထုတ်လုပ်မီ ပေးချေရန် မလို",
+  },
+  en: {
+    unpaid: "Unpaid",
+    partial: "Partially paid",
+    paid: "Paid in full",
+    not_required: "Not required before production",
+  },
+};
+
+const LOCALIZED_WORKFLOW_STATE_LABELS: Record<
+  AppLocale,
+  Record<WorkflowState, string>
+> = {
+  th: WORKFLOW_STATE_LABELS,
+  my: {
+    NEW_MESSAGE: "စကားပြောစတင်",
+    COLLECTING_REQUIREMENTS: "လိုအပ်ချက်များ စုဆောင်းနေသည်",
+    REQUIREMENTS_REVIEW: "လိုအပ်ချက်များ စစ်ဆေးနေသည်",
+    WAITING_QUOTE_APPROVAL: "ဈေးနှုန်းအတည်ပြုချက် စောင့်နေသည်",
+    WAITING_PAYMENT: "ငွေပေးချေမှု စောင့်နေသည်",
+    IN_DESIGN: "ဒီဇိုင်းလုပ်နေသည်",
+    IN_PRODUCTION: "ထုတ်လုပ်နေသည်",
+    READY_FOR_FULFILLMENT: "ပို့ဆောင်ရန် အသင့်",
+    ON_HOLD_CUSTOMER_INPUT: "ဖောက်သည်အချက်အလက် စောင့်နေသည်",
+    HUMAN_REVIEW_REQUIRED: "အဖွဲ့စစ်ဆေးမှု စောင့်နေသည်",
+    COMPLETED: "ပြီးစီးပါပြီ",
+    CANCELLED: "ပယ်ဖျက်ထားသည်",
+  },
+  en: {
+    NEW_MESSAGE: "New conversation",
+    COLLECTING_REQUIREMENTS: "Collecting requirements",
+    REQUIREMENTS_REVIEW: "Requirements review",
+    WAITING_QUOTE_APPROVAL: "Waiting for quote approval",
+    WAITING_PAYMENT: "Waiting for payment",
+    IN_DESIGN: "In design",
+    IN_PRODUCTION: "In production",
+    READY_FOR_FULFILLMENT: "Ready for fulfillment",
+    ON_HOLD_CUSTOMER_INPUT: "Waiting on customer input",
+    HUMAN_REVIEW_REQUIRED: "Human review required",
+    COMPLETED: "Completed",
+    CANCELLED: "Cancelled",
+  },
+};
+
+const LOCALIZED_JOB_STATUS_LABELS: Record<AppLocale, Record<JobStatus, string>> = {
+  th: JOB_STATUS_LABELS,
+  my: {
+    IN_DESIGN: "ဒီဇိုင်းလုပ်နေသည်",
+    IN_PRODUCTION: "ထုတ်လုပ်နေသည်",
+    READY_FOR_FULFILLMENT: "ပို့ဆောင်ရန် အသင့်",
+    ON_HOLD_CUSTOMER_INPUT: "ဖောက်သည်အချက်အလက် စောင့်နေသည်",
+    HUMAN_REVIEW_REQUIRED: "အဖွဲ့စစ်ဆေးမှု စောင့်နေသည်",
+    COMPLETED: "ပြီးစီးပါပြီ",
+    CANCELLED: "ပယ်ဖျက်ထားသည်",
+  },
+  en: {
+    IN_DESIGN: "In design",
+    IN_PRODUCTION: "In production",
+    READY_FOR_FULFILLMENT: "Ready for fulfillment",
+    ON_HOLD_CUSTOMER_INPUT: "Waiting on customer input",
+    HUMAN_REVIEW_REQUIRED: "Human review required",
+    COMPLETED: "Completed",
+    CANCELLED: "Cancelled",
+  },
+};
+
 export const PRODUCT_TYPES = [
-  { value: "vinyl_banner", label: "ป้ายไวนิล" },
-  { value: "acrylic_sign", label: "ป้ายอะคริลิค" },
-  { value: "sticker", label: "สติ๊กเกอร์" },
-  { value: "foam_board", label: "ฟิวเจอร์บอร์ด" },
-  { value: "aluminium", label: "ป้ายอลูมิเนียม" },
-  { value: "other", label: "อื่นๆ" },
+  {
+    value: "vinyl_banner",
+    label: "ป้ายไวนิล",
+    category: "signage",
+    categoryLabel: "ป้ายและหน้าร้าน",
+    description: "เหมาะกับป้ายโปรโมชัน ป้ายหน้าร้าน และงานด่วน",
+    keywords: ["ไวนิล", "แบนเนอร์", "ป้าย", "หน้าร้าน", "banner"],
+  },
+  {
+    value: "acrylic_sign",
+    label: "ป้ายอะคริลิค",
+    category: "signage",
+    categoryLabel: "ป้ายและหน้าร้าน",
+    description: "งานป้ายพรีเมียม ตัวอักษร โลโก้ หรือป้ายบริษัท",
+    keywords: ["อะคริลิค", "ป้ายบริษัท", "โลโก้", "acrylic"],
+  },
+  {
+    value: "sticker",
+    label: "สติ๊กเกอร์",
+    category: "label",
+    categoryLabel: "สติ๊กเกอร์และฉลาก",
+    description: "ฉลากสินค้า สติ๊กเกอร์ติดแพ็กเกจ และงานไดคัท",
+    keywords: ["สติ๊กเกอร์", "ฉลาก", "แพ็กเกจ", "label", "sticker"],
+  },
+  {
+    value: "foam_board",
+    label: "ฟิวเจอร์บอร์ด",
+    category: "display",
+    categoryLabel: "บอร์ดและดิสเพลย์",
+    description: "บอร์ดตั้งโต๊ะ งานนิทรรศการ และป้ายชั่วคราว",
+    keywords: ["ฟิวเจอร์บอร์ด", "บอร์ด", "ดิสเพลย์", "foam board"],
+  },
+  {
+    value: "aluminium",
+    label: "ป้ายอลูมิเนียม",
+    category: "signage",
+    categoryLabel: "ป้ายและหน้าร้าน",
+    description: "ป้ายทนแดดทนฝน ใช้งานภายนอกหรือโครงการระยะยาว",
+    keywords: ["อลูมิเนียม", "ป้ายกลางแจ้ง", "ภายนอก", "aluminium"],
+  },
+  {
+    value: "other",
+    label: "อื่นๆ",
+    category: "custom",
+    categoryLabel: "งานพิเศษ",
+    description: "งานที่ยังไม่แน่ใจประเภท หรืออยากให้ทีมช่วยแนะนำ",
+    keywords: ["อื่นๆ", "custom", "พิเศษ", "แนะนำ"],
+  },
 ] as const;
+
+export type ProductTypeValue = (typeof PRODUCT_TYPES)[number]["value"];
+export type ProductCategoryValue = (typeof PRODUCT_TYPES)[number]["category"];
+
+const LOCALIZED_PRODUCT_TYPE_LABELS: Record<
+  AppLocale,
+  Record<ProductTypeValue, string>
+> = {
+  th: {
+    vinyl_banner: "ป้ายไวนิล",
+    acrylic_sign: "ป้ายอะคริลิค",
+    sticker: "สติ๊กเกอร์",
+    foam_board: "ฟิวเจอร์บอร์ด",
+    aluminium: "ป้ายอลูมิเนียม",
+    other: "อื่นๆ",
+  },
+  my: {
+    vinyl_banner: "ဗီနိုင်းဆိုင်းဘုတ်",
+    acrylic_sign: "အက်ခရိုလစ်ဆိုင်းဘုတ်",
+    sticker: "စတစ်ကာ",
+    foam_board: "ဖိုမ်ဘုတ်",
+    aluminium: "အလူမီနီယမ်ဆိုင်းဘုတ်",
+    other: "အခြား",
+  },
+  en: {
+    vinyl_banner: "Vinyl banner",
+    acrylic_sign: "Acrylic sign",
+    sticker: "Sticker",
+    foam_board: "Foam board",
+    aluminium: "Aluminium sign",
+    other: "Other",
+  },
+};
 
 export const UNITS = [
   { value: "mm", label: "มม.", factor: 1 },
@@ -176,8 +358,64 @@ export const UNITS = [
 
 export type UnitType = (typeof UNITS)[number]["value"];
 
-export function isWorkflowState(value: string): value is WorkflowState {
-  return WORKFLOW_STATES.includes(value as WorkflowState);
+function getLocalizedLabel<T extends string>(
+  labels: Record<AppLocale, Record<T, string>>,
+  key: T,
+  locale: AppLocale
+): string {
+  return labels[locale]?.[key] ?? labels.th[key];
+}
+
+export function getDesignStatusLabel(
+  status: DesignStatus,
+  locale: AppLocale = "th"
+): string {
+  return getLocalizedLabel(LOCALIZED_DESIGN_STATUS_LABELS, status, locale);
+}
+
+export function getPaymentTermLabel(
+  paymentTerm: PaymentTerm,
+  locale: AppLocale = "th"
+): string {
+  return getLocalizedLabel(LOCALIZED_PAYMENT_TERM_LABELS, paymentTerm, locale);
+}
+
+export function getPaymentStatusLabel(
+  paymentStatus: PaymentStatus,
+  locale: AppLocale = "th"
+): string {
+  return getLocalizedLabel(LOCALIZED_PAYMENT_STATUS_LABELS, paymentStatus, locale);
+}
+
+export function getWorkflowStateLabel(
+  workflowState: WorkflowState,
+  locale: AppLocale = "th"
+): string {
+  return getLocalizedLabel(LOCALIZED_WORKFLOW_STATE_LABELS, workflowState, locale);
+}
+
+export function getJobStatusLabel(
+  jobStatus: JobStatus,
+  locale: AppLocale = "th"
+): string {
+  return getLocalizedLabel(LOCALIZED_JOB_STATUS_LABELS, jobStatus, locale);
+}
+
+export function getProductTypeLabel(
+  productType: string | null | undefined,
+  locale: AppLocale = "th"
+): string | undefined {
+  if (!productType) {
+    return undefined;
+  }
+
+  const localizedLabels = LOCALIZED_PRODUCT_TYPE_LABELS[locale] as Record<
+    string,
+    string
+  >;
+  const fallbackLabels = LOCALIZED_PRODUCT_TYPE_LABELS.th as Record<string, string>;
+
+  return localizedLabels[productType] ?? fallbackLabels[productType] ?? productType;
 }
 
 export function isJobStatus(value: string): value is JobStatus {
@@ -242,6 +480,7 @@ export interface IntakeFormData {
   aiImagePrompt?: string;
   paymentTerms?: PaymentTerm;
   fulfillmentMode?: FulfillmentMode;
+  intakeMode?: "resume" | "fresh";
 }
 
 export interface ConversationRow {

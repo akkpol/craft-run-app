@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySignature, replyWithIntakeLink, getLineClient } from "@/lib/line";
+import {
+  verifySignature,
+  replyWithIntakeLink,
+  replyWithResumeOrFreshChoice,
+  getLineClient,
+} from "@/lib/line";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { WebhookEvent } from "@line/bot-sdk";
-import { canTransitionConversationState } from "@/lib/workflow-transitions";
-import { isWorkflowState } from "@/lib/types";
+import {
+  canTransitionConversationState,
+  getReusableConversationState,
+} from "@/lib/workflow-transitions";
+import type { WorkflowState } from "@/lib/types";
+import { logSystemAction, logHumanAction } from "@/lib/action-log";
 
 export async function POST(request: NextRequest) {
   // 1. Read raw body for signature verification
@@ -35,29 +44,85 @@ export async function POST(request: NextRequest) {
         const messageText = event.message.text;
 
         // 3a. Upsert conversation
-        const { data: existingConv } = await supabase
+        const { data: existingConvRows, error: existingConvError } = await supabase
           .from("conversations")
           .select("id, state")
           .eq("line_user_id", userId)
           .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
+          .limit(1);
+
+        if (existingConvError) {
+          console.error("Failed to load existing conversation:", existingConvError.message);
+          continue;
+        }
+
+        const existingConv = existingConvRows?.[0] ?? null;
+        const reusableCollectionState = getReusableConversationState(
+          existingConv?.state,
+          "COLLECTING_REQUIREMENTS"
+        );
+        const reusableReviewState =
+          reusableCollectionState ??
+          getReusableConversationState(existingConv?.state, "REQUIREMENTS_REVIEW");
 
         let conversationId: string;
+        let conversationState: WorkflowState = "NEW_MESSAGE";
+        let reusedConversation = false;
 
-        if (existingConv) {
+        if (existingConv && reusableReviewState) {
+          reusedConversation = true;
           conversationId = existingConv.id;
-          await supabase
+          conversationState = reusableReviewState;
+
+          const conversationUpdate: {
+            last_message_at: string;
+            state?: WorkflowState;
+          } = {
+            last_message_at: new Date().toISOString(),
+          };
+
+          if (reusableReviewState !== existingConv.state) {
+            conversationUpdate.state = reusableReviewState;
+          }
+
+          const { error: updateConversationError } = await supabase
             .from("conversations")
-            .update({ last_message_at: new Date().toISOString() })
+            .update(conversationUpdate)
             .eq("id", conversationId);
+
+          if (updateConversationError) {
+            console.error("Failed to update conversation:", updateConversationError.message);
+            continue;
+          }
         } else {
-          const { data: newConv } = await supabase
+          const { data: newConv, error: newConvError } = await supabase
             .from("conversations")
             .insert({ line_user_id: userId, state: "NEW_MESSAGE" })
             .select("id")
             .single();
-          conversationId = newConv!.id;
+
+          if (!newConv?.id) {
+            console.error(
+              "Failed to create conversation:",
+              newConvError?.message || "conversation insert returned null"
+            );
+            continue;
+          }
+
+          conversationId = newConv.id;
+          conversationState = "NEW_MESSAGE";
+          await logSystemAction(supabase, {
+            entityType: "conversation",
+            entityId: conversationId,
+            actionType: "conversation.created",
+            serviceName: "webhook",
+            note: "New conversation from LINE message",
+            payload: {
+              state: "NEW_MESSAGE",
+              line_user_id: userId,
+              previous_state: existingConv?.state ?? null,
+            },
+          });
         }
 
         // 3b. Save raw message (always first, before reply)
@@ -98,11 +163,10 @@ export async function POST(request: NextRequest) {
 
         if (isEscalation) {
           if (
-            existingConv?.state &&
-            isWorkflowState(existingConv.state) &&
-            existingConv.state !== "HUMAN_REVIEW_REQUIRED" &&
+            reusedConversation &&
+            conversationState !== "HUMAN_REVIEW_REQUIRED" &&
             !canTransitionConversationState(
-              existingConv.state,
+              conversationState,
               "HUMAN_REVIEW_REQUIRED"
             )
           ) {
@@ -121,6 +185,16 @@ export async function POST(request: NextRequest) {
             .update({ state: "HUMAN_REVIEW_REQUIRED" })
             .eq("id", conversationId);
 
+          await logHumanAction(supabase, {
+            entityType: "conversation",
+            entityId: conversationId,
+            actionType: "conversation.escalated",
+            actorId: userId,
+            actorLabel: displayName,
+            note: "Customer requested human support",
+            payload: { to: "HUMAN_REVIEW_REQUIRED", trigger: messageText },
+          });
+
           if (event.replyToken) {
             await lineClient.replyMessage({
               replyToken: event.replyToken,
@@ -135,7 +209,7 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        if (existingConv?.state === "HUMAN_REVIEW_REQUIRED") {
+        if (conversationState === "HUMAN_REVIEW_REQUIRED") {
           if (event.replyToken) {
             await lineClient.replyMessage({
               replyToken: event.replyToken,
@@ -150,28 +224,44 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        const shouldOfferResumeOrFresh =
+          reusedConversation &&
+          [
+            "COLLECTING_REQUIREMENTS",
+            "REQUIREMENTS_REVIEW",
+            "ON_HOLD_CUSTOMER_INPUT",
+            "WAITING_QUOTE_APPROVAL",
+            "WAITING_PAYMENT",
+          ].includes(conversationState);
+
         // 3e. Reply with LIFF intake link
         if (event.replyToken) {
           // Update state to COLLECTING_REQUIREMENTS
           if (
-            !existingConv?.state ||
-            existingConv.state === "COLLECTING_REQUIREMENTS" ||
-            (isWorkflowState(existingConv.state) &&
+            conversationState === "COLLECTING_REQUIREMENTS" ||
             canTransitionConversationState(
-              existingConv.state,
+              conversationState,
               "COLLECTING_REQUIREMENTS"
-            ))
+            )
           ) {
             await supabase
               .from("conversations")
               .update({ state: "COLLECTING_REQUIREMENTS" })
               .eq("id", conversationId);
+
+            await logSystemAction(supabase, {
+              entityType: "conversation",
+              entityId: conversationId,
+              actionType: "conversation.state_changed",
+              serviceName: "webhook",
+              payload: { from: conversationState, to: "COLLECTING_REQUIREMENTS" },
+            });
           }
 
           // Accumulate chat notes
           const noteUpdate =
-            existingConv?.state === "COLLECTING_REQUIREMENTS" ||
-            existingConv?.state === "ON_HOLD_CUSTOMER_INPUT"
+            conversationState === "COLLECTING_REQUIREMENTS" ||
+            conversationState === "ON_HOLD_CUSTOMER_INPUT"
               ? messageText
               : undefined;
 
@@ -198,7 +288,11 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          await replyWithIntakeLink(event.replyToken, displayName);
+          if (shouldOfferResumeOrFresh) {
+            await replyWithResumeOrFreshChoice(event.replyToken, displayName);
+          } else {
+            await replyWithIntakeLink(event.replyToken, displayName);
+          }
         }
       }
 

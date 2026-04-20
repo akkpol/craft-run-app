@@ -11,6 +11,7 @@ import {
   type PaymentStatus,
   type PaymentTerm,
 } from "@/lib/types";
+import { logHumanAction } from "@/lib/action-log";
 
 export async function POST(
   request: NextRequest,
@@ -97,6 +98,20 @@ export async function POST(
     jobCreated = jobResult.created;
     jobId = jobResult.jobId;
   }
+
+  await logHumanAction(supabase, {
+    entityType: "quote",
+    entityId: id,
+    actionType: "quote.payment_updated",
+    actorLabel: "Admin",
+    payload: {
+      payment_terms: paymentTerms,
+      payment_status: paymentStatus,
+      workflow_state: nextWorkflowState,
+      job_created: jobCreated,
+      job_id: jobId,
+    },
+  });
 
   return NextResponse.json({
     success: true,

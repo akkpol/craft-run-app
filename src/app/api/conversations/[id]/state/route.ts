@@ -8,6 +8,7 @@ import {
   canTransitionConversationState,
   isTerminalConversationState,
 } from "@/lib/workflow-transitions";
+import { logHumanAction } from "@/lib/action-log";
 
 export async function POST(
   request: NextRequest,
@@ -100,6 +101,15 @@ export async function POST(
       .eq("conversation_id", id)
       .in("status", ["open", "reviewing"]);
   }
+
+  await logHumanAction(supabase, {
+    entityType: "conversation",
+    entityId: id,
+    actionType: "conversation.state_changed",
+    actorLabel: "Admin",
+    note: body.note,
+    payload: { from: currentState, to: nextState },
+  });
 
   return NextResponse.json({ success: true, state: nextState });
 }

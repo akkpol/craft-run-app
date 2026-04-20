@@ -5,6 +5,7 @@ import {
   designStatusNeedsCustomerResponse,
   isDesignStatus,
 } from "@/lib/types";
+import { logHumanAction } from "@/lib/action-log";
 
 type PublicQuoteAction =
   | "approve_quote"
@@ -116,6 +117,15 @@ export async function POST(
           .eq("id", lead.conversation_id);
       }
 
+      await logHumanAction(supabase, {
+        entityType: "quote",
+        entityId: quote.id,
+        actionType: "quote.rejected",
+        actorLabel: "Customer",
+        note: note || "ปฏิเสธใบเสนอราคา",
+        payload: { lead_id: lead.id, to_state: "CANCELLED" },
+      });
+
       return NextResponse.json({
         success: true,
         message: note || "ปฏิเสธใบเสนอราคาเรียบร้อยแล้ว",
@@ -161,6 +171,15 @@ export async function POST(
           .update({ state: "REQUIREMENTS_REVIEW" })
           .eq("id", lead.conversation_id);
       }
+
+      await logHumanAction(supabase, {
+        entityType: "quote",
+        entityId: quote.id,
+        actionType: "quote.rejected",
+        actorLabel: "Customer",
+        note: rescopeNote,
+        payload: { lead_id: lead.id, reason: "rescope", to_state: "REQUIREMENTS_REVIEW" },
+      });
 
       return NextResponse.json({
         success: true,
@@ -251,6 +270,15 @@ export async function POST(
           .eq("id", lead.conversation_id);
       }
 
+      await logHumanAction(supabase, {
+        entityType: "lead",
+        entityId: lead.id,
+        actionType: "lead.design_status_changed",
+        actorLabel: "Customer",
+        note: note || "ลูกค้าอนุมัติแบบแล้ว",
+        payload: { design_status: "approved", job_id: job?.id ?? null },
+      });
+
       return NextResponse.json({
         success: true,
         message: "รับการอนุมัติแบบเรียบร้อยแล้ว",
@@ -302,6 +330,15 @@ export async function POST(
           .update({ state: "ON_HOLD_CUSTOMER_INPUT" })
           .eq("id", lead.conversation_id);
       }
+
+      await logHumanAction(supabase, {
+        entityType: "lead",
+        entityId: lead.id,
+        actionType: "lead.design_status_changed",
+        actorLabel: "Customer",
+        note: revisionNote,
+        payload: { design_status: "revision_requested", job_id: job?.id ?? null },
+      });
 
       return NextResponse.json({
         success: true,

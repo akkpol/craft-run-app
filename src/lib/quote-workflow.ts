@@ -1,5 +1,6 @@
 import { pushStatusUpdate } from "@/lib/line";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logSystemAction } from "@/lib/action-log";
 import type {
   CompletionPackageStatus,
   DesignAssignmentMode,
@@ -159,6 +160,14 @@ export async function createJobForApprovedQuote(
     job_id: job.id,
     status: "IN_DESIGN",
     note: "Job created from approved quote and moved to design",
+  });
+
+  await logSystemAction(supabase, {
+    entityType: "job",
+    entityId: job.id,
+    actionType: "job.created",
+    serviceName: "quote-workflow",
+    payload: { quote_id: quote.id, lead_id: quote.lead_id },
   });
 
   if (quote.leads?.conversation_id) {

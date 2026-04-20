@@ -27,6 +27,7 @@ import { getShareableProductionToken, isExpired } from "@/lib/production-media";
 import ProductionReviewActions from "./production-review-actions";
 import ProductionLinkCopy from "./production-link-copy";
 import { firstRow } from "@/lib/utils";
+import Image from "next/image";
 
 export const dynamic = "force-dynamic";
 
@@ -105,7 +106,8 @@ function getConversationBadgeTone(state: string): string {
 export default async function AdminPage() {
   const config = await getRuntimeAppConfig();
   const snapshot = await fetchBackofficeSnapshot();
-  const leads = snapshot.leads;
+  const supersededLeads = snapshot.leads.filter((lead) => Boolean(lead.superseded_at));
+  const leads = snapshot.leads.filter((lead) => !lead.superseded_at);
   const quotes = snapshot.quotes;
   const jobs = snapshot.jobs;
   const productionReviewQueue = snapshot.productionReviewQueue;
@@ -158,6 +160,28 @@ export default async function AdminPage() {
             >
               เปิดหน้า Customer Flow
             </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* KPIs (Top-first layout for easier data binding) */}
+      <div className="px-4 py-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="admin-kpi-card p-4">
+            <p className="text-2xl font-bold text-[#1a1a2e]">{kpis.leadsCount}</p>
+            <p className="text-xs text-gray-500">Leads</p>
+          </div>
+          <div className="admin-kpi-card p-4">
+            <p className="text-2xl font-bold text-yellow-600">{kpis.quotesWaitingApproval}</p>
+            <p className="text-xs text-gray-500">รอลูกค้าอนุมัติ</p>
+          </div>
+          <div className="admin-kpi-card p-4">
+            <p className="text-2xl font-bold text-blue-600">{kpis.activeJobsCount}</p>
+            <p className="text-xs text-gray-500">งานที่กำลังทำ</p>
+          </div>
+          <div className="admin-kpi-card p-4">
+            <p className="text-2xl font-bold text-red-600">{kpis.escalationsCount}</p>
+            <p className="text-xs text-gray-500">Escalations</p>
           </div>
         </div>
       </div>
@@ -277,28 +301,6 @@ export default async function AdminPage() {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="px-4 py-4">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="admin-kpi-card p-4">
-            <p className="text-2xl font-bold text-[#1a1a2e]">{kpis.leadsCount}</p>
-            <p className="text-xs text-gray-500">Leads</p>
-          </div>
-          <div className="admin-kpi-card p-4">
-            <p className="text-2xl font-bold text-yellow-600">{kpis.quotesWaitingApproval}</p>
-            <p className="text-xs text-gray-500">รอลูกค้าอนุมัติ</p>
-          </div>
-          <div className="admin-kpi-card p-4">
-            <p className="text-2xl font-bold text-blue-600">{kpis.activeJobsCount}</p>
-            <p className="text-xs text-gray-500">งานที่กำลังทำ</p>
-          </div>
-          <div className="admin-kpi-card p-4">
-            <p className="text-2xl font-bold text-red-600">{kpis.escalationsCount}</p>
-            <p className="text-xs text-gray-500">Escalations</p>
-          </div>
-        </div>
-      </div>
-
       <div className="px-4 pb-4">
         <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
@@ -377,9 +379,12 @@ export default async function AdminPage() {
                             rel="noreferrer"
                             className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
                           >
-                            <img
+                            <Image
                               src={asset.signed_url}
                               alt="Production upload"
+                              width={96}
+                              height={96}
+                              unoptimized
                               className="h-24 w-24 object-cover"
                             />
                           </a>
@@ -556,6 +561,11 @@ export default async function AdminPage() {
                   <p className="text-xs text-gray-400">
                     {PRODUCT_TYPES.find((p) => p.value === l.product_type)?.label || l.product_type} · {(l.width_mm / 10).toFixed(0)}×{(l.height_mm / 10).toFixed(0)} ซม. × {l.qty}
                   </p>
+                  {supersededLeads.find((candidate) => candidate.superseded_by_lead_id === l.id) ? (
+                    <p className="mt-1 text-xs text-emerald-600">
+                      คำขอนี้มาแทน lead เดิมแล้ว
+                    </p>
+                  ) : null}
                   {l.ai_image_prompt ? (
                     <p className="mt-1 text-xs text-gray-500">AI prompt: {l.ai_image_prompt}</p>
                   ) : null}
@@ -566,7 +576,14 @@ export default async function AdminPage() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {l.ai_generated_images.map((imageUrl) => (
                     <a key={imageUrl} href={imageUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-gray-200">
-                      <img src={imageUrl} alt="AI preview" className="h-20 w-20 object-cover" />
+                      <Image
+                        src={imageUrl}
+                        alt="AI preview"
+                        width={80}
+                        height={80}
+                        unoptimized
+                        className="h-20 w-20 object-cover"
+                      />
                     </a>
                   ))}
                 </div>
@@ -590,6 +607,44 @@ export default async function AdminPage() {
           {leads.length === 0 && <p className="text-sm text-gray-400 text-center py-4">ยังไม่มี leads</p>}
         </div>
       </div>
+
+      {supersededLeads.length > 0 ? (
+        <div className="px-4 pb-4">
+          <h2 className="text-sm font-bold text-gray-700 mb-2">
+            🧾 Superseded Leads ({supersededLeads.length})
+          </h2>
+          <div className="space-y-2">
+            {supersededLeads.map((lead) => (
+              <div key={lead.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">
+                      {lead.customers?.display_name || "ลูกค้า"}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {PRODUCT_TYPES.find((p) => p.value === lead.product_type)?.label || lead.product_type}
+                      {" · "}
+                      {(lead.width_mm / 10).toFixed(0)}×{(lead.height_mm / 10).toFixed(0)} ซม. × {lead.qty}
+                    </p>
+                    <p className="mt-1 text-xs text-amber-700">
+                      ถูกแทนที่ด้วย lead {lead.superseded_by_lead_id?.slice(0, 8) || "ใหม่"} เมื่อ{" "}
+                      {lead.superseded_at
+                        ? new Date(lead.superseded_at).toLocaleString("th-TH")
+                        : "-"}
+                    </p>
+                    {lead.supersede_reason ? (
+                      <p className="mt-1 text-xs text-slate-500">{lead.supersede_reason}</p>
+                    ) : null}
+                  </div>
+                  <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">
+                    superseded
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {/* Recent Conversations */}
       <div className="px-4 pb-8">
