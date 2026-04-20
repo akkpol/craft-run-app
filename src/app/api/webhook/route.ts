@@ -14,6 +14,59 @@ import {
 import type { WorkflowState } from "@/lib/types";
 import { logSystemAction, logHumanAction } from "@/lib/action-log";
 
+async function redactMessageForUnsend(
+  supabase: ReturnType<typeof createAdminClient>,
+  lineMessageId: string
+) {
+  const nowIso = new Date().toISOString();
+  const { data: messageRow, error: messageLookupError } = await supabase
+    .from("messages")
+    .select("id, conversation_id, unsent_at")
+    .eq("line_message_id", lineMessageId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (messageLookupError) {
+    console.error("Failed to load message for unsend:", messageLookupError.message);
+    return;
+  }
+
+  if (!messageRow || messageRow.unsent_at) {
+    return;
+  }
+
+  const { error: updateMessageError } = await supabase
+    .from("messages")
+    .update({
+      raw_text: null,
+      raw_payload: {
+        type: "unsend",
+        line_message_id: lineMessageId,
+        redacted_at: nowIso,
+      },
+      unsent_at: nowIso,
+    })
+    .eq("id", messageRow.id);
+
+  if (updateMessageError) {
+    console.error("Failed to redact unsent message:", updateMessageError.message);
+    return;
+  }
+
+  await logSystemAction(supabase, {
+    entityType: "message",
+    entityId: messageRow.id,
+    actionType: "message.unsent",
+    serviceName: "webhook",
+    note: "Customer unsent a LINE message",
+    payload: {
+      conversation_id: messageRow.conversation_id,
+      line_message_id: lineMessageId,
+    },
+  });
+}
+
 export async function POST(request: NextRequest) {
   // 1. Read raw body for signature verification
   const rawBody = await request.text();
@@ -37,6 +90,13 @@ export async function POST(request: NextRequest) {
   // 3. Process each event — keep it lean and fast
   for (const event of body.events) {
     try {
+      if (event.type === "unsend") {
+        if (event.unsend.messageId) {
+          await redactMessageForUnsend(supabase, event.unsend.messageId);
+        }
+        continue;
+      }
+
       if (event.type === "message" && event.message.type === "text") {
         const userId = event.source.userId;
         if (!userId) continue;
@@ -129,6 +189,7 @@ export async function POST(request: NextRequest) {
         await supabase.from("messages").insert({
           conversation_id: conversationId,
           sender_type: "user",
+          line_message_id: event.message.id,
           raw_text: messageText,
           raw_payload: event as unknown as Record<string, unknown>,
         });

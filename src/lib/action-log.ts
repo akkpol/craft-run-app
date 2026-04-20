@@ -30,6 +30,8 @@ export type ActionType =
   | "conversation.created"
   | "conversation.state_changed"
   | "conversation.escalated"
+  // Message
+  | "message.unsent"
   // Lead / Intake
   | "lead.created"
   | "lead.design_status_changed"

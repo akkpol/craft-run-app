@@ -16,6 +16,8 @@ export const PRODUCTION_REVIEW_STATUSES = [
 export type ProductionReviewStatus =
   (typeof PRODUCTION_REVIEW_STATUSES)[number];
 
+export type ProductionReviewAction = "approve" | "reject" | "send";
+
 type ProductionReviewLocale = "th" | "my" | "en";
 
 const LOCALIZED_PRODUCTION_EVENT_TYPE_LABELS: Record<
@@ -63,6 +65,33 @@ export function getReviewStatusAfterApproval(
   customerAutoSendEnabled: boolean
 ): ProductionReviewStatus {
   return customerAutoSendEnabled ? "sent" : "approved";
+}
+
+export function getProductionReviewDecision(input: {
+  action: ProductionReviewAction;
+  customerAutoSendEnabled: boolean;
+}): {
+  reviewStatusAfterReview: ProductionReviewStatus;
+  shouldSendToCustomer: boolean;
+} {
+  if (input.action === "reject") {
+    return {
+      reviewStatusAfterReview: "rejected",
+      shouldSendToCustomer: false,
+    };
+  }
+
+  if (input.action === "send") {
+    return {
+      reviewStatusAfterReview: "approved",
+      shouldSendToCustomer: true,
+    };
+  }
+
+  return {
+    reviewStatusAfterReview: "approved",
+    shouldSendToCustomer: input.customerAutoSendEnabled,
+  };
 }
 
 export function getReviewTimelineNote(input: {

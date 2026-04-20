@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   startTransition,
   useDeferredValue,
@@ -416,9 +417,12 @@ function StudioDrawer({
                         rel="noreferrer"
                         className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
                       >
-                        <img
+                        <Image
                           src={imageUrl}
                           alt="AI preview"
+                          width={80}
+                          height={80}
+                          unoptimized
                           className="h-20 w-20 object-cover"
                         />
                       </a>

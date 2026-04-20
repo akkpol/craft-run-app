@@ -1,12 +1,12 @@
 # 🏭 FOGUS — Digital Signage & Print ERP (2026)
 
-LINE OA + LIFF + Supabase + Next.js 16.2 + Vercel
+LINE OA + LINE MINI App / LIFF + Supabase + Next.js 16.2 + Vercel
 
 ## System In 5 Seconds
 
 ```text
 CUSTOMER (LINE)
-→ LINE OA + LIFF
+→ LINE OA + LINE MINI App / LIFF
 → CONVERSATION BRAIN
 → ERP CORE
    Lead → Quote → Job
@@ -59,29 +59,29 @@ Need a wave-by-wave execution checklist?
 
 ## Quick Start For ENV
 
-ถ้า user งงเรื่อง `Messaging API` กับ `LIFF` ให้เริ่มจาก 2 ไฟล์นี้ก่อน:
+ถ้า user งงเรื่อง `Messaging API` กับ `LINE MINI App / LIFF` ให้เริ่มจาก 2 ไฟล์นี้ก่อน:
 
 - `.env.example` = ตัวอย่าง env พร้อมคำอธิบายว่าแต่ละค่ามาจากไหน
-- `docs/ENV_AND_LINE_SETUP.md` = คู่มือแยกว่าอะไรคือ Messaging API, อะไรคือ LIFF, และ URL ไหนต้องใส่ที่ไหน
+- `docs/ENV_AND_LINE_SETUP.md` = คู่มือแยกว่าอะไรคือ Messaging API, อะไรคือ LINE MINI App / LIFF, และ URL ไหนต้องใส่ที่ไหน
 
 หลักการของ repo นี้:
 
 - `.env.example` เป็นแม่แบบให้เจ้าของระบบหรือผู้ติดตั้งกรอก
 - ไม่ควรใช้ repo นี้เป็นที่เก็บ secret จริงถาวร
 - production ควรกรอกค่าจริงใน Vercel Environment Variables
-- หลังจากระบบบูตได้แล้ว สามารถให้ user เข้าไปกรอกค่า LINE/LIFF/Base URL ใน `/admin/settings` ได้
+- หลังจากระบบบูตได้แล้ว สามารถให้ user เข้าไปกรอกค่า LINE Messaging API/LINE MINI App/Base URL ใน `/admin/settings` ได้
 - บัญชีหลังบ้านใช้ `Supabase Auth` และ allowlist จาก env ไม่ได้ใช้ password จาก env โดยตรง
 
 ภาพจำสั้นที่สุด:
 
 - `Messaging API` = แชต LINE OA + webhook + push/reply message
-- `LIFF` = หน้าเว็บใน LINE
+- `LINE MINI App / LIFF` = หน้าเว็บใน LINE ที่ใช้ LIFF SDK อยู่ข้างใต้
 - `Webhook URL` ต้องเป็น `/api/webhook`
-- `LIFF Endpoint URL` ต้องเป็น `/liff`
+- `LINE MINI App / LIFF Endpoint URL` ต้องเป็น `/liff`
 
 ## Project Structure
 
-```
+```text
 fogus/
 ├── src/
 │   ├── app/
@@ -94,9 +94,9 @@ fogus/
 │   │   │   ├── quotes/[id]/approve/route.ts # POST — approve quote
 │   │   │   └── jobs/[id]/status/route.ts   # POST — update job status
 │   │   ├── liff/
-│   │   │   ├── layout.tsx                  # Safe-area padding
-│   │   │   ├── page.tsx                    # LIFF endpoint → redirect /intake
-│   │   │   └── intake/page.tsx             # Intake form (client component)
+│   │   │   ├── layout.tsx                  # LIFF SDK CDN + safe-area shell
+│   │   │   ├── page.tsx                    # Registered LINE MINI App / LIFF endpoint
+│   │   │   └── intake/page.tsx             # Backward-compatible child path for the same intake form
 │   │   ├── quote/[token]/
 │   │   │   ├── page.tsx                    # Public quote page
 │   │   │   └── approve-button.tsx          # Client approve button
@@ -129,6 +129,7 @@ fogus/
 | Next.js 16 async params | `await props.params` in all dynamic routes |
 | LIFF edge-to-edge Android | `padding-bottom: env(safe-area-inset-bottom)` in liff/layout.tsx |
 | LIFF endpoint URL | Registered as `/liff`, not `/liff/intake` |
+| LIFF init path | Launches on `/liff` directly instead of redirecting before `liff.init()` |
 | `liff.requestFriendship()` | Called after `liff.init()` in intake page |
 | Next.js 16.2.x patched | Package.json pins `^16.2.0` (CVE-2026-23869 patched) |
 
@@ -149,8 +150,9 @@ fogus/
    - Copy Channel Secret + Channel Access Token
    - Response Settings → Chat: ON, Webhook: ON, Auto-reply: OFF
 
-3. **LIFF Registration**
-   - LINE Developers Console → LIFF tab → Add LIFF app
+3. **LINE MINI App / LIFF Registration**
+   - สำหรับงานใหม่ ให้สร้าง mini app บน LINE Login channel หรือ LINE MINI App channel
+   - ใช้ LIFF ID ของ mini app ตัวนั้นกับโปรเจกต์นี้
    - Endpoint URL: `https://your-app.vercel.app/liff`
    - Size: **Full**
    - Scopes: openid, profile
@@ -163,7 +165,7 @@ fogus/
    ```
    - Add all env vars in Vercel dashboard
    - Set webhook URL in LINE Console: `https://your-app.vercel.app/api/webhook`
-   - Update LIFF endpoint URL with real Vercel URL
+   - Update LINE MINI App / LIFF endpoint URL with real Vercel URL
 
 ### Hour 2: Test Core Flow (60 min)
 
@@ -171,7 +173,7 @@ fogus/
    - Send message to LINE OA → should get Flex Message reply
    - Check Supabase: conversations + messages tables
 
-6. **Test LIFF form**
+6. **Test LINE MINI App form**
    - Tap "กรอกรายละเอียดงาน" in LINE
    - Fill form → submit
    - Check: leads + quotes + quote_items tables
@@ -239,14 +241,14 @@ Backoffice note:
 
 Canonical main path:
 
-```
+```text
 NEW_MESSAGE → COLLECTING_REQUIREMENTS → REQUIREMENTS_REVIEW → WAITING_QUOTE_APPROVAL
 → WAITING_PAYMENT / IN_DESIGN → IN_PRODUCTION → READY_FOR_FULFILLMENT → COMPLETED
 ```
 
 Explicit side branches:
 
-```
+```text
 ON_HOLD_CUSTOMER_INPUT
 HUMAN_REVIEW_REQUIRED
 CANCELLED
@@ -265,8 +267,8 @@ CANCELLED
 
 - [ ] `POST /api/webhook` returns 200 with valid signature
 - [ ] `POST /api/webhook` returns 401 with invalid signature
-- [ ] LINE message → bot replies with Flex Message + LIFF link
-- [ ] LIFF page opens inside LINE app (Full size)
+- [ ] LINE message → bot replies with Flex Message + LINE MINI App / LIFF link
+- [ ] LINE MINI App / LIFF page opens inside LINE app (Full size)
 - [ ] `liff.requestFriendship()` fires (check console)
 - [ ] Safe-area padding visible on Android (no overlap with nav bar)
 - [ ] Intake form submit → creates lead + quote in DB
@@ -285,11 +287,11 @@ CANCELLED
 | Method | Route | Auth | Description |
 |--------|-------|------|-------------|
 | POST | /api/webhook | LINE signature | Webhook handler |
-| POST | /api/intake | None (LIFF) | Form submission |
+| POST | /api/intake | None (LIFF / LINE MINI App) | Form submission |
 | POST | /api/quotes/[id]/approve | None (public) | Approve quote |
 | POST | /api/jobs/[id]/status | None (admin) | Update job status |
-| GET | /liff | None | LIFF endpoint (redirect) |
-| GET | /liff/intake | None | Intake form |
+| GET | /liff | None | Registered LINE MINI App / LIFF endpoint |
+| GET | /liff/intake | None | Backward-compatible intake path |
 | GET | /quote/[token] | Public token | Quote page |
 | GET | /status/[token] | Public token | Status page |
 | GET | /admin | Middleware | Admin dashboard |

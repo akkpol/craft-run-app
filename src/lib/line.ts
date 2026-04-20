@@ -4,6 +4,7 @@ import {
   WebhookEvent,
 } from "@line/bot-sdk";
 import { getRuntimeAppConfig } from "@/lib/app-settings";
+import { getLineLoginChannelIdFromLiffId } from "./line-liff-identity";
 import type { ProductionEventType } from "@/lib/production-review";
 
 export async function getLineClient() {
@@ -22,13 +23,84 @@ export async function verifySignature(body: string, signature: string): Promise<
   return validateSignature(body, config.lineChannelSecret, signature);
 }
 
+export async function verifyLiffIdToken(idToken: string): Promise<{
+  userId: string;
+  displayName: string | null;
+}> {
+  const trimmedIdToken = idToken.trim();
+  if (!trimmedIdToken) {
+    throw new Error("Missing LIFF ID token");
+  }
+
+  const config = await getRuntimeAppConfig();
+  const clientId = getLineLoginChannelIdFromLiffId(config.liffId);
+  if (!clientId) {
+    throw new Error("Missing or invalid LIFF ID configuration");
+  }
+
+  const response = await fetch("https://api.line.me/oauth2/v2.1/verify", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      id_token: trimmedIdToken,
+      client_id: clientId,
+    }),
+    cache: "no-store",
+  });
+
+  let payload:
+    | {
+        sub?: unknown;
+        name?: unknown;
+        error_description?: unknown;
+      }
+    | null = null;
+
+  try {
+    payload = (await response.json()) as {
+      sub?: unknown;
+      name?: unknown;
+      error_description?: unknown;
+    };
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const description =
+      typeof payload?.error_description === "string"
+        ? payload.error_description
+        : "LINE rejected the LIFF identity token";
+    throw new Error(description);
+  }
+
+  const userId = typeof payload?.sub === "string" ? payload.sub.trim() : "";
+  if (!userId) {
+    throw new Error("LINE verification did not return a user ID");
+  }
+
+  return {
+    userId,
+    displayName:
+      typeof payload?.name === "string" && payload.name.trim().length > 0
+        ? payload.name.trim()
+        : null,
+  };
+}
+
 export async function parseLiffUrl(path: string): Promise<string> {
   const config = await getRuntimeAppConfig();
-  return `https://liff.line.me/${config.liffId}${path}`;
+  const normalizedPath =
+    !path || path.startsWith("/") || path.startsWith("?")
+      ? path
+      : `/${path}`;
+  return `https://liff.line.me/${config.liffId}${normalizedPath}`;
 }
 
 async function buildLiffUrlWithMode(mode?: "resume" | "fresh"): Promise<string> {
-  const path = mode ? `/intake?mode=${mode}` : "/intake";
+  const path = mode ? `?mode=${mode}` : "";
   return parseLiffUrl(path);
 }
 

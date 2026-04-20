@@ -157,6 +157,8 @@
 @layer components {
   .liff-shell {
     min-height: 100vh;
+    min-height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom);
     background:
       radial-gradient(circle at top left, rgba(34, 197, 94, 0.18), transparent 28%),
       radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.12), transparent 30%),

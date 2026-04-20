@@ -1,6 +1,6 @@
 # ENV And LINE Setup Guide
 
-คู่มือนี้มีไว้แก้จุดที่ user งงบ่อยที่สุด: `Messaging API` กับ `LIFF` เป็นคนละอย่าง และ env แต่ละตัวต้องเอามาจากคนละหน้า
+คู่มือนี้มีไว้แก้จุดที่ user งงบ่อยที่สุด: `Messaging API` กับ `LINE MINI App / LIFF` เป็นคนละอย่าง และ env แต่ละตัวต้องเอามาจากคนละหน้า
 
 ## หลักการสำคัญ
 
@@ -12,10 +12,17 @@
 ## สรุปสั้นที่สุด
 
 - `Messaging API` = งานแชต LINE OA
-- `LIFF` = หน้าเว็บที่เปิดใน LINE
+- `LINE MINI App / LIFF` = หน้า mini app ที่เปิดใน LINE
 - `Supabase` = database, auth, server data
 - `NEXT_PUBLIC_BASE_URL` = URL หลักของแอป
 - Backoffice ใช้ `Supabase Auth + email allowlist` ไม่ได้ใช้ password จาก env โดยตรง
+
+## หมายเหตุอัปเดต 2026
+
+- งานใหม่ควรมองเว็บแอปใน LINE เป็น `LINE MINI App` ที่ใช้ `LIFF SDK` อยู่ข้างใต้
+- โปรเจกต์นี้ยังเก็บค่า runtime หลักเป็น `LIFF_ID` เพราะทั้ง SDK และลิงก์ `liff.line.me` ยังใช้ค่าชุดนี้จริง
+- `Messaging API` ควรแยกจาก mini app ชัดเจน: OA/webhook อยู่ฝั่ง Messaging API, ส่วนหน้าเว็บใน LINE อยู่ฝั่ง LINE MINI App / LIFF
+- `/liff` คือ registered endpoint หลักของโปรเจกต์นี้ และหน้าเริ่มต้นควรถูกเปิดที่ path นี้โดยตรงก่อนทำ flow อื่น
 
 ## LINE แยกยังไง
 
@@ -41,11 +48,16 @@
 - `src/lib/line.ts`
 - `src/app/api/webhook/route.ts`
 
-### LIFF
+### LINE MINI App / LIFF
 
 ใช้สำหรับ:
 - เปิดฟอร์มรับงานใน LINE
 - เปิดหน้าเว็บของลูกค้าใน LINE app
+- ใช้เป็น mini app ของลูกค้าภายใน LINE โดยอาศัย LIFF SDK
+
+สำหรับงานใหม่:
+- ควรสร้างฝั่งเว็บแอปบน LINE Login channel หรือ LINE MINI App channel
+- ไม่ควรใช้ Messaging API channel มาแทน mini app/web app
 
 ค่า env ที่เกี่ยวข้อง:
 - `LIFF_ID`
@@ -57,9 +69,12 @@
 
 ต้องตั้งค่าเพิ่ม:
 - `Endpoint URL` = `https://your-app.vercel.app/liff`
+- ให้แอปเปิดที่ registered endpoint นี้โดยตรง และหลีกเลี่ยงการ redirect ไป path อื่นก่อน `liff.init()`
+- หน้า LIFF/MINI App ควรเผื่อ `env(safe-area-inset-bottom)` เพื่อรองรับ edge-to-edge บน LINE เวอร์ชันใหม่
 
 ใช้ในโค้ดฝั่ง client:
 - `src/app/liff/layout.tsx`
+- `src/app/liff/page.tsx`
 - `src/app/liff/intake/page.tsx`
 
 ## ENV Mapping
@@ -85,7 +100,7 @@
 - `Webhook URL` ต้องใส่:
   `https://your-app.vercel.app/api/webhook`
 
-### ใน LINE LIFF
+### ใน LINE MINI App / LIFF
 
 - `Endpoint URL` ต้องใส่:
   `https://your-app.vercel.app/liff`
@@ -95,7 +110,7 @@
 ## จำแบบไม่งง
 
 - ลูกค้าทักแชต -> `Messaging API webhook`
-- ลูกค้ากดปุ่มเปิดฟอร์ม -> `LIFF`
+- ลูกค้ากดปุ่มเปิดฟอร์ม -> `LINE MINI App / LIFF`
 - ระบบส่ง quote/status กลับไปในแชต -> `Messaging API`
 
 ## สำหรับไฟล์ .env.local
@@ -107,7 +122,7 @@
 - `.env.example` = แบบฟอร์ม/แม่แบบให้ user หรือผู้ติดตั้งกรอก
 - `.env.local` = ไฟล์ local จริงในเครื่องใครเครื่องมัน
 - Vercel Environment Variables = ที่ควรใช้สำหรับ production จริง
-- `/admin/settings` = หน้ากรอกค่า runtime สำหรับ LINE, LIFF และ Base URL หลังจากระบบบูตได้แล้ว
+- `/admin/settings` = หน้ากรอกค่า runtime สำหรับ LINE Messaging API, LINE MINI App / LIFF และ Base URL หลังจากระบบบูตได้แล้ว
 
 ## Backoffice Auth ตอนนี้ทำงานยังไง
 
