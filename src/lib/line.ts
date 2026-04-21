@@ -104,6 +104,11 @@ async function buildLiffUrlWithMode(mode?: "resume" | "fresh"): Promise<string> 
   return parseLiffUrl(path);
 }
 
+async function buildLiffUrlWithMode(mode?: "resume" | "fresh"): Promise<string> {
+  const path = mode ? `/intake?mode=${mode}` : "/intake";
+  return parseLiffUrl(path);
+}
+
 // Reply with LIFF intake link + quick reply options
 export async function replyWithIntakeLink(
   replyToken: string,
