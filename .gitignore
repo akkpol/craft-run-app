@@ -12,6 +12,7 @@ coverage/
 .playwright-mcp/
 .next copy/
 output/**/*.pdf
+supabase/.temp/
 tsconfig.tsbuildinfo
 tmp/
 
@@ -25,11 +26,10 @@ venv/
 .qwen/
 .trae/
 .windsurf/
+.vscode/launch.json
 .vscode/mcp.json
 
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-.vercel
-.env*.local

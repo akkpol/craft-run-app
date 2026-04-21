@@ -8,16 +8,19 @@ Source documents for deeper context:
 ## Happy path
 1. Customer sends a LINE message.
 2. Webhook saves the message, verifies signature, and replies with a Flex Message that contains the LIFF link.
-3. Customer opens LIFF inside LINE.
-4. Customer fills the intake form.
-5. `POST /api/intake` normalizes dimensions to mm and creates the lead.
-6. If data is incomplete, the workflow moves to `ON_HOLD_CUSTOMER_INPUT` until the customer adds enough detail.
-7. If data is complete, the API creates the quote and moves the conversation to `WAITING_QUOTE_APPROVAL`.
-8. LIFF shows success and can close.
-9. Customer receives the quote link in LINE.
-10. Customer opens `/quote/[token]` and approves.
-11. `POST /api/quotes/[id]/approve` either moves the flow to `WAITING_PAYMENT` or creates the job and first timeline entry at `IN_DESIGN`.
-12. Admin updates job status, the customer receives a LINE notification, and `/status/[token]` shows progress until completion.
+3. If the same customer already has an active pre-job conversation, LINE can offer `ทำรายการเดิมต่อ` or `เริ่มงานใหม่`.
+4. Choosing `ทำรายการเดิมต่อ` keeps the customer in the reusable intake loop.
+5. Choosing `เริ่มงานใหม่` starts a fresh conversation and intake set from the beginning.
+6. Customer opens LIFF inside LINE.
+7. Customer fills the intake form.
+8. `POST /api/intake` normalizes dimensions to mm and creates the lead.
+9. If data is incomplete, the workflow moves to `ON_HOLD_CUSTOMER_INPUT` until the customer adds enough detail.
+10. If data is complete, the API creates the quote and moves the conversation to `WAITING_QUOTE_APPROVAL`.
+11. LIFF shows success and can close.
+12. Customer receives the quote link in LINE.
+13. Customer opens `/quote/[token]` and approves.
+14. `POST /api/quotes/[id]/approve` either moves the flow to `WAITING_PAYMENT` or creates the job and first timeline entry at `IN_DESIGN`.
+15. Admin updates job status, the customer receives a LINE notification, and `/status/[token]` shows progress until completion.
 
 ## State progression
 ```text
@@ -56,6 +59,7 @@ When escalating:
 ## Flow-specific implementation notes
 - The LIFF endpoint registered in LINE Console is `/liff`.
 - The intake page still lives at `/liff/intake`.
+- Returning customers can be routed to either resume the reusable intake loop or open a fresh intake request, depending on the LINE choice payload.
 - The success state should feel final enough that the customer can safely leave LIFF and return to LINE.
 - Quote approval must be idempotent enough to avoid duplicate jobs if the customer retries.
 - Status updates should reflect the latest job timeline entry.

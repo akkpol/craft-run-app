@@ -485,6 +485,7 @@ export async function applyProductionReviewAction(input: {
     getProductionReviewDecision({
       action: input.action,
       customerAutoSendEnabled: runtimeConfig.productionCustomerAutoSendEnabled,
+      currentReviewStatus: currentStatus,
     });
   const nowIso = new Date().toISOString();
   const reviewNote = input.reviewNote?.trim() || null;

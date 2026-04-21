@@ -101,6 +101,7 @@ export type SnapshotProductionEvent = {
   id: string;
   job_id: string;
   production_link_id: string;
+  production_link_url?: string | null;
   event_type: "proof" | "ready_for_production" | "completed";
   note: string | null;
   submitted_by_label: string | null;
@@ -125,6 +126,7 @@ export type SnapshotProductionEvent = {
 export type SnapshotJob = {
   id: string;
   lead_id: string;
+  production_link_url?: string | null;
   status: JobStatus;
   assigned_to: string | null;
   production_status?: string | null;
