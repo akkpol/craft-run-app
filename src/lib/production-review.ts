@@ -70,6 +70,7 @@ export function getReviewStatusAfterApproval(
 export function getProductionReviewDecision(input: {
   action: ProductionReviewAction;
   customerAutoSendEnabled: boolean;
+  currentReviewStatus?: ProductionReviewStatus;
 }): {
   reviewStatusAfterReview: ProductionReviewStatus;
   shouldSendToCustomer: boolean;
@@ -83,7 +84,8 @@ export function getProductionReviewDecision(input: {
 
   if (input.action === "send") {
     return {
-      reviewStatusAfterReview: "approved",
+      reviewStatusAfterReview:
+        input.currentReviewStatus === "sent" ? "sent" : "approved",
       shouldSendToCustomer: true,
     };
   }

@@ -29,7 +29,7 @@ test("getProductionReviewDecision keeps approve without auto-send at approved", 
   );
 });
 
-test("getProductionReviewDecision promotes approve with auto-send and manual send to notification flow", () => {
+test("getProductionReviewDecision promotes approve with auto-send and preserves send state correctly", () => {
   assert.deepEqual(
     getProductionReviewDecision({
       action: "approve",
@@ -45,9 +45,22 @@ test("getProductionReviewDecision promotes approve with auto-send and manual sen
     getProductionReviewDecision({
       action: "send",
       customerAutoSendEnabled: false,
+      currentReviewStatus: "approved",
     }),
     {
       reviewStatusAfterReview: "approved",
+      shouldSendToCustomer: true,
+    }
+  );
+
+  assert.deepEqual(
+    getProductionReviewDecision({
+      action: "send",
+      customerAutoSendEnabled: false,
+      currentReviewStatus: "sent",
+    }),
+    {
+      reviewStatusAfterReview: "sent",
       shouldSendToCustomer: true,
     }
   );
