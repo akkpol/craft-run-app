@@ -16,6 +16,7 @@ import {
   getConversationsToCancelForFreshRestart,
   getLeadsToSupersedeForFreshRestart,
   type FreshRestartConversationCandidate,
+  type FreshRestartConversationReplacement,
   type FreshRestartLeadCandidate,
 } from "@/lib/customer-restart";
 import { logSystemAction } from "@/lib/action-log";
@@ -193,6 +194,96 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // 3.5. Fresh restart: supersede prior leads and cancel prior conversations
+  // BEFORE creating the new lead, so mid-flight failures cannot leave duplicate active leads.
+  let freshRestartLeadsToSupersede: FreshRestartLeadCandidate[] = [];
+  let freshRestartConversationsToCancel: FreshRestartConversationReplacement[] = [];
+  if (forceFreshConversation) {
+    const { data: priorConversationRows, error: priorConversationError } =
+      await supabase
+        .from("conversations")
+        .select("id, state")
+        .eq("line_user_id", resolvedLineUserId)
+        .neq("id", conversationId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+    if (priorConversationError) {
+      return NextResponse.json(
+        {
+          error: `Failed to load prior conversations: ${priorConversationError.message}`,
+        },
+        { status: 500 }
+      );
+    }
+
+    // Lead does not exist yet — no .neq("id", ...) filter needed; pass "" as sentinel
+    const { data: priorLeadRows, error: priorLeadError } = await supabase
+      .from("leads")
+      .select(
+        "id, conversation_id, status, superseded_at, quotes(id, status, jobs(id, status)), conversations!inner(line_user_id)"
+      )
+      .eq("conversations.line_user_id", resolvedLineUserId)
+      .is("superseded_at", null)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (priorLeadError) {
+      return NextResponse.json(
+        { error: `Failed to load prior leads: ${priorLeadError.message}` },
+        { status: 500 }
+      );
+    }
+
+    freshRestartConversationsToCancel = getConversationsToCancelForFreshRestart(
+      (priorConversationRows || []) as FreshRestartConversationCandidate[],
+      conversationId
+    );
+    // Pass "" as sentinel replacementLeadId — lead.id is not known yet
+    freshRestartLeadsToSupersede = getLeadsToSupersedeForFreshRestart(
+      (priorLeadRows || []) as FreshRestartLeadCandidate[],
+      ""
+    );
+
+    const supersededAt = new Date().toISOString();
+
+    // Supersede prior leads first. superseded_by_lead_id will be back-filled after lead creation.
+    for (const priorLead of freshRestartLeadsToSupersede) {
+      const { error: supersedeLeadError } = await supabase
+        .from("leads")
+        .update({
+          status: "superseded",
+          superseded_at: supersededAt,
+          supersede_reason: "Customer started a fresh request in LINE",
+        })
+        .eq("id", priorLead.id);
+
+      if (supersedeLeadError) {
+        return NextResponse.json(
+          { error: `Failed to supersede previous lead: ${supersedeLeadError.message}` },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Cancel prior conversations
+    for (const priorConversation of freshRestartConversationsToCancel) {
+      const { error: cancelConversationError } = await supabase
+        .from("conversations")
+        .update({ state: "CANCELLED" })
+        .eq("id", priorConversation.id);
+
+      if (cancelConversationError) {
+        return NextResponse.json(
+          {
+            error: `Failed to supersede previous conversation: ${cancelConversationError.message}`,
+          },
+          { status: 500 }
+        );
+      }
+    }
+  }
+
   // 4. Create lead
   const needsReview =
     !data.productType || !data.dueDate || widthMm <= 0 || heightMm <= 0;
@@ -232,117 +323,47 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (forceFreshConversation) {
-    const { data: priorConversationRows, error: priorConversationError } =
+  // 4.5. Fresh restart: back-fill superseded_by_lead_id and emit audit logs now that lead.id is known
+  if (
+    forceFreshConversation &&
+    (freshRestartLeadsToSupersede.length > 0 || freshRestartConversationsToCancel.length > 0)
+  ) {
+    const supersedeNote = `Superseded by fresh intake lead ${lead.id}`;
+
+    for (const priorLead of freshRestartLeadsToSupersede) {
       await supabase
-        .from("conversations")
-        .select("id, state")
-        .eq("line_user_id", resolvedLineUserId)
-        .neq("id", conversationId)
-        .order("created_at", { ascending: false })
-        .limit(10);
+        .from("leads")
+        .update({ superseded_by_lead_id: lead.id })
+        .eq("id", priorLead.id);
 
-    if (priorConversationError) {
-      return NextResponse.json(
-        {
-          error: `Failed to load prior conversations: ${priorConversationError.message}`,
+      await logSystemAction(supabase, {
+        entityType: "lead",
+        entityId: priorLead.id,
+        actionType: "lead.superseded",
+        serviceName: "intake",
+        note: supersedeNote,
+        payload: {
+          superseded_by_lead_id: lead.id,
+          replacement_conversation_id: conversationId,
+          replacement_mode: "fresh",
         },
-        { status: 500 }
-      );
+      });
     }
 
-    const { data: priorLeadRows, error: priorLeadError } = await supabase
-      .from("leads")
-      .select(
-        "id, conversation_id, status, superseded_at, quotes(id, status, jobs(id, status)), conversations!inner(line_user_id)"
-      )
-      .eq("conversations.line_user_id", resolvedLineUserId)
-      .neq("id", lead.id)
-      .is("superseded_at", null)
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    if (priorLeadError) {
-      return NextResponse.json(
-        { error: `Failed to load prior leads: ${priorLeadError.message}` },
-        { status: 500 }
-      );
-    }
-
-    const conversationsToCancel = getConversationsToCancelForFreshRestart(
-      (priorConversationRows || []) as FreshRestartConversationCandidate[],
-      conversationId
-    );
-    const leadsToSupersede = getLeadsToSupersedeForFreshRestart(
-      (priorLeadRows || []) as FreshRestartLeadCandidate[],
-      lead.id
-    );
-
-    if (leadsToSupersede.length > 0 || conversationsToCancel.length > 0) {
-      const supersededAt = new Date().toISOString();
-      const supersedeNote = `Superseded by fresh intake lead ${lead.id}`;
-
-      for (const priorLead of leadsToSupersede) {
-        const { error: supersedeLeadError } = await supabase
-          .from("leads")
-          .update({
-            status: "superseded",
-            superseded_by_lead_id: lead.id,
-            superseded_at: supersededAt,
-            supersede_reason: "Customer started a fresh request in LINE",
-          })
-          .eq("id", priorLead.id);
-
-        if (supersedeLeadError) {
-          return NextResponse.json(
-            { error: `Failed to supersede previous lead: ${supersedeLeadError.message}` },
-            { status: 500 }
-          );
-        }
-
-        await logSystemAction(supabase, {
-          entityType: "lead",
-          entityId: priorLead.id,
-          actionType: "lead.superseded",
-          serviceName: "intake",
-          note: supersedeNote,
-          payload: {
-            superseded_by_lead_id: lead.id,
-            replacement_conversation_id: conversationId,
-            replacement_mode: "fresh",
-          },
-        });
-      }
-
-      for (const priorConversation of conversationsToCancel) {
-        const { error: cancelConversationError } = await supabase
-          .from("conversations")
-          .update({ state: "CANCELLED" })
-          .eq("id", priorConversation.id);
-
-        if (cancelConversationError) {
-          return NextResponse.json(
-            {
-              error: `Failed to supersede previous conversation: ${cancelConversationError.message}`,
-            },
-            { status: 500 }
-          );
-        }
-
-        await logSystemAction(supabase, {
-          entityType: "conversation",
-          entityId: priorConversation.id,
-          actionType: "conversation.state_changed",
-          serviceName: "intake",
-          note: supersedeNote,
-          payload: {
-            from: priorConversation.fromState,
-            to: "CANCELLED",
-            replacement_lead_id: lead.id,
-            replacement_mode: "fresh",
-          },
-        });
-      }
+    for (const priorConversation of freshRestartConversationsToCancel) {
+      await logSystemAction(supabase, {
+        entityType: "conversation",
+        entityId: priorConversation.id,
+        actionType: "conversation.state_changed",
+        serviceName: "intake",
+        note: supersedeNote,
+        payload: {
+          from: priorConversation.fromState,
+          to: "CANCELLED",
+          replacement_lead_id: lead.id,
+          replacement_mode: "fresh",
+        },
+      });
     }
   }
 

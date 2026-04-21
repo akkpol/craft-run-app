@@ -54,7 +54,9 @@ export function isDesignStatus(value: string): value is DesignStatus {
 export function designStatusNeedsCustomerResponse(
   status: DesignStatus | null | undefined
 ): boolean {
-  return status === "preview_sent" || status === "revision_requested";
+  // Only "preview_sent" is in customerResponseStatuses per workflow-policy.json.
+  // "revision_requested" is teamOwnedStatuses — the team owns the next step.
+  return status === "preview_sent";
 }
 
 export const FULFILLMENT_MODES = ["pickup", "delivery"] as const;

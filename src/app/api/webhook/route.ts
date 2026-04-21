@@ -125,6 +125,15 @@ export async function POST(request: NextRequest) {
           reusableCollectionState ??
           getReusableConversationState(existingConv?.state, "REQUIREMENTS_REVIEW");
 
+        const MID_PRODUCTION_STATES: WorkflowState[] = [
+          "IN_DESIGN",
+          "IN_PRODUCTION",
+          "READY_FOR_FULFILLMENT",
+        ];
+        const isActiveMidProduction =
+          !!existingConv &&
+          MID_PRODUCTION_STATES.includes(existingConv.state as WorkflowState);
+
         let conversationId: string;
         let conversationState: WorkflowState = "NEW_MESSAGE";
         let reusedConversation = false;
@@ -154,6 +163,14 @@ export async function POST(request: NextRequest) {
             console.error("Failed to update conversation:", updateConversationError.message);
             continue;
           }
+        } else if (isActiveMidProduction) {
+          reusedConversation = true;
+          conversationId = existingConv!.id;
+          conversationState = existingConv!.state as WorkflowState;
+          await supabase
+            .from("conversations")
+            .update({ last_message_at: new Date().toISOString() })
+            .eq("id", conversationId);
         } else {
           const { data: newConv, error: newConvError } = await supabase
             .from("conversations")
@@ -278,6 +295,33 @@ export async function POST(request: NextRequest) {
                 {
                   type: "text",
                   text: "ทีมงานได้รับเรื่องแล้ว ตอนนี้กำลังตรวจสอบและจะติดต่อกลับโดยเร็วที่สุดค่ะ",
+                },
+              ],
+            });
+          }
+          continue;
+        }
+
+        if (MID_PRODUCTION_STATES.includes(conversationState)) {
+          if (event.replyToken) {
+            await lineClient.replyMessage({
+              replyToken: event.replyToken,
+              messages: [
+                {
+                  type: "text",
+                  text: "ขอบคุณที่ติดต่อมาค่ะ ขณะนี้งานของคุณกำลังดำเนินการอยู่ หากต้องการสอบถามข้อมูลเพิ่มเติม สามารถพิมพ์ \"คุยกับแอดมิน\" เพื่อให้ทีมงานช่วยเหลือค่ะ",
+                  quickReply: {
+                    items: [
+                      {
+                        type: "action",
+                        action: {
+                          type: "message",
+                          label: "💬 คุยกับแอดมิน",
+                          text: "ขอคุยกับแอดมิน",
+                        },
+                      },
+                    ],
+                  },
                 },
               ],
             });

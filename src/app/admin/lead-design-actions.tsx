@@ -121,7 +121,7 @@ export default function AdminLeadDesignActions({ leadId, designStatus }: Props) 
       key: "approved",
       label: labels.approved,
       description: "ใช้เมื่อทีมยืนยันว่าแบบผ่านแล้วและพร้อมไปต่อ",
-      disabled: designStatus === "approved",
+      disabled: designStatus !== "preview_sent",
     },
     !isDraftingOrNotStarted
       ? {
