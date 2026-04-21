@@ -51,6 +51,8 @@ Side branches: `ON_HOLD_CUSTOMER_INPUT`, `HUMAN_REVIEW_REQUIRED`, `CANCELLED`
 
 ## Trigger Notes
 
+- When a returning customer still has an active pre-job conversation, the LINE reply can offer two paths: continue the existing intake flow or start a fresh request from the beginning.
+- Choosing the fresh path creates a new conversation and intake record set; it does not reuse the previous conversation row.
 - Quote approval does not always create a job. The job is created or reused only when `paymentUnlocksProduction()` returns true.
 - `credit` unlocks immediately.
 - `deposit` unlocks when payment becomes `partial` or `paid`.

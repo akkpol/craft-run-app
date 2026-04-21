@@ -8,7 +8,7 @@ import {
   hashProductionLinkToken,
 } from "@/lib/production-links";
 import {
-  getReviewStatusAfterApproval,
+  getProductionReviewDecision,
   getReviewTimelineNote,
   PRODUCTION_EVENT_TYPES,
   type ProductionEventType,
@@ -481,21 +481,19 @@ export async function applyProductionReviewAction(input: {
     throw new Error("Rejected events cannot be sent");
   }
 
-  const nextStatus =
-    input.action === "approve"
-      ? getReviewStatusAfterApproval(runtimeConfig.productionCustomerAutoSendEnabled)
-      : input.action === "reject"
-        ? "rejected"
-        : "sent";
+  const { reviewStatusAfterReview, shouldSendToCustomer } =
+    getProductionReviewDecision({
+      action: input.action,
+      customerAutoSendEnabled: runtimeConfig.productionCustomerAutoSendEnabled,
+    });
   const nowIso = new Date().toISOString();
   const reviewNote = input.reviewNote?.trim() || null;
 
   const updatePayload: Record<string, string | null> = {
-    review_status: nextStatus,
+    review_status: reviewStatusAfterReview,
     review_note: reviewNote,
     reviewed_by: input.reviewedBy || "admin",
     reviewed_at: nowIso,
-    sent_to_customer_at: nextStatus === "sent" ? nowIso : row.sent_to_customer_at,
   };
 
   const { error: updateError } = await input.supabase
@@ -507,14 +505,83 @@ export async function applyProductionReviewAction(input: {
     throw new Error(updateError.message);
   }
 
+  const job = Array.isArray(row.jobs) ? row.jobs[0] : row.jobs;
+  let finalStatus: ProductionReviewStatus = reviewStatusAfterReview;
+  let notificationError: string | null = null;
+
+  if (shouldSendToCustomer) {
+    const quote = Array.isArray(job?.quotes) ? job?.quotes[0] : job?.quotes;
+    const lead = Array.isArray(quote?.leads) ? quote?.leads[0] : quote?.leads;
+    const conversationId = lead?.conversation_id;
+    const quoteToken = quote?.public_token;
+
+    try {
+      if (!conversationId || !quoteToken) {
+        throw new Error(
+          "Review saved, but no customer status link is available for LINE notification"
+        );
+      }
+
+      const { data: conversation, error: conversationError } = await input.supabase
+        .from("conversations")
+        .select("line_user_id")
+        .eq("id", conversationId)
+        .single();
+
+      if (conversationError) {
+        throw new Error(conversationError.message);
+      }
+
+      if (!conversation?.line_user_id) {
+        throw new Error(
+          "Review saved, but no LINE user is available for notification"
+        );
+      }
+
+        const assetPaths = Array.isArray(row.job_media_assets)
+          ? row.job_media_assets.map((asset) => asset.storage_path)
+          : [];
+        const signedUrls = await signJobMediaAssetPaths(input.supabase, assetPaths);
+
+      await pushProductionEvidenceUpdate({
+        userId: conversation.line_user_id,
+        statusToken: quoteToken,
+        eventType: row.event_type as ProductionEventType,
+        note: row.note,
+        assetUrls: assetPaths
+          .map((path) => signedUrls[path])
+          .filter((value): value is string => Boolean(value)),
+      });
+
+      const { error: markSentError } = await input.supabase
+        .from("job_media_events")
+        .update({
+          review_status: "sent",
+          sent_to_customer_at: nowIso,
+        })
+        .eq("id", input.eventId);
+
+      if (markSentError) {
+        throw new Error(
+          `Customer was notified, but the event could not be marked as sent: ${markSentError.message}`
+        );
+      }
+
+      finalStatus = "sent";
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to notify customer via LINE";
+      notificationError = `LINE notification failed. Event remains ${reviewStatusAfterReview}: ${message}`;
+    }
+  }
+
   const timelineAction =
-    nextStatus === "sent"
+    finalStatus === "sent"
       ? "sent"
-      : nextStatus === "approved"
+      : finalStatus === "approved"
         ? "approved"
         : "rejected";
 
-  const job = Array.isArray(row.jobs) ? row.jobs[0] : row.jobs;
   await input.supabase.from("job_timeline").insert({
     job_id: row.job_id,
     status: job?.status || "IN_PRODUCTION",
@@ -526,40 +593,9 @@ export async function applyProductionReviewAction(input: {
     created_at: nowIso,
   });
 
-  if (nextStatus === "sent") {
-    const quote = Array.isArray(job?.quotes) ? job?.quotes[0] : job?.quotes;
-    const lead = Array.isArray(quote?.leads) ? quote?.leads[0] : quote?.leads;
-    const conversationId = lead?.conversation_id;
-    const quoteToken = quote?.public_token;
-
-    if (conversationId && quoteToken) {
-      const { data: conversation } = await input.supabase
-        .from("conversations")
-        .select("line_user_id")
-        .eq("id", conversationId)
-        .single();
-
-      if (conversation?.line_user_id) {
-        const assetPaths = Array.isArray(row.job_media_assets)
-          ? row.job_media_assets.map((asset) => asset.storage_path)
-          : [];
-        const signedUrls = await signJobMediaAssetPaths(input.supabase, assetPaths);
-
-        await pushProductionEvidenceUpdate({
-          userId: conversation.line_user_id,
-          statusToken: quoteToken,
-          eventType: row.event_type as ProductionEventType,
-          note: row.note,
-          assetUrls: assetPaths
-            .map((path) => signedUrls[path])
-            .filter((value): value is string => Boolean(value)),
-        });
-      }
-    }
-  }
-
   return {
     eventId: input.eventId,
-    reviewStatus: nextStatus,
+    reviewStatus: finalStatus,
+    notificationError: notificationError || undefined,
   };
 }

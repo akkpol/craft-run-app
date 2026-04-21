@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { pushQuoteLink } from "@/lib/line";
+import { pushQuoteLink, verifyLiffIdToken } from "@/lib/line";
 import {
   toMM,
   calculatePrice,
@@ -71,9 +71,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  const providedLineUserId = data.lineUserId?.trim() || "";
+  const providedDisplayName = data.displayName?.trim() || "";
+  const providedLiffIdToken = data.liffIdToken?.trim() || "";
+
   // Simple required-field validation
   const errors: string[] = [];
-  if (!data.lineUserId) errors.push("lineUserId is required");
   if (!data.productType) errors.push("productType is required");
   if (!data.width || data.width <= 0) errors.push("width must be positive");
   if (!data.height || data.height <= 0) errors.push("height must be positive");
@@ -91,6 +94,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: errors.join(", ") }, { status: 400 });
   }
 
+  let intakeIdentity: { userId: string; displayName: string | null };
+  if (providedLiffIdToken) {
+    try {
+      intakeIdentity = await verifyLiffIdToken(providedLiffIdToken);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to verify LIFF identity";
+      return NextResponse.json(
+        { error: `Unable to verify LINE identity: ${message}` },
+        { status: 400 }
+      );
+    }
+  } else if (process.env.NODE_ENV !== "production" && providedLineUserId) {
+    intakeIdentity = {
+      userId: providedLineUserId,
+      displayName: providedDisplayName || "ลูกค้า",
+    };
+  } else {
+    return NextResponse.json(
+      {
+        error:
+          "LINE identity verification is required. Please reopen the form from LINE.",
+      },
+      { status: 400 }
+    );
+  }
+
+  const resolvedLineUserId = intakeIdentity.userId;
+  const resolvedDisplayName =
+    intakeIdentity.displayName?.trim() || providedDisplayName || "ลูกค้า";
+
   const supabase = createAdminClient();
 
   // Normalize units to mm
@@ -103,8 +137,8 @@ export async function POST(request: NextRequest) {
     .from("customers")
     .upsert(
       {
-        line_user_id: data.lineUserId,
-        display_name: data.displayName || "ลูกค้า",
+        line_user_id: resolvedLineUserId,
+        display_name: resolvedDisplayName,
         phone: data.phone,
       },
       { onConflict: "line_user_id" }
@@ -125,7 +159,7 @@ export async function POST(request: NextRequest) {
   const { data: existingConvRows, error: existingConvError } = await supabase
     .from("conversations")
     .select("id, state")
-    .eq("line_user_id", data.lineUserId)
+    .eq("line_user_id", resolvedLineUserId)
     .order("created_at", { ascending: false })
     .limit(1);
 
@@ -168,7 +202,7 @@ export async function POST(request: NextRequest) {
   } else {
     const { data: newConv, error: newConvError } = await supabase
       .from("conversations")
-      .insert({ line_user_id: data.lineUserId, state: "REQUIREMENTS_REVIEW" })
+      .insert({ line_user_id: resolvedLineUserId, state: "REQUIREMENTS_REVIEW" })
       .select("id")
       .single();
 
@@ -247,7 +281,7 @@ export async function POST(request: NextRequest) {
       .select(
         "id, conversation_id, status, created_at, superseded_at, quotes(id, status, jobs(id, status)), conversations!inner(line_user_id)"
       )
-      .eq("conversations.line_user_id", data.lineUserId)
+      .eq("conversations.line_user_id", resolvedLineUserId)
       .neq("id", lead.id)
       .is("superseded_at", null)
       .order("created_at", { ascending: false })
@@ -437,7 +471,7 @@ export async function POST(request: NextRequest) {
   // 9. Send quote link to customer via LINE push
   try {
     const summary = `${productLabel} ${(widthMm / 10).toFixed(0)}×${(heightMm / 10).toFixed(0)} ซม. จำนวน ${qty} ชิ้น\nราคารวม VAT: ฿${total.toLocaleString()}`;
-    await pushQuoteLink(data.lineUserId, quote.public_token, summary);
+    await pushQuoteLink(resolvedLineUserId, quote.public_token, summary);
   } catch (error) {
     console.error("Failed to push quote link:", error);
     // Don't fail — quote is created, customer can still access via admin

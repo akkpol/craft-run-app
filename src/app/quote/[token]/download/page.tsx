@@ -9,6 +9,7 @@ import {
 } from "@/lib/types";
 import { notFound } from "next/navigation";
 import PrintToolbar from "./print-toolbar";
+import Image from "next/image";
 
 export const dynamic = "force-dynamic";
 
@@ -62,9 +63,12 @@ export default async function QuoteDownloadPage(props: {
           <div className="relative flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
             <div>
               {config.businessLogoUrl ? (
-                <img
+                <Image
                   src={config.businessLogoUrl}
                   alt={config.businessName}
+                  width={256}
+                  height={64}
+                  unoptimized
                   className="mb-4 h-16 w-auto rounded-2xl bg-white/95 p-2"
                 />
               ) : null}

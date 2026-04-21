@@ -10,6 +10,7 @@ declare global {
       init: (config: { liffId: string }) => Promise<void>;
       isLoggedIn: () => boolean;
       login: (config?: { redirectUri?: string }) => void;
+      getIDToken: () => string | null;
       getProfile: () => Promise<{ userId: string; displayName: string }>;
       requestFriendship: () => Promise<{ friendFlag: boolean }>;
       closeWindow: () => void;
@@ -125,6 +126,7 @@ export default function IntakeForm({
   const [error, setError] = useState("");
   const [lineUserId, setLineUserId] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [liffIdToken, setLiffIdToken] = useState("");
 
   const [productType, setProductType] = useState("");
   const [width, setWidth] = useState("");
@@ -159,8 +161,10 @@ export default function IntakeForm({
         }
 
         const profile = await window.liff.getProfile();
+        const idToken = window.liff.getIDToken();
         setLineUserId(profile.userId);
         setDisplayName(profile.displayName);
+        setLiffIdToken(idToken || "");
         setReady(true);
       } catch (err) {
         console.error("LIFF init error:", err);
@@ -215,14 +219,20 @@ export default function IntakeForm({
         setLoading(false);
         return;
       }
+      if (liffId && !liffIdToken) {
+        setError("ไม่สามารถยืนยันตัวตนจาก LINE ได้ กรุณาเปิดฟอร์มนี้จาก LINE แล้วลองใหม่");
+        setLoading(false);
+        return;
+      }
 
       try {
         const res = await fetch("/api/intake", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            lineUserId: lineUserId || "dev-user",
-            displayName: displayName || "Dev User",
+            lineUserId: lineUserId || undefined,
+            displayName: displayName || undefined,
+            liffIdToken: liffIdToken || undefined,
             productType,
             width: Number(width),
             height: Number(height),
@@ -272,6 +282,8 @@ export default function IntakeForm({
       aiImagePrompt,
       lineUserId,
       displayName,
+      liffId,
+      liffIdToken,
       intakeMode,
     ]
   );
@@ -289,7 +301,7 @@ export default function IntakeForm({
 
   if (submitOutcome) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+      <div className="flex min-h-screen items-center justify-center px-4">
         <div className="liff-panel w-full max-w-sm p-8 text-center">
           <div className="mb-4 text-5xl">{submitOutcome === "review" ? "📞" : "✅"}</div>
           <h2 className="mb-2 text-xl font-bold text-slate-900">
@@ -303,12 +315,12 @@ export default function IntakeForm({
   }
 
   return (
-    <div className="px-3 py-4" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <div className="px-3 py-4">
       <div className="mx-auto max-w-lg">
         <div className="liff-panel overflow-hidden">
           <div className="bg-[linear-gradient(135deg,#dcfce7_0%,#f0fdf4_48%,#ecfeff_100%)] px-4 py-5 text-slate-900">
             <div className="inline-flex rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700">
-              LINE LIFF
+              LINE MINI App
             </div>
             <h1 className="mt-3 text-xl font-bold">ส่งรายละเอียดงานกับ FOGUS</h1>
             <p className="mt-1 text-sm text-slate-600">จัดข้อมูลเป็น 3 ช่วงสั้น ๆ: เลือกหมวดงาน, กรอกรายละเอียดหลัก, แล้วเพิ่มข้อมูลเสริมถ้ามี เพื่อให้ทีมสรุปและส่งใบเสนอราคากลับทาง LINE</p>

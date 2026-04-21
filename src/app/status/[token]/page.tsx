@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import {
   DESIGN_STATUS_LABELS,
   PRODUCT_TYPES,
@@ -114,7 +115,14 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
                     rel="noreferrer"
                     className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
                   >
-                    <img src={imageUrl} alt="Design preview" className="h-36 w-full object-cover" />
+                    <Image
+                      src={imageUrl}
+                      alt="Design preview"
+                      width={320}
+                      height={144}
+                      unoptimized
+                      className="h-36 w-full object-cover"
+                    />
                   </a>
                 ))}
               </div>

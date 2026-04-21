@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 type SettingsState = {
@@ -191,7 +192,16 @@ export default function SettingsForm() {
               {uploadingAsset === "logo" ? <span className="text-xs text-slate-500">กำลังอัปโหลด...</span> : null}
               {form.businessLogoUrl ? <a href={form.businessLogoUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">เปิดไฟล์โลโก้</a> : null}
             </div>
-            {form.businessLogoUrl ? <img src={form.businessLogoUrl} alt="Business logo" className="mt-2 h-16 w-auto rounded-2xl border border-slate-200 bg-slate-50 p-2" /> : null}
+            {form.businessLogoUrl ? (
+              <Image
+                src={form.businessLogoUrl}
+                alt="Business logo"
+                width={256}
+                height={64}
+                unoptimized
+                className="mt-2 h-16 w-auto rounded-2xl border border-slate-200 bg-slate-50 p-2"
+              />
+            ) : null}
           </div>
           <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>ไฟล์ร้าน / Company Profile</span>
@@ -215,8 +225,8 @@ export default function SettingsForm() {
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-950">LINE และ LIFF</h2>
-        <p className="mt-1 text-sm text-slate-500">กรอกค่าที่เจ้าของระบบได้จาก LINE Developers Console เพื่อให้ระบบส่งข้อความและเปิด LIFF ได้โดยไม่ต้องแก้ไฟล์ env</p>
+        <h2 className="text-lg font-semibold text-slate-950">LINE Messaging API และ LINE MINI App</h2>
+        <p className="mt-1 text-sm text-slate-500">กรอกค่าที่เจ้าของระบบได้จาก LINE Developers Console เพื่อให้ระบบส่งข้อความและเปิด LINE MINI App ที่ทำงานบน LIFF SDK ได้โดยไม่ต้องแก้ไฟล์ env</p>
         <div className="mt-5 grid gap-4">
           <label className="grid gap-2 text-sm text-slate-700">
             <span>LINE Channel Access Token</span>
@@ -227,7 +237,7 @@ export default function SettingsForm() {
             <input type="password" value={form.lineChannelSecret} onChange={(e) => updateField("lineChannelSecret", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="ใส่ค่าจาก Messaging API" />
           </label>
           <label className="grid gap-2 text-sm text-slate-700">
-            <span>LIFF ID</span>
+            <span>LIFF ID / MINI App ID</span>
             <input value={form.liffId} onChange={(e) => updateField("liffId", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="เช่น 2000000000-xxxxxxx" />
           </label>
           <label className="grid gap-2 text-sm text-slate-700">
@@ -302,7 +312,7 @@ export default function SettingsForm() {
             <input value={form.webhookUrl} readOnly className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-slate-700" />
           </label>
           <label className="grid gap-2 text-sm text-slate-700 md:col-span-2">
-            <span>LIFF Endpoint URL</span>
+            <span>LINE MINI App / LIFF Endpoint URL</span>
             <input value={form.liffEndpointUrl} readOnly className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-slate-700" />
           </label>
         </div>
@@ -310,7 +320,8 @@ export default function SettingsForm() {
           <p>1. ไปที่ LINE Developers Console &gt; Messaging API</p>
           <p>2. วาง Webhook URL แล้วกด Verify</p>
           <p>3. เปิดสวิตช์ `Use webhook` ให้เป็น Enabled</p>
-          <p>4. ที่ LIFF Console ให้ลงทะเบียน endpoint เป็น `/liff` ไม่ใช่ `/liff/intake`</p>
+          <p>4. ที่ LINE MINI App / LIFF ให้ลงทะเบียน endpoint เป็น `/liff` ไม่ใช่ `/liff/intake`</p>
+          <p>5. ให้แอปเปิดที่ `/liff` โดยตรง และหลีกเลี่ยงการ redirect ไป path อื่นก่อน `liff.init()` เสร็จ</p>
         </div>
       </section>
 

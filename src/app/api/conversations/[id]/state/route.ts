@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   isWorkflowState,
+  normalizeWorkflowState,
   type WorkflowState,
 } from "@/lib/types";
 import {
@@ -36,13 +37,13 @@ export async function POST(
     .eq("id", id)
     .single();
 
-  if (conversationError || !conversation || !isWorkflowState(conversation.state)) {
+  const currentState = normalizeWorkflowState(conversation?.state);
+
+  if (conversationError || !conversation || !currentState) {
     return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
   }
 
-  const currentState = conversation.state;
-
-  if (currentState === nextState) {
+  if (currentState === nextState && conversation.state === nextState) {
     return NextResponse.json({ success: true, state: nextState, unchanged: true });
   }
 

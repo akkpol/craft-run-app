@@ -30,6 +30,10 @@ export default function ProductionReviewActions({
         return;
       }
 
+      if (payload.notificationError) {
+        alert(payload.notificationError);
+      }
+
       router.refresh();
     } catch {
       alert("Action failed");
