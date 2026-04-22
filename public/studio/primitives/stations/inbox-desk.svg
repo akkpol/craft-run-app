@@ -1,0 +1,26 @@
+<svg width="320" height="200" viewBox="0 0 320 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="inbox-floor" x1="66" y1="84" x2="252" y2="164" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E0F2FE"/>
+      <stop offset="1" stop-color="#BFDBFE"/>
+    </linearGradient>
+    <linearGradient id="inbox-desk" x1="104" y1="56" x2="220" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#CBD5F5"/>
+    </linearGradient>
+  </defs>
+  <path d="M64 118L160 76L258 118L160 164L64 118Z" fill="url(#inbox-floor)" stroke="#94A3B8" stroke-width="3"/>
+  <path d="M92 126L160 98L226 126L160 154L92 126Z" fill="#DBEAFE" opacity=".75"/>
+  <path d="M110 70L184 44L224 68L148 96L110 70Z" fill="url(#inbox-desk)" stroke="#64748B" stroke-width="3"/>
+  <path d="M148 96V138L224 110V68L148 96Z" fill="#C7D2FE" stroke="#64748B" stroke-width="3"/>
+  <path d="M110 70V112L148 138V96L110 70Z" fill="#E2E8F0" stroke="#64748B" stroke-width="3"/>
+  <rect x="136" y="52" width="30" height="24" rx="6" fill="#0F172A"/>
+  <rect x="140" y="56" width="22" height="14" rx="4" fill="#38BDF8"/>
+  <path d="M196 80L214 74L226 80L208 86L196 80Z" fill="#F8FAFC" stroke="#64748B" stroke-width="2"/>
+  <path d="M196 80V96L208 102V86L196 80Z" fill="#E2E8F0" stroke="#64748B" stroke-width="2"/>
+  <path d="M208 86V102L226 96V80L208 86Z" fill="#BFDBFE" stroke="#64748B" stroke-width="2"/>
+  <path d="M84 74C84 64.6112 91.6112 57 101 57H124C133.389 57 141 64.6112 141 74V85C141 94.3888 133.389 102 124 102H110L98 113V102H101C91.6112 102 84 94.3888 84 85V74Z" fill="#F8FAFC" stroke="#64748B" stroke-width="3"/>
+  <circle cx="104" cy="79" r="4" fill="#38BDF8"/>
+  <circle cx="113" cy="79" r="4" fill="#38BDF8"/>
+  <circle cx="122" cy="79" r="4" fill="#38BDF8"/>
+</svg>

@@ -1,0 +1,18 @@
+<svg width="320" height="200" viewBox="0 0 320 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="archive-floor" x1="64" y1="88" x2="258" y2="164" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DCFCE7"/>
+      <stop offset="1" stop-color="#86EFAC"/>
+    </linearGradient>
+  </defs>
+  <path d="M60 118L160 78L260 118L160 166L60 118Z" fill="url(#archive-floor)" stroke="#22C55E" stroke-opacity=".3" stroke-width="3"/>
+  <path d="M102 70L188 40L220 58L134 90L102 70Z" fill="#ECFCCB" stroke="#4B5563" stroke-width="3"/>
+  <path d="M134 90V146L220 112V58L134 90Z" fill="#BBF7D0" stroke="#4B5563" stroke-width="3"/>
+  <path d="M102 70V126L134 146V90L102 70Z" fill="#DCFCE7" stroke="#4B5563" stroke-width="3"/>
+  <path d="M116 84L146 74L160 82L130 94L116 84Z" fill="#FFFFFF" stroke="#4B5563" stroke-width="2"/>
+  <path d="M130 94V106L160 94V82L130 94Z" fill="#BFDBFE" stroke="#4B5563" stroke-width="2"/>
+  <path d="M168 90L198 80L212 88L182 100L168 90Z" fill="#FEF3C7" stroke="#92400E" stroke-width="2"/>
+  <path d="M182 100V112L212 100V88L182 100Z" fill="#F59E0B" stroke="#92400E" stroke-width="2"/>
+  <path d="M94 122L120 112L138 122L112 132L94 122Z" fill="#D1FAE5" stroke="#4B5563" stroke-width="2"/>
+  <path d="M112 132V144L138 134V122L112 132Z" fill="#6EE7B7" stroke="#4B5563" stroke-width="2"/>
+</svg>

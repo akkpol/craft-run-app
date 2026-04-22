@@ -52,6 +52,14 @@
         "/^git -C \"d:\\\\craft-run\\\\craft-run\\\\craft-run-backup-20260415\" diff --unified=40 main\\.\\.\\.HEAD -- src/lib/line\\.ts$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^copilot plugin marketplace list$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^Get-Command python, py, node \\| Select-Object Name, Source \\| Format-Table -AutoSize \\| Out-String$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
