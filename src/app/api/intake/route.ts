@@ -276,7 +276,7 @@ export async function POST(request: NextRequest) {
       if (cancelConversationError) {
         return NextResponse.json(
           {
-            error: `Failed to supersede previous conversation: ${cancelConversationError.message}`,
+            error: `Failed to cancel previous conversation: ${cancelConversationError.message}`,
           },
           { status: 500 }
         );
