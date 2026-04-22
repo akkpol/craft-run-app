@@ -1,0 +1,22 @@
+<svg width="320" height="200" viewBox="0 0 320 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="cashier-floor" x1="68" y1="90" x2="254" y2="164" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FEF3C7"/>
+      <stop offset="1" stop-color="#FDE68A"/>
+    </linearGradient>
+    <linearGradient id="cashier-arch" x1="122" y1="44" x2="204" y2="138" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF7ED"/>
+      <stop offset="1" stop-color="#FDBA74"/>
+    </linearGradient>
+  </defs>
+  <path d="M68 120L160 82L250 120L160 162L68 120Z" fill="url(#cashier-floor)" stroke="#F59E0B" stroke-opacity=".45" stroke-width="3"/>
+  <path d="M124 58C124 43.6406 135.641 32 150 32H170C184.359 32 196 43.6406 196 58V112H178V60C178 55.5817 174.418 52 170 52H150C145.582 52 142 55.5817 142 60V112H124V58Z" fill="url(#cashier-arch)" stroke="#92400E" stroke-width="4"/>
+  <rect x="142" y="80" width="36" height="20" rx="6" fill="#0F172A"/>
+  <rect x="148" y="85" width="24" height="8" rx="3" fill="#FBBF24"/>
+  <path d="M198 102L220 94L236 102L214 110L198 102Z" fill="#FFFFFF" stroke="#92400E" stroke-width="2.5"/>
+  <path d="M214 110V126L236 118V102L214 110Z" fill="#FDE68A" stroke="#92400E" stroke-width="2.5"/>
+  <path d="M96 124L116 116L132 124L112 132L96 124Z" fill="#FED7AA" stroke="#9A3412" stroke-width="2.5"/>
+  <path d="M112 132V144L132 136V124L112 132Z" fill="#FB923C" stroke="#9A3412" stroke-width="2.5"/>
+  <circle cx="160" cy="120" r="16" fill="#FB923C" opacity=".18"/>
+  <circle cx="160" cy="120" r="8" fill="#FB923C"/>
+</svg>

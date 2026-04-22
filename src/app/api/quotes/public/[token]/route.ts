@@ -263,10 +263,16 @@ export async function POST(
         });
       }
 
-      if (lead.conversation_id && job?.status === "ON_HOLD_CUSTOMER_INPUT") {
+      if (lead.conversation_id) {
+        // Per policy preJobDesignApprovalFallbackState: if no active job, resume
+        // to REQUIREMENTS_REVIEW. If job is ON_HOLD_CUSTOMER_INPUT, advance to IN_DESIGN.
+        const nextConvState =
+          job?.id && job.status === "ON_HOLD_CUSTOMER_INPUT"
+            ? "IN_DESIGN"
+            : "REQUIREMENTS_REVIEW";
         await supabase
           .from("conversations")
-          .update({ state: "IN_DESIGN" })
+          .update({ state: nextConvState })
           .eq("id", lead.conversation_id);
       }
 

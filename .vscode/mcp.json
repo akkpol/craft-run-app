@@ -6,6 +6,10 @@
 				"-y",
 				"next-devtools-mcp@latest"
 			]
+		},
+		"Vercel": {
+			"type": "http",
+			"url": "https://mcp.vercel.com"
 		}
 	}
 }

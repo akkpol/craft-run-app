@@ -1,0 +1,25 @@
+<svg width="320" height="200" viewBox="0 0 320 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="prod-floor" x1="62" y1="88" x2="258" y2="164" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#BAE6FD"/>
+      <stop offset="1" stop-color="#67E8F9"/>
+    </linearGradient>
+    <linearGradient id="prod-machine" x1="94" y1="52" x2="230" y2="130" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFC"/>
+      <stop offset="1" stop-color="#BFDBFE"/>
+    </linearGradient>
+  </defs>
+  <path d="M60 118L160 78L258 118L160 166L60 118Z" fill="url(#prod-floor)" stroke="#0284C7" stroke-opacity=".36" stroke-width="3"/>
+  <path d="M94 78L196 42L230 64L128 102L94 78Z" fill="url(#prod-machine)" stroke="#475569" stroke-width="3"/>
+  <path d="M128 102V146L230 108V64L128 102Z" fill="#93C5FD" stroke="#475569" stroke-width="3"/>
+  <path d="M94 78V122L128 146V102L94 78Z" fill="#E2E8F0" stroke="#475569" stroke-width="3"/>
+  <rect x="128" y="58" width="42" height="24" rx="6" fill="#0F172A"/>
+  <rect x="134" y="64" width="30" height="12" rx="4" fill="#22D3EE"/>
+  <rect x="182" y="68" width="24" height="18" rx="5" fill="#0F172A"/>
+  <circle cx="194" cy="77" r="5" fill="#FBBF24"/>
+  <path d="M210 96L242 84L260 96L228 110L210 96Z" fill="#F8FAFC" stroke="#475569" stroke-width="2.5"/>
+  <path d="M228 110V130L260 118V96L228 110Z" fill="#E0F2FE" stroke="#475569" stroke-width="2.5"/>
+  <path d="M228 110L232 118L246 114L242 106L228 110Z" fill="#FDE68A"/>
+  <circle cx="112" cy="126" r="10" fill="#334155"/>
+  <circle cx="112" cy="126" r="4" fill="#93C5FD"/>
+</svg>

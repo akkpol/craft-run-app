@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   startTransition,
+  type CSSProperties,
   useDeferredValue,
   useEffect,
   useLayoutEffect,
@@ -26,6 +27,13 @@ import {
 } from "@/lib/studio-view";
 import { cn } from "@/lib/utils";
 import type { JobStatus, WorkflowState } from "@/lib/types";
+import {
+  STUDIO_CONNECTOR_ART,
+  getStationArtConfig,
+  getTokenArtConfig,
+  type StudioPrimitiveAsset,
+  type StudioPrimitivePlacement,
+} from "./studio-art";
 
 type StudioSurfaceProps = {
   view: StudioViewModel;
@@ -35,18 +43,7 @@ type StudioSurfaceProps = {
 
 type StudioLaneTone = "critical" | "branch" | "archive";
 type StudioMotionSignature = "steady" | "focus" | "hum" | "archive";
-
-const ROLE_ART: Record<StudioStationId, string> = {
-  inbox: "🧑‍💼",
-  quote: "🧾",
-  cashier: "💁",
-  design: "🧑‍🎨",
-  production: "🧑‍🏭",
-  packing: "🧑‍🚚",
-  hold: "💬",
-  review: "🧠",
-  archive: "🗃️",
-};
+type StudioStationModel = StudioViewModel["stations"][number];
 
 const STATION_LAYOUT_CLASS: Record<StudioStationId, string> = {
   inbox: "xl:[grid-area:1/1/2/3]",
@@ -135,42 +132,6 @@ const STATION_SCENE_META: Record<
   },
 };
 
-function getToneClasses(token: StudioToken) {
-  if (token.priorityTone === "blocked") {
-    return "border-amber-300 bg-amber-50 text-amber-950 shadow-[0_18px_34px_rgba(217,119,6,0.18)]";
-  }
-
-  if (token.priorityTone === "active") {
-    return "border-sky-300 bg-sky-50 text-sky-950 shadow-[0_18px_34px_rgba(14,165,233,0.18)]";
-  }
-
-  if (token.priorityTone === "done") {
-    return "border-emerald-300 bg-emerald-50 text-emerald-950 shadow-[0_18px_34px_rgba(16,185,129,0.18)]";
-  }
-
-  return "border-slate-200 bg-white text-slate-900 shadow-[0_14px_28px_rgba(15,23,42,0.1)]";
-}
-
-function getStationTone(stationId: StudioStationId) {
-  if (stationId === "cashier" || stationId === "hold") {
-    return "from-amber-100 via-orange-50 to-white";
-  }
-
-  if (stationId === "review") {
-    return "from-rose-100 via-pink-50 to-white";
-  }
-
-  if (stationId === "archive") {
-    return "from-emerald-100 via-teal-50 to-white";
-  }
-
-  if (stationId === "production") {
-    return "from-sky-100 via-cyan-50 to-white";
-  }
-
-  return "from-white via-slate-50 to-white";
-}
-
 function getLaneToneClasses(laneTone: StudioLaneTone) {
   if (laneTone === "branch") {
     return "border-amber-200 bg-amber-50/85 text-amber-800";
@@ -218,16 +179,48 @@ function getTokenSignal(token: StudioToken) {
   };
 }
 
-function getTokenIcon(tokenKind: StudioToken["tokenKind"]) {
-  if (tokenKind === "job") {
-    return "📦";
-  }
+function getPrimitiveStyle(
+  asset: StudioPrimitiveAsset,
+  placement: StudioPrimitivePlacement
+): CSSProperties {
+  return {
+    width: placement.width,
+    aspectRatio: `${asset.width} / ${asset.height}`,
+    left: placement.left,
+    right: placement.right,
+    top: placement.top,
+    bottom: placement.bottom,
+    zIndex: placement.zIndex,
+  };
+}
 
-  if (tokenKind === "quote") {
-    return "🧾";
-  }
-
-  return "💬";
+function StudioPrimitiveLayer({
+  asset,
+  placement,
+  className,
+}: {
+  asset: StudioPrimitiveAsset;
+  placement: StudioPrimitivePlacement;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn("studio-primitive", className)}
+      data-accent-tone={asset.accentTone}
+      data-motion-tag={asset.motionTag || "none"}
+      style={getPrimitiveStyle(asset, placement)}
+    >
+      <Image
+        src={asset.src}
+        alt=""
+        fill
+        unoptimized
+        sizes={`${placement.width}px`}
+        className="object-contain"
+      />
+    </span>
+  );
 }
 
 function getOwnerBadgeText(token: StudioToken) {
@@ -262,6 +255,267 @@ function getDrawerViewKey(token: StudioToken | null, stationId: StudioStationId 
   return "empty";
 }
 
+function StudioStationPreview({ stationId }: { stationId: StudioStationId }) {
+  const stationArt = getStationArtConfig(stationId);
+
+  return (
+    <div
+      className="studio-station-preview"
+      data-accent-tone={stationArt.accentTone}
+      aria-hidden="true"
+    >
+      <div className="studio-station-preview-floor" />
+      {stationArt.featureAsset && stationArt.featurePlacement ? (
+        <StudioPrimitiveLayer
+          asset={stationArt.featureAsset}
+          placement={stationArt.featurePlacement}
+          className="studio-station-preview-feature"
+        />
+      ) : null}
+      <StudioPrimitiveLayer
+        asset={stationArt.stationAsset}
+        placement={stationArt.stationPlacement}
+        className="studio-station-preview-machine"
+      />
+      <StudioPrimitiveLayer
+        asset={stationArt.actorAsset}
+        placement={stationArt.actorPlacement}
+        className="studio-station-preview-actor"
+      />
+    </div>
+  );
+}
+
+function StudioTokenNode({
+  token,
+  laneLabel,
+  isSelected,
+  isJustArrived,
+  onSelect,
+  setRef,
+}: {
+  token: StudioToken;
+  laneLabel: string;
+  isSelected: boolean;
+  isJustArrived: boolean;
+  onSelect: () => void;
+  setRef: (node: HTMLButtonElement | null) => void;
+}) {
+  const tokenArt = getTokenArtConfig(token);
+  const tokenSignal = getTokenSignal(token);
+
+  return (
+    <button
+      ref={setRef}
+      type="button"
+      data-accent-tone={tokenArt.accentTone}
+      data-priority-tone={token.priorityTone}
+      data-escalated={token.escalation ? "true" : "false"}
+      data-has-owner={token.ownerLabel ? "true" : "false"}
+      data-just-arrived={isJustArrived ? "true" : "false"}
+      className={cn(
+        "studio-token group relative flex min-w-[134px] max-w-[180px] flex-col gap-2 rounded-[26px] px-0 py-0 text-left transition duration-300 hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/75",
+        isSelected ? "ring-2 ring-slate-900/70" : "ring-0"
+      )}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect();
+      }}
+    >
+      <span className="studio-token-object">
+        <span className="studio-token-shadow" />
+        <span className="studio-token-owner-badge">{getOwnerInitial(token)}</span>
+        {tokenArt.markerAsset ? (
+          <span className="studio-token-marker" aria-hidden="true">
+            <Image
+              src={tokenArt.markerAsset.src}
+              alt=""
+              width={tokenArt.markerAsset.width}
+              height={tokenArt.markerAsset.height}
+              unoptimized
+              className="h-9 w-9 object-contain"
+            />
+          </span>
+        ) : null}
+        <span className="studio-token-object-art" aria-hidden="true">
+          <Image
+            src={tokenArt.objectAsset.src}
+            alt=""
+            width={tokenArt.objectAsset.width}
+            height={tokenArt.objectAsset.height}
+            unoptimized
+            className="h-full w-full object-contain"
+          />
+        </span>
+      </span>
+
+      <span className="studio-token-caption">
+        <span className="flex items-center justify-between gap-2">
+          <span className="studio-token-kind">{token.tokenKind}</span>
+          <span
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]",
+              tokenSignal.className
+            )}
+          >
+            {tokenSignal.label}
+          </span>
+        </span>
+        <span className="line-clamp-1 text-[12px] font-semibold text-slate-900">
+          {token.title}
+        </span>
+        <span className="line-clamp-1 text-[11px] text-slate-600">
+          {getOwnerBadgeText(token)}
+        </span>
+        <span className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
+          <span className="line-clamp-1">{token.productLabel}</span>
+          <span className="shrink-0">{token.amountLabel || laneLabel}</span>
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function StudioStationNode({
+  station,
+  sceneMeta,
+  selectedStationId,
+  selectedTokenId,
+  justArrivedTokenIds,
+  onStationSelect,
+  onTokenSelect,
+  setTokenRef,
+}: {
+  station: StudioStationModel;
+  sceneMeta: (typeof STATION_SCENE_META)[StudioStationId];
+  selectedStationId: StudioStationId | null;
+  selectedTokenId: string | null;
+  justArrivedTokenIds: string[];
+  onStationSelect: (stationId: StudioStationId) => void;
+  onTokenSelect: (tokenId: string, stationId: StudioStationId) => void;
+  setTokenRef: (id: string, node: HTMLButtonElement | null) => void;
+}) {
+  const stationArt = getStationArtConfig(station.id);
+  const stationAssignedCount = station.tokens.filter((token) => Boolean(token.ownerLabel))
+    .length;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      data-zone-tone={sceneMeta.laneTone}
+      data-accent-tone={stationArt.accentTone}
+      data-motion-signature={sceneMeta.motionSignature}
+      data-is-selected={
+        selectedStationId === station.id && !selectedTokenId ? "true" : "false"
+      }
+      data-has-blocked={station.blockedCount > 0 ? "true" : "false"}
+      onClick={() => onStationSelect(station.id)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onStationSelect(station.id);
+        }
+      }}
+      className={cn(
+        "studio-station group relative cursor-pointer text-left transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_48px_rgba(15,23,42,0.12)]",
+        STATION_LAYOUT_CLASS[station.id],
+        selectedStationId === station.id && !selectedTokenId ? "ring-2 ring-slate-900/70" : "ring-0"
+      )}
+    >
+      <div className="studio-station-glow pointer-events-none absolute inset-0 rounded-[30px]" />
+
+      <div className="studio-station-copy">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]",
+                getLaneToneClasses(sceneMeta.laneTone)
+              )}
+            >
+              {sceneMeta.laneLabel}
+            </span>
+            <span className="rounded-full border border-white/85 bg-white/78 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              {sceneMeta.motionLabel}
+            </span>
+          </div>
+          <h3 className="mt-3 text-sm font-semibold text-slate-950">{station.label}</h3>
+          <p className="mt-1 text-xs text-slate-500">{station.roleLabel}</p>
+        </div>
+
+        <div className="studio-station-counter">
+          <span className="text-lg font-semibold tracking-[-0.04em] text-slate-950">
+            {station.tokens.length}
+          </span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+            active pieces
+          </span>
+        </div>
+      </div>
+
+      <div className="studio-station-stage">
+        <div className="studio-station-stage-floor" />
+        <div className="studio-station-stage-shadow" />
+        {stationArt.featureAsset && stationArt.featurePlacement ? (
+          <StudioPrimitiveLayer
+            asset={stationArt.featureAsset}
+            placement={stationArt.featurePlacement}
+            className="studio-station-feature"
+          />
+        ) : null}
+        <StudioPrimitiveLayer
+          asset={stationArt.stationAsset}
+          placement={stationArt.stationPlacement}
+          className="studio-station-machine"
+        />
+        <StudioPrimitiveLayer
+          asset={stationArt.actorAsset}
+          placement={stationArt.actorPlacement}
+          className="studio-station-actor"
+        />
+      </div>
+
+      <div className="studio-station-dock">
+        {station.tokens.length > 0 ? (
+          station.tokens.map((token) => (
+            <StudioTokenNode
+              key={token.id}
+              token={token}
+              laneLabel={sceneMeta.laneLabel}
+              isSelected={selectedTokenId === token.id}
+              isJustArrived={justArrivedTokenIds.includes(token.id)}
+              onSelect={() => onTokenSelect(token.id, station.id)}
+              setRef={(node) => setTokenRef(token.id, node)}
+            />
+          ))
+        ) : (
+          <div className="studio-token-empty">No work objects for this filter.</div>
+        )}
+      </div>
+
+      <div className="studio-station-footer">
+        <p className="line-clamp-2 text-xs leading-5 text-slate-600">{station.description}</p>
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full border border-white/85 bg-white/82 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            {sceneMeta.moodLabel}
+          </span>
+          {station.blockedCount > 0 ? (
+            <span className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-rose-700">
+              {station.blockedCount} blocked
+            </span>
+          ) : null}
+          {stationAssignedCount > 0 ? (
+            <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-violet-700">
+              {stationAssignedCount} owned
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StudioDrawer({
   token,
   stationId,
@@ -279,6 +533,7 @@ function StudioDrawer({
   const tokenMeta = token ? getStudioTokenMeta(token) : null;
   const drawerKey = getDrawerViewKey(token, stationId);
   const stationSceneMeta = station ? STATION_SCENE_META[station.id] : null;
+  const stationArt = station ? getStationArtConfig(station.id) : null;
 
   return (
     <aside className="studio-drawer studio-reveal-panel flex min-h-[420px] flex-col overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/96 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur">
@@ -537,10 +792,8 @@ function StudioDrawer({
           ) : station ? (
             <div className="space-y-4">
               <section className="rounded-[24px] bg-slate-50 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">
-                    {ROLE_ART[station.id]}
-                  </div>
+                <div className="grid gap-4 sm:grid-cols-[132px_minmax(0,1fr)] sm:items-center">
+                  {stationArt ? <StudioStationPreview stationId={station.id} /> : null}
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{station.roleLabel}</p>
                     <p className="text-xs text-slate-500">
@@ -690,12 +943,6 @@ export default function StudioSurface({
       : initialToken
         ? tokenMap.get(initialToken.id) || initialToken
         : null);
-
-  const selectedStation = selectedToken
-    ? view.stationMap[selectedToken.stationId]
-    : selectedStationId
-      ? filteredStationMap[selectedStationId]
-      : null;
 
   const criticalPathCount = filteredStations
     .filter((station) => STATION_SCENE_META[station.id].laneTone === "critical")
@@ -1046,6 +1293,14 @@ export default function StudioSurface({
               <div className="studio-board relative rounded-[30px] border border-slate-200/80 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.95),rgba(241,245,249,0.84))] p-3 shadow-inner sm:p-4">
                 <div className="studio-floor pointer-events-none absolute inset-x-6 bottom-5 top-10 rounded-[30px]" />
                 <div className="studio-atmosphere pointer-events-none absolute inset-0 rounded-[30px]" />
+                {STUDIO_CONNECTOR_ART.map((connector) => (
+                  <StudioPrimitiveLayer
+                    key={connector.asset.id}
+                    asset={connector.asset}
+                    placement={connector.placement}
+                    className={cn("pointer-events-none studio-connector", connector.className)}
+                  />
+                ))}
 
                 <div className="pointer-events-none absolute inset-3 hidden xl:grid xl:grid-cols-7 xl:grid-rows-3 xl:gap-3">
                   <div className="studio-zone xl:[grid-area:1/1/3/8]" data-zone-tone="critical">
@@ -1059,183 +1314,20 @@ export default function StudioSurface({
                   </div>
                 </div>
 
-                <div className="relative grid gap-3 md:grid-cols-4 xl:grid-cols-7 xl:grid-rows-3">
-                  {filteredStations.map((station) => {
-                    const sceneMeta = STATION_SCENE_META[station.id];
-                    const stationAssignedCount = station.tokens.filter((token) =>
-                      Boolean(token.ownerLabel)
-                    ).length;
-
-                    return (
-                      <div
-                        key={station.id}
-                        role="button"
-                        tabIndex={0}
-                        data-zone-tone={sceneMeta.laneTone}
-                        data-motion-signature={sceneMeta.motionSignature}
-                        data-is-selected={
-                          selectedStation?.id === station.id && !selectedToken
-                            ? "true"
-                            : "false"
-                        }
-                        data-has-blocked={station.blockedCount > 0 ? "true" : "false"}
-                        onClick={() => handleStationSelect(station.id)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            handleStationSelect(station.id);
-                          }
-                        }}
-                        className={cn(
-                          "studio-station group relative flex min-h-[176px] cursor-pointer flex-col rounded-[28px] border border-slate-200/80 bg-gradient-to-br px-4 py-4 text-left transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_48px_rgba(15,23,42,0.12)]",
-                          getStationTone(station.id),
-                          STATION_LAYOUT_CLASS[station.id],
-                          selectedStation?.id === station.id && !selectedToken
-                            ? "ring-2 ring-slate-900/70"
-                            : "ring-0"
-                        )}
-                      >
-                        <div className="studio-station-glow pointer-events-none absolute inset-0 rounded-[28px]" />
-
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/90 text-2xl shadow-sm">
-                              {station.icon}
-                            </div>
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="text-sm font-semibold text-slate-950">
-                                  {station.label}
-                                </p>
-                                <span
-                                  className={cn(
-                                    "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]",
-                                    getLaneToneClasses(sceneMeta.laneTone)
-                                  )}
-                                >
-                                  {sceneMeta.laneLabel}
-                                </span>
-                              </div>
-                              <p className="mt-1 text-xs text-slate-500">
-                                {station.roleLabel} · {sceneMeta.motionLabel}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col items-end gap-1">
-                            <div className="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white">
-                              {station.tokens.length}
-                            </div>
-                            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                              {sceneMeta.moodLabel}
-                            </span>
-                          </div>
-                        </div>
-
-                        <p className="mt-3 text-xs leading-5 text-slate-600">
-                          {station.description}
-                        </p>
-
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {station.blockedCount > 0 ? (
-                            <div className="inline-flex items-center gap-1 rounded-full bg-rose-600/10 px-2.5 py-1 text-[11px] font-medium text-rose-700">
-                              <span>•</span>
-                              <span>{station.blockedCount} blocked</span>
-                            </div>
-                          ) : null}
-                          {stationAssignedCount > 0 ? (
-                            <div className="inline-flex items-center gap-1 rounded-full bg-violet-600/10 px-2.5 py-1 text-[11px] font-medium text-violet-700">
-                              <span>•</span>
-                              <span>{stationAssignedCount} owned</span>
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <div className="mt-4 flex flex-1 flex-wrap content-start gap-2.5">
-                          {station.tokens.length > 0 ? (
-                            station.tokens.map((token) => {
-                              const tokenSignal = getTokenSignal(token);
-
-                              return (
-                                <button
-                                  key={token.id}
-                                  ref={(node) => setTokenRef(token.id, node)}
-                                  type="button"
-                                  data-priority-tone={token.priorityTone}
-                                  data-escalated={token.escalation ? "true" : "false"}
-                                  data-has-owner={token.ownerLabel ? "true" : "false"}
-                                  data-just-arrived={
-                                    justArrivedTokenIds.includes(token.id) ? "true" : "false"
-                                  }
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    handleTokenSelect(token.id, station.id);
-                                  }}
-                                  className={cn(
-                                    "studio-token relative min-w-[134px] max-w-[208px] rounded-[22px] border px-3 py-3 text-left transition duration-300 hover:-translate-y-1",
-                                    getToneClasses(token),
-                                    selectedToken?.id === token.id
-                                      ? "ring-2 ring-slate-900/70"
-                                      : "ring-0"
-                                  )}
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div className="flex min-w-0 items-center gap-2">
-                                      <span className="studio-token-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-white/75 text-[11px] font-semibold text-slate-700 shadow-sm">
-                                        {getOwnerInitial(token)}
-                                      </span>
-                                      <div className="min-w-0">
-                                        <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-current/70">
-                                          <span>{getTokenIcon(token.tokenKind)}</span>
-                                          <span>{token.tokenKind}</span>
-                                        </p>
-                                        <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-current/78">
-                                          {getOwnerBadgeText(token)}
-                                        </p>
-                                      </div>
-                                    </div>
-
-                                    <span
-                                      className={cn(
-                                        "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]",
-                                        tokenSignal.className
-                                      )}
-                                    >
-                                      {tokenSignal.label}
-                                    </span>
-                                  </div>
-
-                                  <p className="mt-3 line-clamp-1 text-sm font-semibold text-current">
-                                    {token.title}
-                                  </p>
-                                  <p className="mt-1 line-clamp-1 text-[11px] text-current/70">
-                                    {token.productLabel}
-                                  </p>
-
-                                  <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-current/62">
-                                    <span className="line-clamp-1">{token.subtitle}</span>
-                                    <span className="shrink-0">
-                                      {token.amountLabel || sceneMeta.laneLabel}
-                                    </span>
-                                  </div>
-
-                                  {token.priorityTone === "blocked" && token.note ? (
-                                    <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-current/72">
-                                      {token.note}
-                                    </p>
-                                  ) : null}
-                                </button>
-                              );
-                            })
-                          ) : (
-                            <div className="flex h-full min-h-[74px] items-center rounded-[22px] border border-dashed border-slate-200 bg-white/55 px-3 py-2 text-xs text-slate-400">
-                              No tokens for this filter.
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="relative z-[2] grid gap-3 md:grid-cols-4 xl:grid-cols-7 xl:grid-rows-3">
+                  {filteredStations.map((station) => (
+                    <StudioStationNode
+                      key={station.id}
+                      station={station}
+                      sceneMeta={STATION_SCENE_META[station.id]}
+                      selectedStationId={selectedStationId}
+                      selectedTokenId={selectedToken?.id || null}
+                      justArrivedTokenIds={justArrivedTokenIds}
+                      onStationSelect={handleStationSelect}
+                      onTokenSelect={handleTokenSelect}
+                      setTokenRef={setTokenRef}
+                    />
+                  ))}
                 </div>
               </div>
             </div>

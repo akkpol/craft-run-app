@@ -56,4 +56,10 @@ export default [
       },
     },
   },
+  {
+    files: ["**/*.mjs"],
+    rules: {
+      "no-undef": "off",
+    },
+  },
 ];

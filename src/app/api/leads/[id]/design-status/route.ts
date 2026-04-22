@@ -170,6 +170,14 @@ export async function POST(
     return NextResponse.json({ success: true, designStatus: body.designStatus });
   }
 
+  // Guard: approved is only reachable from preview_sent (per workflow-policy.json)
+  if (lead.design_status !== "preview_sent") {
+    return NextResponse.json(
+      { error: "Design can only be approved when the current status is preview_sent" },
+      { status: 400 }
+    );
+  }
+
   await supabase
     .from("leads")
     .update({
