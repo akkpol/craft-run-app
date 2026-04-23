@@ -11,6 +11,11 @@ export type AppSettingsRow = {
   business_name: string | null;
   business_phone: string | null;
   business_email: string | null;
+  payment_account_name: string | null;
+  payment_bank_name: string | null;
+  payment_account_number: string | null;
+  payment_promptpay_id: string | null;
+  payment_instructions: string | null;
   business_logo_url: string | null;
   business_catalog_url: string | null;
   business_catalog_name: string | null;
@@ -35,6 +40,11 @@ export type RuntimeAppConfig = {
   businessName: string;
   businessPhone: string;
   businessEmail: string;
+  paymentAccountName: string;
+  paymentBankName: string;
+  paymentAccountNumber: string;
+  paymentPromptPayId: string;
+  paymentInstructions: string;
   businessLogoUrl: string;
   businessCatalogUrl: string;
   businessCatalogName: string;
@@ -105,6 +115,11 @@ export async function getRuntimeAppConfig(): Promise<RuntimeAppConfig> {
     businessName: normalizeText(settings?.business_name) || "FOGUS Print & Sign",
     businessPhone: normalizeText(settings?.business_phone),
     businessEmail: normalizeText(settings?.business_email),
+    paymentAccountName: normalizeText(settings?.payment_account_name),
+    paymentBankName: normalizeText(settings?.payment_bank_name),
+    paymentAccountNumber: normalizeText(settings?.payment_account_number),
+    paymentPromptPayId: normalizeText(settings?.payment_promptpay_id),
+    paymentInstructions: normalizeText(settings?.payment_instructions),
     businessLogoUrl: normalizeUrl(settings?.business_logo_url),
     businessCatalogUrl: normalizeUrl(settings?.business_catalog_url),
     businessCatalogName: normalizeText(settings?.business_catalog_name),
