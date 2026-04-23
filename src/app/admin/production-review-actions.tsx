@@ -59,6 +59,10 @@ export default function ProductionReviewActions({
         });
       }
 
+      if (payload.notificationError) {
+        alert(payload.notificationError);
+      }
+
       router.refresh();
       setSelectedAction(null);
       setReviewNote("");

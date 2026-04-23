@@ -972,5 +972,4 @@ export async function replyWithTerminalFollowUp(
     messages: [{ type: "flex", altText: heroText, contents: bubble }],
   });
 }
-
 export type { WebhookEvent };
