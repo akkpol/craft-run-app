@@ -8,7 +8,7 @@ Source documents for deeper context:
 ## Happy path
 1. Customer sends a LINE message.
 2. Webhook saves the message, verifies signature, and replies with a Flex Message that contains the LIFF link.
-3. If the same customer already has an active pre-job conversation, LINE can offer `ทำรายการเดิมต่อ` or `เริ่มงานใหม่`.
+3. If the same customer already has an active conversation, the reply type depends on the conversation state — see the returning-customer reply routing table in `docs/WORKFLOW_TRANSITION_TABLE.md`. The `ทำรายการเดิมต่อ / เริ่มงานใหม่` choice is only offered when the state is one of `COLLECTING_REQUIREMENTS`, `REQUIREMENTS_REVIEW`, or `ON_HOLD_CUSTOMER_INPUT`. For `WAITING_QUOTE_APPROVAL` or `WAITING_PAYMENT` states the bot sends state-specific context instead of a resume/fresh offer.
 4. Choosing `ทำรายการเดิมต่อ` keeps the customer in the reusable intake loop.
 5. Choosing `เริ่มงานใหม่` starts a fresh conversation and intake set from the beginning.
 6. Customer opens LIFF inside LINE.
@@ -72,6 +72,10 @@ When escalating:
 - Incomplete intake moves the conversation to `ON_HOLD_CUSTOMER_INPUT`.
 - Quote page loads by token.
 - Approval either creates a job or parks the conversation at `WAITING_PAYMENT`, depending on payment terms.
+- Returning customer in `WAITING_QUOTE_APPROVAL` receives quote-context reply, not a resume/fresh choice.
+- Returning customer in `WAITING_PAYMENT` receives payment-context reply, not a resume/fresh choice.
+- Returning customer in `IN_DESIGN` / `IN_PRODUCTION` / `READY_FOR_FULFILLMENT` receives production-status reply.
+- Returning customer after a `COMPLETED` or `CANCELLED` conversation receives terminal-fresh-intake reply.
 - Admin dashboard shows current records.
 - Status page shows the latest status.
 - Escalation branch works for keyword-triggered human handoff.

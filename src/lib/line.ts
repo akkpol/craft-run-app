@@ -6,6 +6,7 @@ import {
 import { getRuntimeAppConfig } from "@/lib/app-settings";
 import { getLineLoginChannelIdFromLiffId } from "./line-liff-identity";
 import type { ProductionEventType } from "@/lib/production-review";
+import type { WorkflowState } from "@/lib/types";
 
 export async function getLineClient() {
   const config = await getRuntimeAppConfig();
@@ -512,6 +513,463 @@ export async function pushFollowUpMessage(
   await lineClient.pushMessage({
     to: userId,
     messages: [{ type: "text", text }],
+  });
+}
+
+// ── Returning-customer context replies ─────────────────────────────────────
+
+/**
+ * Reply when the customer messages while a quote is awaiting their approval.
+ * Uses a Flex bubble with a direct link to /quote/[quoteToken].
+ * Falls back to plain text + quick reply when quoteToken is not available.
+ */
+export async function replyWithQuoteApprovalContext(
+  replyToken: string,
+  displayName: string,
+  quoteToken: string | null
+): Promise<void> {
+  const lineClient = await getLineClient();
+
+  if (!quoteToken) {
+    await lineClient.replyMessage({
+      replyToken,
+      messages: [
+        {
+          type: "text",
+          text: `สวัสดีค่ะ คุณ${displayName} ✉️\nขณะนี้มีใบเสนอราคารอการยืนยันจากคุณอยู่ค่ะ กรุณาติดต่อทีมงานเพื่อขอลิงก์ใบเสนอราคาค่ะ`,
+          quickReply: {
+            items: [
+              {
+                type: "action",
+                action: { type: "message", label: "💬 คุยกับแอดมิน", text: "ขอคุยกับแอดมิน" },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    return;
+  }
+
+  const config = await getRuntimeAppConfig();
+  const quoteUrl = `${config.baseUrl}/quote/${quoteToken}`;
+  const freshUrl = await buildLiffUrlWithMode("fresh");
+
+  const bubble: messagingApi.FlexBubble = {
+    type: "bubble",
+    hero: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "📄 ใบเสนอราคารอการยืนยัน",
+          weight: "bold",
+          size: "md",
+          align: "center",
+          color: "#0f172a",
+        },
+      ],
+      paddingAll: "20px",
+      backgroundColor: "#fef9c3",
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: `สวัสดีค่ะ คุณ${displayName}`,
+          weight: "bold",
+          size: "md",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: "ขณะนี้มีใบเสนอราคาจากทีมงาน FOGUS รอการยืนยันจากคุณอยู่ค่ะ กรุณาตรวจสอบและยืนยันเพื่อดำเนินการต่อค่ะ",
+          size: "sm",
+          color: "#475569",
+          margin: "md",
+          wrap: true,
+        },
+      ],
+      paddingAll: "16px",
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          height: "md",
+          action: {
+            type: "uri",
+            label: "📄 ดูใบเสนอราคา",
+            uri: quoteUrl,
+          },
+          color: "#1a1a2e",
+        },
+        {
+          type: "button",
+          style: "secondary",
+          height: "md",
+          action: {
+            type: "uri",
+            label: "เริ่มงานใหม่",
+            uri: freshUrl,
+          },
+        },
+        {
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: {
+            type: "message",
+            label: "💬 คุยกับแอดมิน",
+            text: "ขอคุยกับแอดมิน",
+          },
+        },
+      ],
+      paddingAll: "16px",
+    },
+  };
+
+  await lineClient.replyMessage({
+    replyToken,
+    messages: [{ type: "flex", altText: "ใบเสนอราคาจาก FOGUS รอการยืนยันค่ะ", contents: bubble }],
+  });
+}
+
+/**
+ * Reply when the customer messages while the conversation is at WAITING_PAYMENT.
+ * Shows a link to /status/[quoteToken] and an option to contact admin.
+ */
+export async function replyWithPaymentContext(
+  replyToken: string,
+  displayName: string,
+  quoteToken: string | null
+): Promise<void> {
+  const lineClient = await getLineClient();
+
+  if (!quoteToken) {
+    await lineClient.replyMessage({
+      replyToken,
+      messages: [
+        {
+          type: "text",
+          text: `สวัสดีค่ะ คุณ${displayName} 💳\nงานของคุณรอการยืนยันการชำระเงินอยู่ค่ะ กรุณาติดต่อทีมงานเพื่อสอบถามรายละเอียดการชำระเงินค่ะ`,
+          quickReply: {
+            items: [
+              {
+                type: "action",
+                action: { type: "message", label: "💬 คุยกับแอดมิน", text: "ขอคุยกับแอดมิน" },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    return;
+  }
+
+  const config = await getRuntimeAppConfig();
+  const statusUrl = `${config.baseUrl}/status/${quoteToken}`;
+
+  const bubble: messagingApi.FlexBubble = {
+    type: "bubble",
+    hero: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "💳 รอการยืนยันการชำระเงิน",
+          weight: "bold",
+          size: "md",
+          align: "center",
+          color: "#0f172a",
+        },
+      ],
+      paddingAll: "20px",
+      backgroundColor: "#dcfce7",
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: `สวัสดีค่ะ คุณ${displayName}`,
+          weight: "bold",
+          size: "md",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: "ใบเสนอราคาได้รับการอนุมัติแล้ว ขณะนี้รอการยืนยันการชำระเงินก่อนเริ่มดำเนินการค่ะ ทีมงานจะแจ้งรายละเอียดให้ทราบค่ะ",
+          size: "sm",
+          color: "#475569",
+          margin: "md",
+          wrap: true,
+        },
+      ],
+      paddingAll: "16px",
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          height: "md",
+          action: {
+            type: "uri",
+            label: "📊 ดูสถานะงาน",
+            uri: statusUrl,
+          },
+          color: "#166534",
+        },
+        {
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: {
+            type: "message",
+            label: "💬 คุยกับแอดมิน",
+            text: "ขอคุยกับแอดมิน",
+          },
+        },
+      ],
+      paddingAll: "16px",
+    },
+  };
+
+  await lineClient.replyMessage({
+    replyToken,
+    messages: [{ type: "flex", altText: "งานรอยืนยันการชำระเงินค่ะ", contents: bubble }],
+  });
+}
+
+const PRODUCTION_STATE_HEADERS: Partial<Record<WorkflowState, string>> = {
+  IN_DESIGN: "🎨 อยู่ในขั้นตอนออกแบบ",
+  IN_PRODUCTION: "🏭 อยู่ในขั้นตอนผลิต",
+  READY_FOR_FULFILLMENT: "✅ งานพร้อมส่งมอบแล้ว",
+};
+
+/**
+ * Reply when the customer messages during a production-stage conversation.
+ * Replaces the previous plain-text handler with a Flex bubble that includes
+ * a direct link to the status page when the quoteToken is available.
+ */
+export async function replyWithProductionStatus(
+  replyToken: string,
+  displayName: string,
+  quoteToken: string | null,
+  conversationState: WorkflowState
+): Promise<void> {
+  const lineClient = await getLineClient();
+  const header = PRODUCTION_STATE_HEADERS[conversationState] ?? "📋 งานกำลังดำเนินการ";
+
+  if (!quoteToken) {
+    await lineClient.replyMessage({
+      replyToken,
+      messages: [
+        {
+          type: "text",
+          text: `สวัสดีค่ะ คุณ${displayName} ${header}\nหากต้องการสอบถามเพิ่มเติม สามารถพิมพ์ "คุยกับแอดมิน" ได้เลยค่ะ`,
+          quickReply: {
+            items: [
+              {
+                type: "action",
+                action: { type: "message", label: "💬 คุยกับแอดมิน", text: "ขอคุยกับแอดมิน" },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    return;
+  }
+
+  const config = await getRuntimeAppConfig();
+  const statusUrl = `${config.baseUrl}/status/${quoteToken}`;
+
+  const bubble: messagingApi.FlexBubble = {
+    type: "bubble",
+    hero: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: header,
+          weight: "bold",
+          size: "md",
+          align: "center",
+          color: "#0f172a",
+        },
+      ],
+      paddingAll: "20px",
+      backgroundColor: "#e0f2fe",
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: `สวัสดีค่ะ คุณ${displayName}`,
+          weight: "bold",
+          size: "md",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: "ขอบคุณที่ติดต่อมาค่ะ สามารถติดตามความคืบหน้าได้ที่หน้าสถานะงาน หรือพิมพ์ \"คุยกับแอดมิน\" หากต้องการสอบถามเพิ่มเติมค่ะ",
+          size: "sm",
+          color: "#475569",
+          margin: "md",
+          wrap: true,
+        },
+      ],
+      paddingAll: "16px",
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          height: "md",
+          action: {
+            type: "uri",
+            label: "📊 ดูสถานะงาน",
+            uri: statusUrl,
+          },
+          color: "#0369a1",
+        },
+        {
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: {
+            type: "message",
+            label: "💬 คุยกับแอดมิน",
+            text: "ขอคุยกับแอดมิน",
+          },
+        },
+      ],
+      paddingAll: "16px",
+    },
+  };
+
+  await lineClient.replyMessage({
+    replyToken,
+    messages: [{ type: "flex", altText: `${header} — ดูสถานะงานที่นี่ค่ะ`, contents: bubble }],
+  });
+}
+
+/**
+ * Reply when a customer whose most-recent conversation was COMPLETED or CANCELLED
+ * sends a new message. Acknowledges the closed job and offers a fresh intake.
+ */
+export async function replyWithTerminalFollowUp(
+  replyToken: string,
+  displayName: string,
+  previousState: "COMPLETED" | "CANCELLED"
+): Promise<void> {
+  const freshUrl = await buildLiffUrlWithMode("fresh");
+  const lineClient = await getLineClient();
+
+  const isPrevCompleted = previousState === "COMPLETED";
+  const heroText = isPrevCompleted
+    ? "🎉 งานก่อนหน้าเสร็จสมบูรณ์แล้ว"
+    : "📌 งานก่อนหน้าถูกยกเลิกแล้ว";
+  const bodyText = isPrevCompleted
+    ? "ยินดีที่ได้รับใช้ค่ะ หากต้องการสั่งงานใหม่สามารถกดเริ่มงานใหม่ได้เลยค่ะ"
+    : "หากต้องการเริ่มรายการใหม่สามารถกดเริ่มงานใหม่ได้เลย หรือติดต่อทีมงานเพื่อสอบถามเพิ่มเติมค่ะ";
+  const heroBg = isPrevCompleted ? "#dcfce7" : "#fee2e2";
+
+  const bubble: messagingApi.FlexBubble = {
+    type: "bubble",
+    hero: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: heroText,
+          weight: "bold",
+          size: "md",
+          align: "center",
+          color: "#0f172a",
+        },
+      ],
+      paddingAll: "20px",
+      backgroundColor: heroBg,
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: `สวัสดีค่ะ คุณ${displayName}`,
+          weight: "bold",
+          size: "md",
+          wrap: true,
+        },
+        {
+          type: "text",
+          text: bodyText,
+          size: "sm",
+          color: "#475569",
+          margin: "md",
+          wrap: true,
+        },
+      ],
+      paddingAll: "16px",
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "button",
+          style: "primary",
+          height: "md",
+          action: {
+            type: "uri",
+            label: "📋 เริ่มงานใหม่",
+            uri: freshUrl,
+          },
+          color: "#1a1a2e",
+        },
+        {
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: {
+            type: "message",
+            label: "💬 คุยกับแอดมิน",
+            text: "ขอคุยกับแอดมิน",
+          },
+        },
+      ],
+      paddingAll: "16px",
+    },
+  };
+
+  await lineClient.replyMessage({
+    replyToken,
+    messages: [{ type: "flex", altText: heroText, contents: bubble }],
   });
 }
 

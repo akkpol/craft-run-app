@@ -378,5 +378,40 @@
       "Treat revision_requested as team-owned until preview_sent appears again.",
       "Do not reuse terminal conversations for new customer intake work."
     ]
+  },
+  "line_reentry_policy": {
+    "description": "Controls which LINE reply type the webhook sends when a returning customer messages while a conversation is already active.",
+    "replyTypes": {
+      "intake_link": "Customer has no active conversation or no reusable state — send LIFF intake link.",
+      "resume_or_fresh": "Conversation is in an early in-flight state and was reused — offer resume or fresh intake choice.",
+      "quote_approval_context": "Conversation is waiting for quote approval — send quote link with context. Must NOT offer resume/fresh intake.",
+      "payment_context": "Conversation is waiting for payment confirmation — send status link with payment context. Must NOT offer resume/fresh intake.",
+      "production_status": "Conversation is in active production (IN_DESIGN, IN_PRODUCTION, READY_FOR_FULFILLMENT) — send status link with production context.",
+      "terminal_fresh_intake": "Previous conversation was COMPLETED or CANCELLED — acknowledge prior state and invite a fresh intake."
+    },
+    "stateMapping": {
+      "IN_DESIGN": "production_status",
+      "IN_PRODUCTION": "production_status",
+      "READY_FOR_FULFILLMENT": "production_status",
+      "WAITING_QUOTE_APPROVAL": "quote_approval_context",
+      "WAITING_PAYMENT": "payment_context",
+      "COLLECTING_REQUIREMENTS_reused": "resume_or_fresh",
+      "REQUIREMENTS_REVIEW_reused": "resume_or_fresh",
+      "ON_HOLD_CUSTOMER_INPUT_reused": "resume_or_fresh",
+      "terminal_predecessor": "terminal_fresh_intake",
+      "default": "intake_link"
+    },
+    "guardRails": [
+      "WAITING_QUOTE_APPROVAL must never trigger resume_or_fresh — the customer has already submitted a form.",
+      "WAITING_PAYMENT must never trigger resume_or_fresh — the customer has already approved a quote.",
+      "Production states (IN_DESIGN, IN_PRODUCTION, READY_FOR_FULFILLMENT) always return production_status regardless of isReusedConversation.",
+      "Terminal states (COMPLETED, CANCELLED) must not be reused for new intake — use terminal_fresh_intake.",
+      "resume_or_fresh is only valid for COLLECTING_REQUIREMENTS, REQUIREMENTS_REVIEW, and ON_HOLD_CUSTOMER_INPUT when isReusedConversation=true."
+    ],
+    "implementationFiles": [
+      "src/lib/webhook-returning-customer.ts",
+      "src/app/api/webhook/route.ts",
+      "src/lib/line.ts"
+    ]
   }
 }
