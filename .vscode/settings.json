@@ -64,6 +64,7 @@
         "/^git diff --stat HEAD$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "git commit": true
     }
 }
