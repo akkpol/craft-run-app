@@ -484,4 +484,35 @@ export async function pushProductionEvidenceUpdate(input: {
   });
 }
 
+export async function pushFollowUpMessage(
+  userId: string,
+  conversationState: string,
+  displayName?: string | null
+): Promise<void> {
+  const lineClient = await getLineClient();
+  const name = displayName ? ` คุณ${displayName}` : "";
+
+  let text: string;
+  if (conversationState === "WAITING_QUOTE_APPROVAL") {
+    text = [
+      `สวัสดีครับ${name} 👋`,
+      "ทางร้าน FOGUS ได้ส่งใบเสนอราคาให้คุณแล้ว",
+      "หากมีข้อสงสัยหรือต้องการแก้ไข สามารถแจ้งได้เลยนะครับ 😊",
+    ].join("\n\n");
+  } else if (conversationState === "ON_HOLD_CUSTOMER_INPUT") {
+    text = [
+      `สวัสดีครับ${name} 👋`,
+      "เราได้รับข้อมูลจากคุณแล้ว แต่ยังขาดรายละเอียดบางส่วน",
+      "กรุณาส่งข้อมูลที่ขาดกลับมาเพื่อให้เราดำเนินการต่อได้ครับ 🙏",
+    ].join("\n\n");
+  } else {
+    text = `สวัสดีครับ${name} 👋 ทีมงาน FOGUS ติดตามงานของคุณอยู่นะครับ หากมีข้อสงสัยสอบถามได้เลยครับ 😊`;
+  }
+
+  await lineClient.pushMessage({
+    to: userId,
+    messages: [{ type: "text", text }],
+  });
+}
+
 export type { WebhookEvent };

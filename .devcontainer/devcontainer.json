@@ -13,7 +13,16 @@
   "customizations": {
     "vscode": {
       "extensions": ["dbaeumer.vscode-eslint","bradlc.vscode-tailwindcss","esbenp.prettier-vscode","supabase.vscode-supabase-extension","github.copilot","github.copilot-chat"],
-      "settings": { "editor.formatOnSave": true, "editor.defaultFormatter": "esbenp.prettier-vscode", "typescript.tsdk": "node_modules/typescript/lib" }
+      "settings": { "editor.formatOnSave": true, "editor.defaultFormatter": "esbenp.prettier-vscode", 
+    
+    }
     }
   }
-}
+} 
+ 
+
+
+
+
+่
+0 
