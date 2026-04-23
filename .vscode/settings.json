@@ -64,6 +64,16 @@
         "/^git diff --stat HEAD$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "git commit": true,
+        "/^npm run lint 2>&1 \\| Select-Object -First 80$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git -C \"d:\\\\craft-run\\\\craft-run\\\\craft-run-backup-20260415\" diff --name-status$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "git add": true
     }
 }

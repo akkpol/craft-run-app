@@ -49,9 +49,26 @@ Side branches: `ON_HOLD_CUSTOMER_INPUT`, `HUMAN_REVIEW_REQUIRED`, `CANCELLED`
 | `READY_FOR_FULFILLMENT` | admin | Cancels the job | `CANCELLED` |
 | any active conversation state | customer | Sends escalation keywords such as `คุยกับแอดมิน`, `ขอคุยกับคน`, `admin` | `HUMAN_REVIEW_REQUIRED` |
 
+## Returning Customer LINE Reply Routing
+
+When a customer messages the bot while a conversation already exists, the webhook selects a reply type based on the conversation state:
+
+| State(s) | Reply Type | Behaviour |
+|---|---|---|
+| `IN_DESIGN`, `IN_PRODUCTION`, `READY_FOR_FULFILLMENT` | `production_status` | Shows current production state and a link to the status page |
+| `WAITING_QUOTE_APPROVAL` | `quote_approval_context` | Shows the pending quote and a direct link to approve — **must not offer resume/fresh** |
+| `WAITING_PAYMENT` | `payment_context` | Shows the payment gate status and a link to the status page — **must not offer resume/fresh** |
+| `COLLECTING_REQUIREMENTS`, `REQUIREMENTS_REVIEW`, `ON_HOLD_CUSTOMER_INPUT` (reused conv.) | `resume_or_fresh` | Offers two paths: continue the existing intake or start a fresh request |
+| Previous conv. was `COMPLETED` or `CANCELLED` | `terminal_fresh_intake` | Acknowledges the prior outcome and invites a new intake |
+| All other cases | `intake_link` | Sends the standard LIFF intake link |
+
+The `resume_or_fresh` offer is **only valid for early collection states**. Choosing the fresh path creates a new conversation and intake record; the previous conversation row is not reused.
+
+Pure-function source of truth: `src/lib/webhook-returning-customer.ts` → `getReturningCustomerReplyType`.
+
 ## Trigger Notes
 
-- When a returning customer still has an active pre-job conversation, the LINE reply can offer two paths: continue the existing intake flow or start a fresh request from the beginning.
+- When a returning customer is still in an early collection state (`COLLECTING_REQUIREMENTS`, `REQUIREMENTS_REVIEW`, `ON_HOLD_CUSTOMER_INPUT`) and the conversation is reusable, the LINE reply offers two paths: continue the existing intake flow or start a fresh request from the beginning.
 - Choosing the fresh path creates a new conversation and intake record set; it does not reuse the previous conversation row.
 - Quote approval does not always create a job. The job is created or reused only when `paymentUnlocksProduction()` returns true.
 - `credit` unlocks immediately.

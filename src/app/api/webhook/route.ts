@@ -3,6 +3,10 @@ import {
   verifySignature,
   replyWithIntakeLink,
   replyWithResumeOrFreshChoice,
+  replyWithQuoteApprovalContext,
+  replyWithPaymentContext,
+  replyWithProductionStatus,
+  replyWithTerminalFollowUp,
   getLineClient,
 } from "@/lib/line";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -10,9 +14,37 @@ import type { WebhookEvent } from "@line/bot-sdk";
 import {
   canTransitionConversationState,
   getReusableConversationState,
+  isTerminalConversationState,
 } from "@/lib/workflow-transitions";
 import type { WorkflowState } from "@/lib/types";
 import { logSystemAction, logHumanAction } from "@/lib/action-log";
+
+
+/**
+ * Looks up the most recent quote token (quotes.public_token) for a conversation.
+ * Returns null when no lead or quote exists yet.
+ */
+async function lookupLatestQuoteToken(
+  supabase: ReturnType<typeof createAdminClient>,
+  conversationId: string
+): Promise<string | null> {
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("id")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!lead?.id) return null;
+  const { data: quote } = await supabase
+    .from("quotes")
+    .select("public_token")
+    .eq("lead_id", lead.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return quote?.public_token ?? null;
+}
 
 async function redactMessageForUnsend(
   supabase: ReturnType<typeof createAdminClient>,
@@ -310,28 +342,32 @@ export async function POST(request: NextRequest) {
         }
 
         if (MID_PRODUCTION_STATES.includes(conversationState)) {
+          const quoteToken = await lookupLatestQuoteToken(supabase, conversationId);
           if (event.replyToken) {
-            await lineClient.replyMessage({
-              replyToken: event.replyToken,
-              messages: [
-                {
-                  type: "text",
-                  text: "ขอบคุณที่ติดต่อมาค่ะ ขณะนี้งานของคุณกำลังดำเนินการอยู่ หากต้องการสอบถามข้อมูลเพิ่มเติม สามารถพิมพ์ \"คุยกับแอดมิน\" เพื่อให้ทีมงานช่วยเหลือค่ะ",
-                  quickReply: {
-                    items: [
-                      {
-                        type: "action",
-                        action: {
-                          type: "message",
-                          label: "💬 คุยกับแอดมิน",
-                          text: "ขอคุยกับแอดมิน",
-                        },
-                      },
-                    ],
-                  },
-                },
-              ],
-            });
+            await replyWithProductionStatus(
+              event.replyToken,
+              displayName,
+              quoteToken,
+              conversationState
+            );
+          }
+          continue;
+        }
+
+        // WAITING_QUOTE_APPROVAL: send quote link — do NOT offer resume/fresh intake
+        if (conversationState === "WAITING_QUOTE_APPROVAL") {
+          const quoteToken = await lookupLatestQuoteToken(supabase, conversationId);
+          if (event.replyToken) {
+            await replyWithQuoteApprovalContext(event.replyToken, displayName, quoteToken);
+          }
+          continue;
+        }
+
+        // WAITING_PAYMENT: send status link — do NOT offer resume/fresh intake
+        if (conversationState === "WAITING_PAYMENT") {
+          const quoteToken = await lookupLatestQuoteToken(supabase, conversationId);
+          if (event.replyToken) {
+            await replyWithPaymentContext(event.replyToken, displayName, quoteToken);
           }
           continue;
         }
@@ -342,8 +378,6 @@ export async function POST(request: NextRequest) {
             "COLLECTING_REQUIREMENTS",
             "REQUIREMENTS_REVIEW",
             "ON_HOLD_CUSTOMER_INPUT",
-            "WAITING_QUOTE_APPROVAL",
-            "WAITING_PAYMENT",
           ].includes(conversationState);
 
         // 3e. Reply with LIFF intake link
@@ -402,6 +436,15 @@ export async function POST(request: NextRequest) {
 
           if (shouldOfferResumeOrFresh) {
             await replyWithResumeOrFreshChoice(event.replyToken, displayName);
+          } else if (
+            existingConv &&
+            isTerminalConversationState(existingConv.state as WorkflowState)
+          ) {
+            await replyWithTerminalFollowUp(
+              event.replyToken,
+              displayName,
+              existingConv.state as "COMPLETED" | "CANCELLED"
+            );
           } else {
             await replyWithIntakeLink(event.replyToken, displayName);
           }

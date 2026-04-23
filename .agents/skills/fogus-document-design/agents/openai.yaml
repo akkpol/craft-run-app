@@ -1,0 +1,4 @@
+interface:
+  display_name: "FOGUS Document Design"
+  short_description: "Design FOGUS quotation, invoice, and tax-ready print documents."
+  default_prompt: "Use FOGUS document design rules to update quotation, invoice, or tax-ready document surfaces without changing workflow state."
