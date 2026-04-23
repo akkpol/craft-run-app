@@ -60,6 +60,10 @@
         "/^Get-Command python, py, node \\| Select-Object Name, Source \\| Format-Table -AutoSize \\| Out-String$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^git diff --stat HEAD$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

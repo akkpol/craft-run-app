@@ -167,10 +167,17 @@ export async function POST(request: NextRequest) {
           reusedConversation = true;
           conversationId = existingConv!.id;
           conversationState = existingConv!.state as WorkflowState;
-          await supabase
+          const { error: midProductionUpdateError } = await supabase
             .from("conversations")
             .update({ last_message_at: new Date().toISOString() })
             .eq("id", conversationId);
+          if (midProductionUpdateError) {
+            console.error(
+              `Failed to update last_message_at for conversation ${conversationId}:`,
+              midProductionUpdateError.message
+            );
+            continue;
+          }
         } else {
           const { data: newConv, error: newConvError } = await supabase
             .from("conversations")

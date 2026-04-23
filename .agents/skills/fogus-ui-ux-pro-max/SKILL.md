@@ -7,7 +7,7 @@ argument-hint: '[surface or route] [goal]'
 # FOGUS UI/UX Pro Max
 
 ## Overview
-Use this skill whenever the task changes how FOGUS looks, feels, or is interacted with. This is a repo-adapted version of the UI UX Pro Max workflow: it keeps the design-system-first approach, but anchors decisions to FOGUS constraints such as Thai-first customer flows, LINE LIFF safe areas, existing OKLCH tokens, shadcn/ui primitives, and the established customer/admin surface patterns.
+Use this skill whenever the task changes how FOGUS looks, feels, or is interacted with. This is a repo-adapted version of the UI/UX Pro Max workflow: it keeps the design-system-first approach, but anchors decisions to FOGUS constraints such as Thai-first customer flows, LINE LIFF safe areas, existing OKLCH tokens, shadcn/ui primitives, and the established customer/admin surface patterns.
 
 ## When to Use
 
@@ -77,7 +77,7 @@ Extract the following before making design decisions:
 - Primary action: submit, approve, review, advance, inspect, or monitor
 - Workflow sensitivity: whether states, payment gates, or CTAs must match policy exactly
 - Device context: mobile-first, desktop-first, or mixed
-- Success metric: speed, clarity, trust, completion rate, scanability, or reduced errors
+- Success metric: speed, clarity, trust, completion rate, scannability, or reduced errors
 
 ### Step 2: Lock Constraints
 Read the relevant repo sources and treat them as requirements:

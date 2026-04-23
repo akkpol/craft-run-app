@@ -138,6 +138,7 @@ export default function IntakeForm({
   const [note, setNote] = useState("");
   const [referenceInfo, setReferenceInfo] = useState("");
   const [aiImagePrompt, setAiImagePrompt] = useState("");
+  const [suggestedProductTypes, setSuggestedProductTypes] = useState<string[]>([]);
 
   useEffect(() => {
     async function initLiff() {
@@ -165,6 +166,25 @@ export default function IntakeForm({
         setLineUserId(profile.userId);
         setDisplayName(profile.displayName);
         setLiffIdToken(idToken || "");
+
+        // Prefill returning customer data (skip for fresh/restart mode)
+        if (intakeMode !== "fresh" && idToken) {
+          try {
+            const prefillRes = await fetch(
+              `/api/customers/prefill?liffIdToken=${encodeURIComponent(idToken)}`
+            );
+            if (prefillRes.ok) {
+              const prefill = await prefillRes.json();
+              if (prefill.phone) setPhone(prefill.phone);
+              if (prefill.recentProductTypes?.length > 0) {
+                setSuggestedProductTypes(prefill.recentProductTypes);
+              }
+            }
+          } catch {
+            // non-critical — form still works without prefill
+          }
+        }
+
         setReady(true);
       } catch (err) {
         console.error("LIFF init error:", err);
@@ -351,6 +371,21 @@ export default function IntakeForm({
                 <p className="mb-2 block text-sm font-medium text-slate-800">
                   ประเภทงาน <span className="text-rose-500">*</span>
                 </p>
+                {suggestedProductTypes.length > 0 && !productType && (
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    <span className="self-center text-xs text-slate-500">ใช้บ่อย:</span>
+                    {suggestedProductTypes.slice(0, 3).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setProductType(t)}
+                        className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <ProductTypePicker
                   value={productType}
                   onChange={setProductType}
