@@ -1,5 +1,7 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import Image from "next/image";
+import { notFound } from "next/navigation";
 import { getRuntimeAppConfig } from "@/lib/app-settings";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   PAYMENT_STATUS_LABELS,
   PAYMENT_TERM_LABELS,
@@ -7,11 +9,53 @@ import {
   type PaymentStatus,
   type PaymentTerm,
 } from "@/lib/types";
-import { notFound } from "next/navigation";
 import PrintToolbar from "./print-toolbar";
-import Image from "next/image";
 
 export const dynamic = "force-dynamic";
+
+type QuoteItem = {
+  id: string;
+  label: string | null;
+  qty: number | null;
+  unit_price: number | null;
+  line_total: number | null;
+};
+
+const QUOTE_STATUS_LABELS: Record<string, string> = {
+  draft: "ร่าง",
+  sent: "ส่งให้ลูกค้าแล้ว",
+  approved: "อนุมัติแล้ว",
+  rejected: "ปฏิเสธแล้ว",
+  expired: "หมดอายุ",
+};
+
+function formatDate(value: string | null | undefined) {
+  return value ? new Date(value).toLocaleDateString("th-TH") : "-";
+}
+
+function formatMoney(value: number | string | null | undefined) {
+  return Number(value || 0).toLocaleString("th-TH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatDimension(widthMm?: number | null, heightMm?: number | null) {
+  if (!widthMm || !heightMm) {
+    return "-";
+  }
+
+  return `${(widthMm / 10).toLocaleString("th-TH", {
+    maximumFractionDigits: 1,
+  })} x ${(heightMm / 10).toLocaleString("th-TH", {
+    maximumFractionDigits: 1,
+  })} ซม.`;
+}
+
+function joinContact(parts: Array<string | null | undefined>) {
+  const cleanParts = parts.map((part) => part?.trim()).filter(Boolean);
+  return cleanParts.length > 0 ? cleanParts.join("   ") : "-";
+}
 
 export default async function QuoteDownloadPage(props: {
   params: Promise<{ token: string }>;
@@ -30,184 +74,236 @@ export default async function QuoteDownloadPage(props: {
 
   const lead = quote.leads;
   const customer = lead?.customers;
-  const items = quote.quote_items || [];
+  const items = (quote.quote_items || []) as QuoteItem[];
   const productLabel =
-    PRODUCT_TYPES.find((p) => p.value === lead?.product_type)?.label ||
+    PRODUCT_TYPES.find((product) => product.value === lead?.product_type)?.label ||
     lead?.product_type ||
     "ไม่ระบุ";
   const paymentTerms = quote.payment_terms as PaymentTerm;
   const paymentStatus = quote.payment_status as PaymentStatus;
-  const issueDate = new Date(quote.created_at).toLocaleDateString("th-TH");
-  const validUntil = quote.valid_until
-    ? new Date(quote.valid_until).toLocaleDateString("th-TH")
-    : "-";
   const quoteNumber = `QT-${token.slice(0, 8).toUpperCase()}`;
   const quoteUrl = `/quote/${token}`;
+  const summary = `${productLabel} / ${formatDimension(
+    lead?.width_mm,
+    lead?.height_mm
+  )} / ${lead?.qty || 0} ชิ้น`;
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#e2e8f0_100%)] px-4 py-6 text-slate-900 print:bg-white print:p-0">
+    <div className="min-h-screen bg-[#eef3f8] px-4 py-6 text-slate-950 print:bg-white print:p-0">
       <style>{`
         @page {
           size: A4;
-          margin: 14mm;
+          margin: 12mm;
+        }
+
+        @media print {
+          body {
+            background: white;
+          }
         }
       `}</style>
 
-      <div className="mx-auto flex w-full max-w-5xl justify-end pb-4">
+      <div className="mx-auto flex w-full max-w-[210mm] justify-end pb-4">
         <PrintToolbar quoteUrl={quoteUrl} />
       </div>
 
-      <article className="mx-auto w-full max-w-5xl overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.12)] print:max-w-none print:rounded-none print:border-0 print:shadow-none">
-        <header className="relative overflow-hidden border-b border-slate-200 bg-[#1a1a2e] px-8 py-8 text-white print:px-0">
-          <div className="absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(251,191,36,0.22),transparent_58%)]" />
-          <div className="relative flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
+      <article className="mx-auto min-h-[297mm] w-full max-w-[210mm] bg-white px-[14mm] py-[14mm] shadow-[0_24px_90px_rgba(15,23,42,0.16)] print:min-h-0 print:max-w-none print:px-0 print:py-0 print:shadow-none">
+        <div className="flex min-h-[269mm] flex-col rounded-sm border border-slate-200 print:min-h-0 print:border-slate-200">
+          <header className="grid gap-8 p-6 md:grid-cols-[1.45fr_0.9fr]">
             <div>
-              {config.businessLogoUrl ? (
-                <Image
-                  src={config.businessLogoUrl}
-                  alt={config.businessName}
-                  width={256}
-                  height={64}
-                  unoptimized
-                  className="mb-4 h-16 w-auto rounded-2xl bg-white/95 p-2"
-                />
-              ) : null}
-              <p className="text-sm font-semibold uppercase tracking-[0.32em] text-amber-300">
-                {config.businessName}
-              </p>
-              <h1 className="mt-3 text-3xl font-bold tracking-tight">
-                ใบเสนอราคา
+              <h1 className="text-4xl font-black tracking-tight text-[#123B63]">
+                ใบเสนอราคา / Quotation
               </h1>
-              <p className="mt-2 max-w-xl text-sm text-slate-300">
-                เอกสารสำหรับตรวจสอบรายละเอียดราคาและใช้ประกอบการอนุมัติงาน
+              <p className="mt-3 text-sm text-slate-600">
+                เอกสารสำหรับตรวจสอบรายละเอียดราคา อนุมัติงาน และอ้างอิงก่อนเริ่มผลิต
               </p>
             </div>
 
-            <div className="grid gap-2 rounded-3xl border border-white/10 bg-white/8 px-5 py-4 text-sm backdrop-blur-sm">
-              <div className="flex items-center justify-between gap-6">
-                <span className="text-slate-300">เลขที่เอกสาร</span>
-                <span className="font-semibold text-white">{quoteNumber}</span>
+            <div className="grid gap-4">
+              <div className="flex justify-end">
+                <div className="flex h-[28mm] w-[38mm] items-center justify-center border border-dashed border-slate-400 bg-white text-sm font-bold text-slate-500">
+                  {config.businessLogoUrl ? (
+                    <Image
+                      src={config.businessLogoUrl}
+                      alt={config.businessName}
+                      width={144}
+                      height={88}
+                      unoptimized
+                      className="max-h-[24mm] w-auto object-contain p-2"
+                    />
+                  ) : (
+                    "[LOGO]"
+                  )}
+                </div>
               </div>
-              <div className="flex items-center justify-between gap-6">
-                <span className="text-slate-300">วันที่ออกเอกสาร</span>
-                <span className="font-semibold text-white">{issueDate}</span>
-              </div>
-              <div className="flex items-center justify-between gap-6">
-                <span className="text-slate-300">ใช้ได้ถึง</span>
-                <span className="font-semibold text-white">{validUntil}</span>
-              </div>
-            </div>
-          </div>
-        </header>
 
-        <div className="grid gap-6 border-b border-slate-200 px-8 py-8 md:grid-cols-[1.1fr,0.9fr] print:px-0">
-          <section className="rounded-[28px] border border-slate-200 bg-slate-50 p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-              ข้อมูลลูกค้า
-            </p>
-            <div className="mt-4 space-y-2 text-sm leading-6">
-              <p className="text-lg font-semibold text-slate-950">
-                {customer?.display_name || "ไม่ระบุชื่อลูกค้า"}
-              </p>
-              <p className="text-slate-600">โทร: {customer?.phone || "-"}</p>
-              {config.businessPhone ? <p className="text-slate-600">เบอร์ร้าน: {config.businessPhone}</p> : null}
-              {config.businessEmail ? <p className="text-slate-600">อีเมลร้าน: {config.businessEmail}</p> : null}
-              <p className="text-slate-600">ประเภทงาน: {productLabel}</p>
-              <p className="text-slate-600">
-                ขนาด: {(lead?.width_mm / 10).toFixed(1)} x {(lead?.height_mm / 10).toFixed(1)} ซม.
-              </p>
-              <p className="text-slate-600">จำนวน: {lead?.qty || 0} ชิ้น</p>
-              <p className="text-slate-600">
-                กำหนดส่ง: {lead?.due_date ? new Date(lead.due_date).toLocaleDateString("th-TH") : "-"}
-              </p>
+              <DocumentField label="เลขที่ใบเสนอราคา / Quote No." value={quoteNumber} />
+              <DocumentField label="วันที่ / Issue Date" value={formatDate(quote.created_at)} />
+              <DocumentField label="อายุใบเสนอราคา / Valid Until" value={formatDate(quote.valid_until)} />
             </div>
+          </header>
+
+          <section className="grid gap-6 px-6 pb-6 md:grid-cols-2">
+            <InfoBox
+              title="ผู้ออกใบเสนอราคา / Seller"
+              rows={[
+                config.businessName,
+                "FOGUS Print & Sign",
+                "เลขประจำตัวผู้เสียภาษี / Tax ID: -",
+                joinContact([
+                  config.businessPhone &&
+                    `โทรศัพท์ / Phone: ${config.businessPhone}`,
+                  config.businessEmail && `อีเมล / Email: ${config.businessEmail}`,
+                ]),
+                "ที่อยู่บริษัท / Company Address: -",
+              ]}
+            />
+            <InfoBox
+              title="ลูกค้า / Bill To"
+              rows={[
+                customer?.display_name || "ไม่ระบุชื่อลูกค้า",
+                "ชื่อบริษัทลูกค้า / Customer Company: -",
+                "ผู้ติดต่อ / Contact Person: -",
+                joinContact([
+                  customer?.phone && `โทรศัพท์ / Phone: ${customer.phone}`,
+                ]),
+                "ที่อยู่ลูกค้า / Customer Address: -",
+              ]}
+            />
           </section>
 
-          <section className="rounded-[28px] border border-amber-200 bg-amber-50 p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-700">
-              เงื่อนไขเชิงพาณิชย์
-            </p>
-            <div className="mt-4 space-y-3 text-sm leading-6 text-slate-700">
-              <div className="flex items-start justify-between gap-6 border-b border-amber-100 pb-3">
-                <span>เงื่อนไขชำระเงิน</span>
-                <span className="text-right font-semibold text-slate-950">
-                  {PAYMENT_TERM_LABELS[paymentTerms]}
-                </span>
-              </div>
-              <div className="flex items-start justify-between gap-6 border-b border-amber-100 pb-3">
-                <span>สถานะชำระเงิน</span>
-                <span className="text-right font-semibold text-slate-950">
-                  {PAYMENT_STATUS_LABELS[paymentStatus]}
-                </span>
-              </div>
-              <div className="flex items-start justify-between gap-6">
-                <span>สถานะใบเสนอราคา</span>
-                <span className="text-right font-semibold text-slate-950">
-                  {quote.status}
-                </span>
-              </div>
-            </div>
+          <section className="px-6 pb-6">
+            <DocumentField
+              label="สรุปงาน / Project or Service Summary"
+              value={summary}
+            />
           </section>
-        </div>
 
-        <div className="px-8 py-8 print:px-0">
-          <section className="overflow-hidden rounded-[28px] border border-slate-200">
-            <div className="grid grid-cols-[1.4fr,0.55fr,0.55fr] bg-slate-950 px-6 py-4 text-xs font-semibold uppercase tracking-[0.24em] text-slate-200">
-              <span>รายการ</span>
-              <span className="text-right">จำนวนเงิน</span>
-              <span className="text-right">รวม</span>
-            </div>
+          <section className="px-6">
+            <div className="overflow-hidden border border-slate-200">
+              <div className="grid grid-cols-[14mm_1fr_20mm_30mm_30mm] bg-[#123B63] text-[11px] font-bold text-white">
+                <div className="px-3 py-3">ลำดับ / No.</div>
+                <div className="px-3 py-3">รายการ / Description</div>
+                <div className="px-3 py-3 text-right">จำนวน / Qty</div>
+                <div className="px-3 py-3 text-right">ราคา / Unit Price</div>
+                <div className="px-3 py-3 text-right">รวม / Amount</div>
+              </div>
 
-            <div className="divide-y divide-slate-200 bg-white">
-              {items.map((item: { id: string; label: string; qty: number; line_total: number }) => (
+              {(items.length > 0 ? items : [null]).map((item, index) => (
                 <div
-                  key={item.id}
-                  className="grid grid-cols-[1.4fr,0.55fr,0.55fr] px-6 py-4 text-sm text-slate-700"
+                  key={item?.id ?? "empty-row"}
+                  className="grid min-h-[12mm] grid-cols-[14mm_1fr_20mm_30mm_30mm] border-t border-slate-200 text-sm"
                 >
-                  <div>
-                    <p className="font-medium text-slate-950">{item.label}</p>
+                  <div className="border-r border-slate-200 px-3 py-3 text-right">
+                    {item ? index + 1 : "-"}
                   </div>
-                  <p className="text-right">{item.qty}</p>
-                  <p className="text-right font-semibold text-slate-950">
-                    ฿{Number(item.line_total).toLocaleString()}
-                  </p>
+                  <div className="border-r border-slate-200 px-3 py-3">
+                    {item?.label || productLabel}
+                  </div>
+                  <div className="border-r border-slate-200 px-3 py-3 text-right">
+                    {item?.qty ?? lead?.qty ?? "-"}
+                  </div>
+                  <div className="border-r border-slate-200 px-3 py-3 text-right">
+                    {formatMoney(item?.unit_price)}
+                  </div>
+                  <div className="px-3 py-3 text-right">
+                    {formatMoney(item?.line_total)}
+                  </div>
                 </div>
               ))}
             </div>
           </section>
 
-          <div className="mt-8 grid gap-6 md:grid-cols-[1.1fr,0.9fr]">
-            <section className="rounded-[28px] border border-slate-200 bg-slate-50 p-6 text-sm leading-7 text-slate-600">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-                หมายเหตุ
+          <section className="grid gap-8 px-6 py-6 md:grid-cols-[1fr_74mm]">
+            <div className="space-y-3 text-sm text-slate-700">
+              <p className="font-bold text-[#123B63]">เงื่อนไข / Terms</p>
+              <p>
+                การชำระเงิน / Payment Terms: {PAYMENT_TERM_LABELS[paymentTerms]}
               </p>
-              <div className="mt-4 space-y-2">
-                <p>1. ใบเสนอราคานี้จัดทำจากข้อมูลที่ลูกค้าแจ้งผ่าน LINE OA และ LIFF</p>
-                <p>2. ราคานี้รวม VAT 7% แล้ว</p>
-                <p>3. ลูกค้าสามารถกลับไปกดอนุมัติผ่านลิงก์ใบเสนอราคาเดิมได้ทุกเมื่อภายในอายุเอกสาร</p>
-                <p>4. หมายเหตุเพิ่มเติม: {lead?.note_from_form || "-"}</p>
-              </div>
-            </section>
+              <p>
+                สถานะชำระเงิน / Payment Status:{" "}
+                {PAYMENT_STATUS_LABELS[paymentStatus]}
+              </p>
+              <p>
+                สถานะใบเสนอราคา / Quote Status:{" "}
+                {QUOTE_STATUS_LABELS[quote.status] || quote.status}
+              </p>
+              <p>หมายเหตุ / Notes: {lead?.note_from_form || "-"}</p>
+              <p>อ้างอิงลูกค้า / Reference: {lead?.reference_info || "-"}</p>
+              <p>
+                ผู้ติดต่อ / Contact:{" "}
+                {joinContact([config.businessPhone, config.businessEmail])}
+              </p>
+            </div>
 
-            <section className="rounded-[28px] border border-slate-200 bg-white p-6">
-              <div className="space-y-3 text-sm text-slate-700">
-                <div className="flex items-center justify-between">
-                  <span>ราคาก่อน VAT</span>
-                  <span>฿{Number(quote.subtotal).toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                  <span>VAT 7%</span>
-                  <span>฿{Number(quote.vat).toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between text-xl font-bold text-slate-950">
-                  <span>รวมทั้งสิ้น</span>
-                  <span>฿{Number(quote.total).toLocaleString()}</span>
-                </div>
+            <div className="space-y-3 rounded-xl bg-slate-50 p-4 text-sm">
+              <TotalRow label="ยอดรวม / Subtotal" value={quote.subtotal} />
+              <TotalRow label="ส่วนลด / Discount" value={quote.discount} />
+              <TotalRow label="ภาษีมูลค่าเพิ่ม 7% / VAT 7%" value={quote.vat} />
+              <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-base font-black text-[#123B63]">
+                <span>ยอดสุทธิ / Grand Total</span>
+                <span>{formatMoney(quote.total)}</span>
               </div>
-            </section>
-          </div>
+            </div>
+          </section>
+
+          <footer className="mt-auto grid gap-10 px-6 pb-6 pt-8 text-sm text-slate-600 md:grid-cols-2">
+            <SignatureBlock label="ผู้มีอำนาจลงนาม / Authorized Signature" />
+            <SignatureBlock label="ผู้ยอมรับใบเสนอราคา / Customer Acceptance" />
+          </footer>
         </div>
       </article>
+    </div>
+  );
+}
+
+function DocumentField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="border-b border-slate-300 pb-1 text-sm font-bold text-slate-600">
+        {label}
+      </p>
+      <p className="pt-2 text-sm text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function InfoBox({ title, rows }: { title: string; rows: string[] }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+      <p className="mb-4 text-lg font-black text-[#123B63]">{title}</p>
+      <div className="space-y-1.5 text-sm leading-6 text-slate-950">
+        {rows.map((row, index) => (
+          <p key={`${title}-${index}`}>{row}</p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TotalRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | string | null | undefined;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-3 text-slate-700">
+      <span>{label}</span>
+      <span className="font-semibold text-slate-950">{formatMoney(value)}</span>
+    </div>
+  );
+}
+
+function SignatureBlock({ label }: { label: string }) {
+  return (
+    <div>
+      <div className="mb-2 border-t border-slate-300 pt-2">{label}</div>
+      <div className="grid grid-cols-2 gap-4 text-xs text-slate-400">
+        <span>ลงชื่อ / Signature</span>
+        <span>วันที่ / Date</span>
+      </div>
     </div>
   );
 }

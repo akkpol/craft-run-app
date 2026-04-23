@@ -5,10 +5,10 @@
   },
   "plugins": [
     {
-      "name": "subrabase",
+      "name": "supabase",
       "source": {
         "source": "local",
-        "path": "./plugins/subrabase"
+        "path": "./plugins/supabase"
       },
       "policy": {
         "installation": "AVAILABLE",
