@@ -87,6 +87,7 @@ export default async function QuoteDownloadPage(props: {
     lead?.width_mm,
     lead?.height_mm
   )} / ${lead?.qty || 0} ชิ้น`;
+  const displayRows = items.length > 0 ? items : [null];
 
   return (
     <div className="min-h-screen bg-[#eef3f8] px-4 py-6 text-slate-950 print:bg-white print:p-0">
@@ -107,19 +108,19 @@ export default async function QuoteDownloadPage(props: {
         <PrintToolbar quoteUrl={quoteUrl} />
       </div>
 
-      <article className="mx-auto min-h-[297mm] w-full max-w-[210mm] bg-white px-[14mm] py-[14mm] shadow-[0_24px_90px_rgba(15,23,42,0.16)] print:min-h-0 print:max-w-none print:px-0 print:py-0 print:shadow-none">
-        <div className="flex min-h-[269mm] flex-col rounded-sm border border-slate-200 print:min-h-0 print:border-slate-200">
-          <header className="grid gap-8 p-6 md:grid-cols-[1.45fr_0.9fr]">
-            <div>
+      <article className="mx-auto min-h-[297mm] w-full max-w-[210mm] bg-white px-4 py-4 shadow-[0_24px_90px_rgba(15,23,42,0.16)] sm:px-6 sm:py-6 md:px-[14mm] md:py-[14mm] print:min-h-0 print:max-w-none print:px-0 print:py-0 print:shadow-none">
+        <div className="flex min-h-[269mm] flex-col overflow-hidden rounded-sm border border-slate-200 print:min-h-0 print:border-slate-200">
+          <header className="grid gap-8 p-5 sm:p-6 md:grid-cols-[minmax(0,1.45fr)_minmax(0,0.9fr)]">
+            <div className="min-w-0">
               <h1 className="text-4xl font-black tracking-tight text-[#123B63]">
                 ใบเสนอราคา / Quotation
               </h1>
-              <p className="mt-3 text-sm text-slate-600">
+              <p className="mt-3 break-words text-sm text-slate-600">
                 เอกสารสำหรับตรวจสอบรายละเอียดราคา อนุมัติงาน และอ้างอิงก่อนเริ่มผลิต
               </p>
             </div>
 
-            <div className="grid gap-4">
+            <div className="grid min-w-0 gap-4">
               <div className="flex justify-end">
                 <div className="flex h-[28mm] w-[38mm] items-center justify-center border border-dashed border-slate-400 bg-white text-sm font-bold text-slate-500">
                   {config.businessLogoUrl ? (
@@ -143,7 +144,7 @@ export default async function QuoteDownloadPage(props: {
             </div>
           </header>
 
-          <section className="grid gap-6 px-6 pb-6 md:grid-cols-2">
+          <section className="grid gap-6 px-5 pb-6 sm:px-6 md:grid-cols-2">
             <InfoBox
               title="ผู้ออกใบเสนอราคา / Seller"
               rows={[
@@ -172,16 +173,16 @@ export default async function QuoteDownloadPage(props: {
             />
           </section>
 
-          <section className="px-6 pb-6">
+          <section className="px-5 pb-6 sm:px-6">
             <DocumentField
               label="สรุปงาน / Project or Service Summary"
               value={summary}
             />
           </section>
 
-          <section className="px-6">
+          <section className="px-5 sm:px-6">
             <div className="overflow-hidden border border-slate-200">
-              <div className="grid grid-cols-[14mm_1fr_20mm_30mm_30mm] bg-[#123B63] text-[11px] font-bold text-white">
+              <div className="hidden grid-cols-[12mm_minmax(0,1fr)_minmax(16mm,20mm)_minmax(24mm,30mm)_minmax(24mm,30mm)] bg-[#123B63] text-[11px] font-bold text-white md:grid print:grid">
                 <div className="px-3 py-3">ลำดับ / No.</div>
                 <div className="px-3 py-3">รายการ / Description</div>
                 <div className="px-3 py-3 text-right">จำนวน / Qty</div>
@@ -189,15 +190,40 @@ export default async function QuoteDownloadPage(props: {
                 <div className="px-3 py-3 text-right">รวม / Amount</div>
               </div>
 
-              {(items.length > 0 ? items : [null]).map((item, index) => (
+              {displayRows.map((item, index) => (
+                <div
+                  key={`${item?.id ?? "empty-row"}-mobile`}
+                  className="border-t border-slate-200 p-4 first:border-t-0 md:hidden print:hidden"
+                >
+                  <div className="flex items-start justify-between gap-3 text-xs font-semibold text-slate-500">
+                    <span>ลำดับ / No. {item ? index + 1 : "-"}</span>
+                    <span>จำนวน / Qty {item?.qty ?? lead?.qty ?? "-"}</span>
+                  </div>
+                  <p className="mt-3 break-words text-sm font-semibold text-slate-950">
+                    {item?.label || productLabel}
+                  </p>
+                  <div className="mt-4 space-y-2 text-sm text-slate-700">
+                    <MobileMetaRow
+                      label="ราคา / Unit Price"
+                      value={formatMoney(item?.unit_price)}
+                    />
+                    <MobileMetaRow
+                      label="รวม / Amount"
+                      value={formatMoney(item?.line_total)}
+                    />
+                  </div>
+                </div>
+              ))}
+
+              {displayRows.map((item, index) => (
                 <div
                   key={item?.id ?? "empty-row"}
-                  className="grid min-h-[12mm] grid-cols-[14mm_1fr_20mm_30mm_30mm] border-t border-slate-200 text-sm"
+                  className="hidden min-h-[12mm] grid-cols-[12mm_minmax(0,1fr)_minmax(16mm,20mm)_minmax(24mm,30mm)_minmax(24mm,30mm)] border-t border-slate-200 text-sm md:grid print:grid"
                 >
                   <div className="border-r border-slate-200 px-3 py-3 text-right">
                     {item ? index + 1 : "-"}
                   </div>
-                  <div className="border-r border-slate-200 px-3 py-3">
+                  <div className="min-w-0 border-r border-slate-200 px-3 py-3 break-words">
                     {item?.label || productLabel}
                   </div>
                   <div className="border-r border-slate-200 px-3 py-3 text-right">
@@ -214,8 +240,8 @@ export default async function QuoteDownloadPage(props: {
             </div>
           </section>
 
-          <section className="grid gap-8 px-6 py-6 md:grid-cols-[1fr_74mm]">
-            <div className="space-y-3 text-sm text-slate-700">
+          <section className="grid gap-8 px-5 py-6 sm:px-6 md:grid-cols-[minmax(0,1fr)_74mm]">
+            <div className="min-w-0 space-y-3 text-sm text-slate-700">
               <p className="font-bold text-[#123B63]">เงื่อนไข / Terms</p>
               <p>
                 การชำระเงิน / Payment Terms: {PAYMENT_TERM_LABELS[paymentTerms]}
@@ -247,7 +273,7 @@ export default async function QuoteDownloadPage(props: {
             </div>
           </section>
 
-          <footer className="mt-auto grid gap-10 px-6 pb-6 pt-8 text-sm text-slate-600 md:grid-cols-2">
+          <footer className="mt-auto grid gap-10 px-5 pb-6 pt-8 text-sm text-slate-600 sm:px-6 md:grid-cols-2">
             <SignatureBlock label="ผู้มีอำนาจลงนาม / Authorized Signature" />
             <SignatureBlock label="ผู้ยอมรับใบเสนอราคา / Customer Acceptance" />
           </footer>
@@ -259,22 +285,24 @@ export default async function QuoteDownloadPage(props: {
 
 function DocumentField({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="border-b border-slate-300 pb-1 text-sm font-bold text-slate-600">
         {label}
       </p>
-      <p className="pt-2 text-sm text-slate-950">{value}</p>
+      <p className="break-words pt-2 text-sm text-slate-950">{value}</p>
     </div>
   );
 }
 
 function InfoBox({ title, rows }: { title: string; rows: string[] }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-5">
       <p className="mb-4 text-lg font-black text-[#123B63]">{title}</p>
       <div className="space-y-1.5 text-sm leading-6 text-slate-950">
         {rows.map((row, index) => (
-          <p key={`${title}-${index}`}>{row}</p>
+          <p key={`${title}-${index}`} className="break-words">
+            {row}
+          </p>
         ))}
       </div>
     </div>
@@ -290,8 +318,17 @@ function TotalRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-4 px-3 text-slate-700">
-      <span>{label}</span>
-      <span className="font-semibold text-slate-950">{formatMoney(value)}</span>
+      <span className="min-w-0 break-words">{label}</span>
+      <span className="shrink-0 font-semibold text-slate-950">{formatMoney(value)}</span>
+    </div>
+  );
+}
+
+function MobileMetaRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-slate-500">{label}</span>
+      <span className="shrink-0 font-semibold text-slate-950">{value}</span>
     </div>
   );
 }

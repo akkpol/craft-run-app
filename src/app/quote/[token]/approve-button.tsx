@@ -2,6 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Clock3,
+  Loader2,
+  PencilLine,
+  XCircle,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type Props = {
   quoteToken: string;
@@ -16,7 +25,9 @@ export default function QuoteApproveButton({
   allowReject = false,
   allowRescope = false,
 }: Props) {
-  const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<
+    "approve_quote" | "reject_quote" | "rescope_quote" | null
+  >(null);
   const [successState, setSuccessState] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -42,7 +53,7 @@ export default function QuoteApproveButton({
       return;
     }
 
-    setLoading(true);
+    setLoadingAction(action);
     setError("");
 
     try {
@@ -65,54 +76,121 @@ export default function QuoteApproveButton({
     } catch {
       setError("ไม่สามารถดำเนินการได้ กรุณาลองใหม่");
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
     }
   }
 
   if (successState) {
+    const successTone = requiresPayment
+      ? {
+          container: "border-amber-200 bg-amber-50 text-amber-900",
+          iconWrap: "bg-amber-100 text-amber-700",
+          helper: "ทีมงานจะรอยืนยันการชำระเงินก่อนเริ่มผลิต",
+          icon: Clock3,
+        }
+      : successState === "reject_quote"
+        ? {
+            container: "border-rose-200 bg-rose-50 text-rose-900",
+            iconWrap: "bg-rose-100 text-rose-700",
+            helper: "หากต้องการกลับมาคุยต่อ สามารถแจ้งทีมงานเพื่อออกใบเสนอราคาใหม่ได้",
+            icon: XCircle,
+          }
+        : {
+            container: "border-emerald-200 bg-emerald-50 text-emerald-900",
+            iconWrap: "bg-emerald-100 text-emerald-700",
+            helper: "ทีมงานได้รับคำตอบของคุณแล้ว และจะอัปเดตขั้นตอนถัดไปให้โดยเร็ว",
+            icon: CheckCircle2,
+          };
+    const SuccessIcon = successTone.icon;
+
     return (
-      <div className={`text-center font-medium ${requiresPayment ? "text-amber-600" : "text-green-600"}`}>
-        {requiresPayment ? "⏳" : successState === "reject_quote" ? "🛑" : "✅"} {successMessage}
+      <div
+        className={`flex items-start gap-3 rounded-2xl border px-4 py-4 text-sm ${successTone.container}`}
+      >
+        <div
+          className={`flex size-10 shrink-0 items-center justify-center rounded-2xl ${successTone.iconWrap}`}
+        >
+          <SuccessIcon className="size-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="font-semibold">{successMessage}</p>
+          <p className="mt-1 text-xs opacity-80">{successTone.helper}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
-      {error && <p className="text-red-500 text-sm text-center mb-3">{error}</p>}
-      <div className="space-y-2">
+    <div className="space-y-3">
+      {error ? (
+        <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          <p>{error}</p>
+        </div>
+      ) : null}
+
+      <div className="space-y-3">
         {allowApprove && (
-          <button
+          <Button
+            type="button"
+            size="lg"
             onClick={() => handleAction("approve_quote")}
-            disabled={loading}
-            className="w-full rounded-lg bg-[#1a1a2e] py-3 font-medium text-white transition-colors hover:bg-[#16213e] disabled:opacity-50"
+            disabled={loadingAction !== null}
+            className="w-full justify-center"
           >
-            {loading ? "กำลังดำเนินการ..." : "✅ อนุมัติใบเสนอราคา"}
-          </button>
+            {loadingAction === "approve_quote" ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="size-4" />
+            )}
+            {loadingAction === "approve_quote"
+              ? "กำลังดำเนินการ..."
+              : "อนุมัติใบเสนอราคา"}
+          </Button>
         )}
 
         {(allowRescope || allowReject) && (
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             {allowRescope && (
-              <button
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
                 onClick={() => handleAction("rescope_quote")}
-                disabled={loading}
-                className="w-full rounded-lg border border-slate-300 bg-white py-3 font-medium text-slate-700 transition hover:border-slate-400 disabled:opacity-50"
+                disabled={loadingAction !== null}
+                className="w-full justify-center bg-background"
               >
+                {loadingAction === "rescope_quote" ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <PencilLine className="size-4" />
+                )}
                 ขอปรับรายละเอียด
-              </button>
+              </Button>
             )}
             {allowReject && (
-              <button
+              <Button
+                type="button"
+                variant="destructive"
+                size="lg"
                 onClick={() => handleAction("reject_quote")}
-                disabled={loading}
-                className="w-full rounded-lg border border-rose-200 bg-rose-50 py-3 font-medium text-rose-700 transition hover:border-rose-300 disabled:opacity-50"
+                disabled={loadingAction !== null}
+                className="w-full justify-center"
               >
+                {loadingAction === "reject_quote" ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <XCircle className="size-4" />
+                )}
                 ปฏิเสธใบเสนอราคา
-              </button>
+              </Button>
             )}
           </div>
         )}
+
+        <p className="text-center text-xs leading-relaxed text-slate-500">
+          การดำเนินการนี้จะอัปเดตสถานะใบเสนอราคาในระบบทันที
+        </p>
       </div>
     </div>
   );
