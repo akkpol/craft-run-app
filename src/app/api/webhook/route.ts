@@ -116,6 +116,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  if (!Array.isArray(body.events)) {
+    return NextResponse.json({ error: "Invalid events payload" }, { status: 400 });
+  }
+
+  if (body.events.length === 0) {
+    return NextResponse.json({ status: "ok" });
+  }
+
   const supabase = createAdminClient();
   const lineClient = await getLineClient();
 
