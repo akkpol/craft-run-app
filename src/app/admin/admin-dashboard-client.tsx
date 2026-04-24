@@ -224,6 +224,18 @@ function formatDate(value: string | null | undefined) {
   return new Date(value).toLocaleDateString("th-TH");
 }
 
+function formatTrackingCode(token: string | null | undefined) {
+  if (!token) {
+    return "-";
+  }
+
+  if (token.length <= 12) {
+    return token.toUpperCase();
+  }
+
+  return `${token.slice(0, 6).toUpperCase()}-${token.slice(-4).toUpperCase()}`;
+}
+
 function SurfaceSection({
   title,
   description,
@@ -238,7 +250,7 @@ function SurfaceSection({
   action?: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="rounded-[28px] border border-cyan-100/80 bg-white/95 p-4 shadow-[0_16px_42px_rgba(0,62,93,0.08)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -276,10 +288,10 @@ function QueueCard({
   return (
     <div
       className={cn(
-        "rounded-[24px] border p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md",
+        "rounded-[24px] border p-4 shadow-sm transition-shadow duration-200 hover:shadow-md motion-reduce:transition-none",
         tone === "warning" && "border-amber-200 bg-amber-50/40",
         tone === "danger" && "border-rose-200 bg-rose-50/40",
-        tone === "default" && "border-slate-200 bg-slate-50/70"
+        tone === "default" && "border-cyan-100 bg-cyan-50/35"
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -322,7 +334,7 @@ function StuckQueueContent({
               <QueueCard
                 key={quote.id}
                 title={customerName(quote.leads?.customers)}
-                meta={`${getProductLabel(quote.leads?.product_type)} · ฿${Number(quote.total).toLocaleString()}`}
+                meta={`${getProductLabel(quote.leads?.product_type)} · ฿${Number(quote.total).toLocaleString()} · Track ${formatTrackingCode(quote.public_token)}`}
                 badge={<Badge className={cn("border", statusToneClass(quote.status))}>{getQuoteStatusLabel(quote.status)}</Badge>}
                 footer={
                   <div className="flex items-center justify-between gap-2">
@@ -600,7 +612,7 @@ function ProductionReviewQueueContent({ items }: { items: SnapshotProductionEven
 
 function EmptyState({ title }: { title: string }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+    <div className="rounded-[24px] border border-dashed border-cyan-200 bg-cyan-50/40 px-4 py-8 text-center text-sm text-slate-500">
       {title}
     </div>
   );
@@ -649,7 +661,7 @@ function SummaryStrip({ items }: { items: SummaryStripItem[] }) {
             item.tone === "warning" && "border-amber-200 bg-amber-50/60",
             item.tone === "danger" && "border-rose-200 bg-rose-50/60",
             item.tone === "info" && "border-sky-200 bg-sky-50/60",
-            (!item.tone || item.tone === "neutral") && "border-slate-200 bg-white"
+            (!item.tone || item.tone === "neutral") && "border-cyan-100 bg-white"
           )}
         >
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
@@ -898,7 +910,7 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
   );
 
   return (
-    <div className="pb-8 text-slate-900">
+    <div className="admin-shell pb-8 text-slate-900">
       <div className="mx-4 mt-4 overflow-hidden rounded-[32px] border border-slate-900/90 bg-[linear-gradient(135deg,#0f172a_0%,#172554_52%,#0f766e_100%)] text-white shadow-[0_32px_90px_rgba(15,23,42,0.32)]">
         <div className="flex flex-wrap items-start justify-between gap-4 px-6 py-6">
           <div className="max-w-2xl">
@@ -922,7 +934,7 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
           </div>
         </div>
 
-        <div className="grid gap-3 border-t border-white/10 bg-white/5 px-6 py-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-3 border-t border-cyan-200/15 bg-white/10 px-6 py-4 sm:grid-cols-2 xl:grid-cols-5">
           <MetricCard title="leads ที่ยัง active" value={kpis.leadsCount} accent="text-cyan-200" />
           <MetricCard title="quote รอลูกค้าอนุมัติ" value={kpis.quotesWaitingApproval} accent="text-amber-200" />
           <MetricCard title="งานที่กำลังทำ" value={kpis.activeJobsCount} accent="text-emerald-200" />
@@ -932,7 +944,7 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
       </div>
 
       <div className="px-4 py-4">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="rounded-[28px] border border-cyan-100 bg-white/95 p-3 shadow-[0_16px_40px_rgba(0,62,93,0.08)]">
           <div className="flex flex-wrap gap-2">
             {VIEW_ORDER.map((entry) => {
               const Icon = entry.icon;
@@ -955,19 +967,19 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
                   className={cn(
                     "flex min-w-[150px] flex-1 items-start gap-3 rounded-[22px] px-4 py-3 text-left transition",
                     view === entry.key
-                      ? "bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.22)]"
-                      : "bg-slate-50 text-slate-700 hover:bg-slate-100"
+                      ? "bg-[linear-gradient(135deg,#00AEEF_0%,#0098d0_100%)] text-white shadow-[0_18px_40px_rgba(0,94,140,0.24)]"
+                      : "bg-white text-slate-700 hover:bg-cyan-50"
                   )}
                 >
-                  <div className={cn("rounded-2xl p-2", view === entry.key ? "bg-white/10" : "bg-white") }>
+                    <div className={cn("rounded-2xl p-2", view === entry.key ? "bg-white/12" : "bg-cyan-50") }>
                     <Icon className="size-4" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold">{entry.label}</p>
-                      <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", view === entry.key ? "bg-white/10 text-white" : "bg-white text-slate-500")}>{count}</span>
+                      <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", view === entry.key ? "bg-white/15 text-white" : "border border-cyan-100 bg-white text-cyan-700")}>{count}</span>
                     </div>
-                    <p className={cn("mt-1 text-xs leading-5", view === entry.key ? "text-white/70" : "text-slate-500")}>{entry.description}</p>
+                    <p className={cn("mt-1 text-xs leading-5", view === entry.key ? "text-white/80" : "text-slate-500")}>{entry.description}</p>
                   </div>
                 </button>
               );
@@ -977,7 +989,7 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
       </div>
 
       <div className="grid items-start gap-4 px-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-4">
+        <div className="space-y-3">
           {view === "overview" ? (
             <>
               {triageSection}
@@ -1022,7 +1034,7 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
                       <QueueCard
                         key={quote.id}
                         title={customerName(quote.leads?.customers)}
-                        meta={`${getProductLabel(quote.leads?.product_type)} · ฿${Number(quote.total).toLocaleString()}`}
+                        meta={`${getProductLabel(quote.leads?.product_type)} · ฿${Number(quote.total).toLocaleString()} · Track ${formatTrackingCode(quote.public_token)}`}
                         badge={<Badge className={cn("border", statusToneClass(quote.status))}>{getQuoteStatusLabel(quote.status)}</Badge>}
                         footer={<div className="flex justify-end"><AdminQuoteActions quoteId={quote.id} publicToken={quote.public_token} quoteStatus={quote.status} paymentTerms={quote.payment_terms} paymentStatus={quote.payment_status} hasJob={Array.isArray(quote.jobs) && quote.jobs.length > 0} /></div>}
                       >
@@ -1701,11 +1713,11 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
         <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
           <SurfaceSection title="Secondary Rail" description="ข้อมูลรองที่ควรเปิดดูได้ แต่ไม่ควรแย่งความสนใจจาก queue หลัก">
             <div className="space-y-4">
-              <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-[24px] border border-cyan-100 bg-cyan-50/35 p-4">
                 <div className="flex items-center gap-2">
-                  <Archive className="size-4 text-slate-500" />
+                  <Archive className="size-4 text-cyan-700" />
                   <h3 className="text-sm font-semibold text-slate-900">Superseded Leads</h3>
-                  <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">{supersededLeads.length}</Badge>
+                  <Badge variant="outline" className="border-cyan-100 bg-white text-cyan-700">{supersededLeads.length}</Badge>
                 </div>
                 <div className="mt-4 space-y-3">
                   {supersededLeads.slice(0, 6).map((lead) => (
@@ -1713,7 +1725,7 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
                       key={lead.id}
                       title={customerName(lead.customers)}
                       meta={`${getProductLabel(lead.product_type)} · ถูกแทนที่เมื่อ ${formatDateTime(lead.superseded_at)}`}
-                      badge={<Badge className="border border-slate-200 bg-white text-slate-600">archive</Badge>}
+                      badge={<Badge className="border border-cyan-100 bg-white text-cyan-700">archive</Badge>}
                     >
                       <p className="text-xs text-slate-500">{lead.supersede_reason || `แทนที่ด้วย lead ${lead.superseded_by_lead_id?.slice(0, 8) || "ใหม่"}`}</p>
                     </QueueCard>
@@ -1722,11 +1734,11 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-[24px] border border-cyan-100 bg-cyan-50/35 p-4">
                 <div className="flex items-center gap-2">
-                  <MessageSquareMore className="size-4 text-slate-500" />
+                  <MessageSquareMore className="size-4 text-cyan-700" />
                   <h3 className="text-sm font-semibold text-slate-900">Recent Conversations</h3>
-                  <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">{snapshot.recentConversations.length}</Badge>
+                  <Badge variant="outline" className="border-cyan-100 bg-white text-cyan-700">{snapshot.recentConversations.length}</Badge>
                 </div>
                 <div className="mt-4 space-y-3">
                   {snapshot.recentConversations.map((conversation) => (
@@ -1745,16 +1757,16 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
 
           <SurfaceSection title="Quick Notes" description="ภาษากลางของสถานะที่ใช้ในหน้า admin ใหม่ทั้งหมด">
             <div className="space-y-3 text-sm text-slate-600">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-2xl border border-cyan-100 bg-cyan-50/40 p-4">
                 <div className="flex items-center gap-2 text-slate-900">
-                  <CircleDashed className="size-4" />
+                  <CircleDashed className="size-4 text-cyan-700" />
                   <p className="font-semibold">ภาษาของ status ถูก map เป็นภาษาคนแล้ว</p>
                 </div>
                 <p className="mt-2 leading-6">quote, lead, workflow, design และ production review จะใช้คำไทยที่อ่านแล้วเข้าใจทันทีในทุก card</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-2xl border border-cyan-100 bg-cyan-50/40 p-4">
                 <div className="flex items-center gap-2 text-slate-900">
-                  <AlertTriangle className="size-4" />
+                  <AlertTriangle className="size-4 text-[#ec008c]" />
                   <p className="font-semibold">ทุก action ยังใช้ logic route เดิม</p>
                 </div>
                 <p className="mt-2 leading-6">รอบนี้เน้นย้าย UX และ pattern ให้กดงานจากคิวได้ทันที โดยไม่เปลี่ยน business rule ใต้หน้า admin</p>
@@ -1769,7 +1781,7 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
 
 function MetricCard({ title, value, accent }: { title: string; value: number; accent: string }) {
   return (
-    <div className="rounded-[22px] border border-white/10 bg-white/8 px-4 py-3">
+    <div className="rounded-[22px] border border-cyan-200/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
       <p className={cn("text-2xl font-bold", accent)}>{value}</p>
       <p className="mt-1 text-xs text-white/70">{title}</p>
     </div>
@@ -1778,9 +1790,9 @@ function MetricCard({ title, value, accent }: { title: string; value: number; ac
 
 function QuickLane({ title, description, items, empty }: { title: string; description: string; items: React.ReactNode[]; empty: string }) {
   return (
-    <div className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4">
+    <div className="rounded-[24px] border border-cyan-100 bg-cyan-50/35 p-4 shadow-sm">
       <div className="flex items-start gap-3">
-        <div className="rounded-2xl bg-white p-2 text-slate-600">
+        <div className="rounded-2xl bg-white p-2 text-cyan-700">
           {title === "Sales" ? <WalletCards className="size-4" /> : title === "Design" ? <Sparkles className="size-4" /> : <Factory className="size-4" />}
         </div>
         <div>

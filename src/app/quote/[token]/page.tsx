@@ -215,6 +215,20 @@ export default async function QuotePage(props: { params: Promise<{ token: string
           </div>
         </div>
 
+        <div className="border-b border-sky-100 bg-sky-50/60 px-6 py-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-700">เลขติดตามงาน</p>
+          <p className="mt-1 font-mono text-sm font-semibold text-sky-900 break-all">{token}</p>
+          <p className="mt-1 text-xs text-sky-800">ใช้โค้ดนี้เพื่อเปิดหน้าใบเสนอราคา/สถานะงานจากหน้าค้นหา</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link href={`/status/${token}`} className="inline-flex rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700">
+              ดูสถานะงาน
+            </Link>
+            <Link href="/status" className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+              ค้นหาด้วยเลขติดตาม
+            </Link>
+          </div>
+        </div>
+
         <div className="bg-white px-6 py-4 border-b border-gray-100">
           <h2 className="text-sm font-medium text-gray-500 mb-2">ข้อมูลลูกค้า</h2>
           <p className="text-sm text-gray-900">{customer?.display_name || "ไม่ระบุ"}</p>

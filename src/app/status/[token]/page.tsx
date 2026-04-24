@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
 import {
   DESIGN_STATUS_LABELS,
@@ -52,6 +53,7 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
     job?.status === "ON_HOLD_CUSTOMER_INPUT" &&
     !showDesignActions &&
     Boolean(lead?.hold_reason);
+  const waitingQuoteApproval = quote.status === "sent";
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -67,6 +69,28 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
           <div className="text-4xl mb-2">{statusInfo.icon}</div>
           <div className={`inline-block px-4 py-1.5 rounded-full text-sm font-medium ${statusInfo.color}`}>
             {statusInfo.label}
+          </div>
+          {waitingQuoteApproval ? (
+            <div className="mt-3 space-y-2">
+              <p className="text-sm font-medium text-amber-700">งานนี้รอลูกค้าอนุมัติใบเสนอราคา</p>
+              <Link
+                href={`/quote/${token}`}
+                className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800"
+              >
+                ไปอนุมัติใบเสนอราคา
+              </Link>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="bg-sky-50/60 px-6 py-4 border-b border-sky-100">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-700">เลขติดตามงาน</p>
+          <p className="mt-1 break-all font-mono text-sm font-semibold text-sky-900">{token}</p>
+          <p className="mt-1 text-xs text-sky-800">ใช้โค้ดนี้เปิดหน้านี้หรือหน้าใบเสนอราคาได้ตลอดเวลา</p>
+          <div className="mt-3">
+            <Link href="/status" className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+              ค้นหาด้วยเลขติดตาม
+            </Link>
           </div>
         </div>
 
