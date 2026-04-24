@@ -46,6 +46,13 @@ Need a wave-by-wave execution checklist?
 
 ดูคู่มือเริ่มต้นที่ `docs/VERCEL_SANDBOX.md`
 
+## Upload Go-Live Runbooks
+
+สำหรับงานเปิดใช้ production upload และแก้ปัญหา Supabase CLI auth ให้ดูเอกสารนี้:
+
+- `docs/PRODUCTION_UPLOAD_GO_LIVE_CHECKLIST.md`
+- `docs/SUPABASE_CLI_UNAUTHORIZED_RECOVERY.md`
+
 ## Workflow Source Of Truth
 
 ถ้าจะอ้างอิง customer flow หรือ state transition ของระบบ ให้ยึดตามลำดับนี้:

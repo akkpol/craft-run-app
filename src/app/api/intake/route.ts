@@ -13,6 +13,10 @@ import {
   getReusableConversationState,
 } from "@/lib/workflow-transitions";
 import {
+  uploadLeadMediaFiles,
+  validateCustomerMediaFiles,
+} from "@/lib/customer-media";
+import {
   getConversationsToCancelForFreshRestart,
   getLeadsToSupersedeForFreshRestart,
   type FreshRestartConversationCandidate,
@@ -23,10 +27,36 @@ import { logSystemAction } from "@/lib/action-log";
 
 export async function POST(request: NextRequest) {
   let data: IntakeFormData;
+  let customerMediaFiles: File[] = [];
   try {
-    data = await request.json();
+    const contentType = request.headers.get("content-type") || "";
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const getString = (name: string) => String(formData.get(name) || "");
+      customerMediaFiles = formData
+        .getAll("referenceFiles")
+        .filter((value): value is File => value instanceof File && value.size > 0);
+      data = {
+        lineUserId: getString("lineUserId") || undefined,
+        displayName: getString("displayName") || undefined,
+        liffIdToken: getString("liffIdToken") || undefined,
+        productType: getString("productType"),
+        width: Number(getString("width")),
+        height: Number(getString("height")),
+        unit: getString("unit") as IntakeFormData["unit"],
+        qty: Number(getString("qty")) || 1,
+        dueDate: getString("dueDate"),
+        phone: getString("phone"),
+        note: getString("note"),
+        referenceInfo: getString("referenceInfo"),
+        aiImagePrompt: getString("aiImagePrompt") || undefined,
+        intakeMode: (getString("intakeMode") || undefined) as IntakeFormData["intakeMode"],
+      };
+    } else {
+      data = await request.json();
+    }
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid intake request" }, { status: 400 });
   }
 
   const providedLineUserId = data.lineUserId?.trim() || "";
@@ -50,6 +80,15 @@ export async function POST(request: NextRequest) {
 
   if (errors.length > 0) {
     return NextResponse.json({ error: errors.join(", ") }, { status: 400 });
+  }
+
+  try {
+    validateCustomerMediaFiles(customerMediaFiles);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "ไฟล์อ้างอิงไม่ถูกต้อง" },
+      { status: 400 }
+    );
   }
 
   let intakeIdentity: { userId: string; displayName: string | null };
@@ -321,6 +360,26 @@ export async function POST(request: NextRequest) {
       { error: `Failed to create lead${leadError ? `: ${leadError.message}` : ""}` },
       { status: 500 }
     );
+  }
+
+  if (customerMediaFiles.length > 0) {
+    try {
+      await uploadLeadMediaFiles({
+        supabase,
+        leadId: lead.id,
+        files: customerMediaFiles,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? `ไม่สามารถอัปโหลดรูปอ้างอิงได้: ${error.message}`
+              : "ไม่สามารถอัปโหลดรูปอ้างอิงได้",
+        },
+        { status: 500 }
+      );
+    }
   }
 
   // 4.5. Fresh restart: back-fill superseded_by_lead_id and emit audit logs now that lead.id is known
