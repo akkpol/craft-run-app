@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Camera, FileText, ImagePlus, X } from "lucide-react";
 import { UNITS } from "@/lib/types";
 import ProductTypePicker from "./product-type-picker";
 
@@ -27,6 +28,15 @@ const selectClassName =
 
 const textareaClassName =
   "w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100";
+
+const MAX_REFERENCE_FILES = 5;
+const MAX_REFERENCE_FILE_SIZE = 10 * 1024 * 1024;
+
+type ReferenceFilePreview = {
+  id: string;
+  file: File;
+  previewUrl: string | null;
+};
 
 const sectionToneStyles = {
   emerald: {
@@ -139,6 +149,14 @@ export default function IntakeForm({
   const [referenceInfo, setReferenceInfo] = useState("");
   const [aiImagePrompt, setAiImagePrompt] = useState("");
   const [suggestedProductTypes, setSuggestedProductTypes] = useState<string[]>([]);
+  const [referenceFiles, setReferenceFiles] = useState<ReferenceFilePreview[]>([]);
+  const previewUrlsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    return () => {
+      previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, []);
 
   useEffect(() => {
     async function initLiff() {
@@ -206,7 +224,63 @@ export default function IntakeForm({
         setReady(true);
       }, 5000);
     }
-  }, [liffId]);
+  }, [intakeMode, liffId]);
+
+  const handleReferenceFileSelect = useCallback((files: FileList | null) => {
+    if (!files?.length) return;
+
+    const incoming = Array.from(files);
+    if (referenceFiles.length + incoming.length > MAX_REFERENCE_FILES) {
+      setError(`เพิ่มรูปหรือไฟล์ได้สูงสุด ${MAX_REFERENCE_FILES} ไฟล์`);
+      return;
+    }
+
+    for (const file of incoming) {
+      const isAllowed =
+        file.type.startsWith("image/") || file.type === "application/pdf";
+      if (!isAllowed) {
+        setError("รองรับเฉพาะรูปภาพหรือ PDF");
+        return;
+      }
+      if (file.size > MAX_REFERENCE_FILE_SIZE) {
+        setError("ไฟล์ใหญ่เกิน 10MB กรุณาลดขนาดรูปแล้วลองใหม่");
+        return;
+      }
+    }
+
+    const nextFiles = incoming.map((file) => {
+      const previewUrl = file.type.startsWith("image/")
+        ? URL.createObjectURL(file)
+        : null;
+      if (previewUrl) {
+        previewUrlsRef.current.push(previewUrl);
+      }
+      return {
+        id:
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}-${file.name}`,
+        file,
+        previewUrl,
+      };
+    });
+
+    setError("");
+    setReferenceFiles((prev) => [...prev, ...nextFiles]);
+  }, [referenceFiles.length]);
+
+  const removeReferenceFile = useCallback((id: string) => {
+    setReferenceFiles((prev) => {
+      const removed = prev.find((item) => item.id === id);
+      if (removed?.previewUrl) {
+        URL.revokeObjectURL(removed.previewUrl);
+        previewUrlsRef.current = previewUrlsRef.current.filter(
+          (url) => url !== removed.previewUrl
+        );
+      }
+      return prev.filter((item) => item.id !== id);
+    });
+  }, []);
 
   const handleSubmit = useCallback(
     async (e: FormEvent) => {
@@ -246,25 +320,28 @@ export default function IntakeForm({
       }
 
       try {
+        const formData = new FormData();
+        formData.append("lineUserId", lineUserId || "");
+        formData.append("displayName", displayName || "");
+        formData.append("liffIdToken", liffIdToken || "");
+        formData.append("productType", productType);
+        formData.append("width", String(Number(width)));
+        formData.append("height", String(Number(height)));
+        formData.append("unit", unit);
+        formData.append("qty", String(Number(qty) || 1));
+        formData.append("dueDate", dueDate);
+        formData.append("phone", phone);
+        formData.append("note", note);
+        formData.append("referenceInfo", referenceInfo);
+        formData.append("aiImagePrompt", aiImagePrompt);
+        formData.append("intakeMode", intakeMode);
+        referenceFiles.forEach((item) => {
+          formData.append("referenceFiles", item.file, item.file.name);
+        });
+
         const res = await fetch("/api/intake", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            lineUserId: lineUserId || undefined,
-            displayName: displayName || undefined,
-            liffIdToken: liffIdToken || undefined,
-            productType,
-            width: Number(width),
-            height: Number(height),
-            unit,
-            qty: Number(qty) || 1,
-            dueDate,
-            phone,
-            note,
-            referenceInfo,
-            aiImagePrompt,
-            intakeMode,
-          }),
+          body: formData,
         });
 
         const result = await res.json();
@@ -300,6 +377,7 @@ export default function IntakeForm({
       note,
       referenceInfo,
       aiImagePrompt,
+      referenceFiles,
       lineUserId,
       displayName,
       liffId,
@@ -493,20 +571,89 @@ export default function IntakeForm({
               tone="amber"
               badgeLabel="Optional"
             >
+              <div className="rounded-[24px] border border-amber-200 bg-amber-50/80 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-sm">
+                    <ImagePlus className="size-5" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">เพิ่มรูปตัวอย่างในหน้านี้ได้เลย</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">
+                      ถ่ายจากกล้องหรือเลือกรูปในเครื่อง เห็นตัวอย่างก่อนส่ง ทีมงานจะเปิดดูในหลังบ้านได้ทันที
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-amber-300 bg-white/80 px-4 py-4 text-center text-sm font-semibold text-amber-800 transition hover:border-amber-400 hover:bg-white">
+                    <Camera className="mb-2 size-6" aria-hidden="true" />
+                    เพิ่มรูป / ถ่ายรูป
+                    <span className="mt-1 text-xs font-normal text-slate-500">สูงสุด 5 ไฟล์, ไฟล์ละไม่เกิน 10MB</span>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      multiple
+                      capture="environment"
+                      onChange={(e) => {
+                        handleReferenceFileSelect(e.target.files);
+                        e.target.value = "";
+                      }}
+                      className="sr-only"
+                    />
+                  </label>
+
+                  {uploadUrl ? (
+                    <a
+                      href={uploadUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex min-h-28 flex-col items-center justify-center rounded-2xl border border-sky-200 bg-white/80 px-4 py-4 text-center text-sm font-semibold text-sky-800 transition hover:border-sky-300 hover:bg-white"
+                    >
+                      <FileText className="mb-2 size-6" aria-hidden="true" />
+                      {uploadLabel || "เปิดลิงก์รับไฟล์"}
+                      <span className="mt-1 text-xs font-normal text-slate-500">ใช้เฉพาะกรณีมีไฟล์ใหญ่หรือโฟลเดอร์เดิม</span>
+                    </a>
+                  ) : null}
+                </div>
+
+                {referenceFiles.length > 0 ? (
+                  <div className="mt-4">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        Preview {referenceFiles.length}/{MAX_REFERENCE_FILES}
+                      </p>
+                      <p className="text-xs text-slate-500">แตะ x เพื่อลบก่อนส่ง</p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                      {referenceFiles.map((item) => (
+                        <div key={item.id} className="relative overflow-hidden rounded-2xl border border-white bg-white shadow-sm">
+                          {item.previewUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={item.previewUrl} alt={item.file.name || "รูปอ้างอิง"} className="aspect-square w-full object-cover" />
+                          ) : (
+                            <div className="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-slate-50 px-2 text-center text-[11px] font-medium text-slate-600">
+                              <FileText className="size-5" aria-hidden="true" />
+                              PDF
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeReferenceFile(item.id)}
+                            className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-slate-950/75 text-white shadow-sm transition hover:bg-slate-950"
+                            aria-label={`ลบ ${item.file.name || "ไฟล์อ้างอิง"}`}
+                          >
+                            <X className="size-4" aria-hidden="true" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
               {uploadUrl ? (
-                <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
-                  <p className="font-semibold">มีไฟล์งานหรือรูปตัวอย่างอยู่แล้ว?</p>
-                  <p className="mt-1 leading-6 text-sky-800">
-                    อัปโหลดไฟล์ไว้ก่อน แล้วค่อยวางลิงก์ลงในฟอร์มด้านล่างได้เลย
-                  </p>
-                  <a
-                    href={uploadUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-3 inline-flex rounded-full bg-sky-600 px-4 py-2 font-semibold text-white transition hover:bg-sky-700"
-                  >
-                    {uploadLabel || "เปิดลิงก์รับไฟล์"}
-                  </a>
+                <div className="rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-xs leading-5 text-sky-900">
+                  มีลิงก์รับไฟล์สำรองไว้สำหรับไฟล์ใหญ่ แต่ถ้าเป็นรูปอ้างอิงทั่วไป กดเพิ่มรูปในฟอร์มนี้จะสะดวกกว่า
                 </div>
               ) : null}
 

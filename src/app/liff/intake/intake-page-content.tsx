@@ -21,10 +21,12 @@ export default async function IntakePageContent(props: {
     firstValue(searchParams.product) || firstValue(searchParams.productType);
   const intakeMode =
     firstValue(searchParams.mode) === "fresh" ? "fresh" : "resume";
+  const disableLiffForLocalTest =
+    process.env.NODE_ENV !== "production" && firstValue(searchParams.devNoLiff) === "1";
 
   return (
     <IntakeForm
-      liffId={config.liffId}
+      liffId={disableLiffForLocalTest ? "" : config.liffId}
       uploadUrl={config.customerUploadUrl}
       uploadLabel={config.customerUploadLabel}
       initialCategory={initialCategory}
