@@ -7,6 +7,10 @@ import type {
   WorkflowState,
 } from "@/lib/types";
 import { signJobMediaAssetPaths } from "@/lib/production-media";
+import {
+  signLeadMediaAssetPaths,
+  type LeadMediaAssetRow,
+} from "@/lib/customer-media";
 
 export type SnapshotCustomer = {
   display_name: string | null;
@@ -46,6 +50,7 @@ export type SnapshotLead = {
   hold_reason?: string | null;
   human_review_reason?: string | null;
   customers?: SnapshotCustomer;
+  lead_media_assets?: LeadMediaAssetRow[] | null;
 };
 
 export type SnapshotQuoteJobRef = {
@@ -210,7 +215,7 @@ export async function fetchBackofficeSnapshot(): Promise<BackofficeSnapshot> {
     await Promise.all([
       supabase
         .from("leads")
-        .select("*, customers(*)")
+        .select("*, customers(*), lead_media_assets(*)")
         .order("created_at", { ascending: false })
         .limit(50),
       supabase
@@ -276,6 +281,22 @@ export async function fetchBackofficeSnapshot(): Promise<BackofficeSnapshot> {
       ? await signJobMediaAssetPaths(supabase, productionAssetPaths)
       : {};
 
+  const leadAssetPaths = leads.flatMap((lead) =>
+    (lead.lead_media_assets || []).map((asset) => asset.storage_path)
+  );
+  const signedLeadAssetUrls =
+    leadAssetPaths.length > 0
+      ? await signLeadMediaAssetPaths(supabase, leadAssetPaths)
+      : {};
+
+  const hydratedLeads = leads.map((lead) => ({
+    ...lead,
+    lead_media_assets: (lead.lead_media_assets || []).map((asset) => ({
+      ...asset,
+      signed_url: signedLeadAssetUrls[asset.storage_path] || null,
+    })),
+  }));
+
   const hydratedProductionReviewQueue = productionReviewQueue.map((event) => ({
     ...event,
     job_media_assets: (event.job_media_assets || []).map((asset) => ({
@@ -326,7 +347,7 @@ export async function fetchBackofficeSnapshot(): Promise<BackofficeSnapshot> {
   }
 
   return {
-    leads,
+    leads: hydratedLeads,
     quotes,
     jobs,
     productionReviewQueue: hydratedProductionReviewQueue,

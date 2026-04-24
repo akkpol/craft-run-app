@@ -1098,7 +1098,22 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
                             ])}
                           />
 
-                          {Array.isArray(lead.ai_generated_images) && lead.ai_generated_images.length > 0 ? (
+                          {Array.isArray(lead.lead_media_assets) && lead.lead_media_assets.length > 0 ? (
+                            <div className="mt-3">
+                              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Customer reference</p>
+                              <div className="flex flex-wrap gap-2">
+                                {lead.lead_media_assets.slice(0, 4).map((asset) => asset.signed_url ? (
+                                  <a key={asset.id} href={asset.signed_url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                    {asset.mime_type?.startsWith("image/") ? (
+                                      <Image src={asset.signed_url} alt={asset.original_file_name || "Customer upload"} width={80} height={80} unoptimized className="h-20 w-20 object-cover" />
+                                    ) : (
+                                      <span className="flex h-20 w-20 items-center justify-center px-2 text-center text-[11px] font-semibold text-slate-600">เปิดไฟล์</span>
+                                    )}
+                                  </a>
+                                ) : null)}
+                              </div>
+                            </div>
+                          ) : Array.isArray(lead.ai_generated_images) && lead.ai_generated_images.length > 0 ? (
                             <div className="mt-3 flex flex-wrap gap-2">
                               {lead.ai_generated_images.slice(0, 4).map((imageUrl) => (
                                 <a key={imageUrl} href={imageUrl} target="_blank" rel="noreferrer" className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
