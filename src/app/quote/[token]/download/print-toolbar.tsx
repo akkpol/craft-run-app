@@ -1,23 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowLeft, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function PrintToolbar({ quoteUrl }: { quoteUrl: string }) {
   return (
-    <div className="flex flex-wrap items-center justify-end gap-3 print:hidden">
-      <Link
-        href={quoteUrl}
-        className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
-      >
-        กลับไปหน้าใบเสนอราคา
-      </Link>
-      <button
-        type="button"
-        onClick={() => window.print()}
-        className="rounded-full bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#16213e]"
-      >
+    <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end print:hidden">
+      <Button asChild variant="outline" className="w-full sm:w-auto">
+        <Link href={quoteUrl}>
+          <ArrowLeft className="size-4" />
+          กลับไปหน้าใบเสนอราคา
+        </Link>
+      </Button>
+      <Button type="button" onClick={() => window.print()} className="w-full sm:w-auto">
+        <Download className="size-4" />
         ดาวน์โหลด / พิมพ์ PDF
-      </button>
+      </Button>
     </div>
   );
 }

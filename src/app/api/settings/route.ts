@@ -16,6 +16,11 @@ type SettingsPayload = {
   businessName?: string;
   businessPhone?: string;
   businessEmail?: string;
+  paymentAccountName?: string;
+  paymentBankName?: string;
+  paymentAccountNumber?: string;
+  paymentPromptPayId?: string;
+  paymentInstructions?: string;
   businessLogoUrl?: string;
   businessCatalogUrl?: string;
   businessCatalogName?: string;
@@ -34,6 +39,9 @@ type SettingsPayload = {
   aiImageApiKey?: string;
 };
 
+const PAYMENT_SETTINGS_SCHEMA_ERROR =
+  "Database schema is missing payment settings columns. Run migration 013_payment_instruction_settings.sql before saving payment instructions.";
+
 export async function GET() {
   const settings = await getAppSettings();
   const runtimeConfig = await getRuntimeAppConfig();
@@ -44,6 +52,15 @@ export async function GET() {
       businessName: settings?.business_name || runtimeConfig.businessName || "",
       businessPhone: settings?.business_phone || runtimeConfig.businessPhone || "",
       businessEmail: settings?.business_email || runtimeConfig.businessEmail || "",
+      paymentAccountName:
+        settings?.payment_account_name || runtimeConfig.paymentAccountName || "",
+      paymentBankName: settings?.payment_bank_name || runtimeConfig.paymentBankName || "",
+      paymentAccountNumber:
+        settings?.payment_account_number || runtimeConfig.paymentAccountNumber || "",
+      paymentPromptPayId:
+        settings?.payment_promptpay_id || runtimeConfig.paymentPromptPayId || "",
+      paymentInstructions:
+        settings?.payment_instructions || runtimeConfig.paymentInstructions || "",
       businessLogoUrl: settings?.business_logo_url || runtimeConfig.businessLogoUrl || "",
       businessCatalogUrl: settings?.business_catalog_url || runtimeConfig.businessCatalogUrl || "",
       businessCatalogName: settings?.business_catalog_name || runtimeConfig.businessCatalogName || "",
@@ -91,6 +108,18 @@ export async function POST(request: NextRequest) {
   const businessLogoUrl = (body.businessLogoUrl || "").trim();
   const businessCatalogUrl = (body.businessCatalogUrl || "").trim();
   const businessCatalogName = (body.businessCatalogName || "").trim();
+  const paymentAccountName = (body.paymentAccountName || "").trim();
+  const paymentBankName = (body.paymentBankName || "").trim();
+  const paymentAccountNumber = (body.paymentAccountNumber || "").trim();
+  const paymentPromptPayId = (body.paymentPromptPayId || "").trim();
+  const paymentInstructions = (body.paymentInstructions || "").trim();
+  const wantsToSavePaymentSettings = Boolean(
+    paymentAccountName ||
+      paymentBankName ||
+      paymentAccountNumber ||
+      paymentPromptPayId ||
+      paymentInstructions
+  );
   const customerUploadUrl = (body.customerUploadUrl || "").trim();
   const customerUploadLabel = (body.customerUploadLabel || "").trim();
   const productionAssetRetentionDays = normalizeProductionRetentionDays(
@@ -153,6 +182,11 @@ export async function POST(request: NextRequest) {
   const primaryResult = await supabase.from("app_settings").upsert(
     {
       ...basePayload,
+      payment_account_name: paymentAccountName || null,
+      payment_bank_name: paymentBankName || null,
+      payment_account_number: paymentAccountNumber || null,
+      payment_promptpay_id: paymentPromptPayId || null,
+      payment_instructions: paymentInstructions || null,
       customer_upload_url: customerUploadUrl || null,
       customer_upload_label: customerUploadLabel || null,
       production_upload_enabled:
@@ -169,10 +203,22 @@ export async function POST(request: NextRequest) {
 
   if (
     error &&
-    /(customer_upload_(url|label)|production_(upload_enabled|customer_auto_send_enabled|asset_retention_days))/i.test(
+    /(payment_(account_name|bank_name|account_number|promptpay_id|instructions)|customer_upload_(url|label)|production_(upload_enabled|customer_auto_send_enabled|asset_retention_days))/i.test(
       error.message
     )
   ) {
+    if (
+      wantsToSavePaymentSettings &&
+      /payment_(account_name|bank_name|account_number|promptpay_id|instructions)/i.test(
+        error.message
+      )
+    ) {
+      return NextResponse.json(
+        { error: PAYMENT_SETTINGS_SCHEMA_ERROR },
+        { status: 409 }
+      );
+    }
+
     const fallbackResult = await supabase.from("app_settings").upsert(basePayload, {
       onConflict: "id",
     });

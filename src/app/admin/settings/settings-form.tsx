@@ -7,6 +7,11 @@ type SettingsState = {
   businessName: string;
   businessPhone: string;
   businessEmail: string;
+  paymentAccountName: string;
+  paymentBankName: string;
+  paymentAccountNumber: string;
+  paymentPromptPayId: string;
+  paymentInstructions: string;
   businessLogoUrl: string;
   businessCatalogUrl: string;
   businessCatalogName: string;
@@ -33,6 +38,11 @@ const emptyState: SettingsState = {
   businessName: "",
   businessPhone: "",
   businessEmail: "",
+  paymentAccountName: "",
+  paymentBankName: "",
+  paymentAccountNumber: "",
+  paymentPromptPayId: "",
+  paymentInstructions: "หลังโอนเงินแล้ว กรุณาส่งสลิปกลับใน LINE แชตนี้เพื่อให้ทีมงานยืนยันการชำระ",
   businessLogoUrl: "",
   businessCatalogUrl: "",
   businessCatalogName: "",
@@ -184,6 +194,27 @@ export default function SettingsForm() {
           <label className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>อีเมลร้าน</span>
             <input value={form.businessEmail} onChange={(e) => updateField("businessEmail", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="contact@example.com" />
+          </label>
+          <label className="grid gap-2 text-sm text-slate-700">
+            <span>ธนาคารรับโอน</span>
+            <input value={form.paymentBankName} onChange={(e) => updateField("paymentBankName", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="เช่น กสิกรไทย" />
+          </label>
+          <label className="grid gap-2 text-sm text-slate-700">
+            <span>ชื่อบัญชี</span>
+            <input value={form.paymentAccountName} onChange={(e) => updateField("paymentAccountName", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="ชื่อบัญชีรับเงิน" />
+          </label>
+          <label className="grid gap-2 text-sm text-slate-700">
+            <span>เลขบัญชี</span>
+            <input value={form.paymentAccountNumber} onChange={(e) => updateField("paymentAccountNumber", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="xxx-x-xxxxx-x" />
+          </label>
+          <label className="grid gap-2 text-sm text-slate-700">
+            <span>พร้อมเพย์ / PromptPay</span>
+            <input value={form.paymentPromptPayId} onChange={(e) => updateField("paymentPromptPayId", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="เบอร์โทรหรือเลข PromptPay" />
+          </label>
+          <label className="grid gap-2 text-sm text-slate-700 md:col-span-2">
+            <span>คำแนะนำการชำระเงินสำหรับลูกค้า</span>
+            <textarea value={form.paymentInstructions} onChange={(e) => updateField("paymentInstructions", e.target.value)} rows={3} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="เช่น หลังโอนแล้วส่งสลิปกลับมาใน LINE แชตนี้" />
+            <p className="text-xs text-slate-500">ข้อมูลชุดนี้จะไปแสดงในหน้าใบเสนอราคาและหน้าเอกสารดาวน์โหลดของลูกค้า</p>
           </label>
           <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>โลโก้ร้าน</span>
