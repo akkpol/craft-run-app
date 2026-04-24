@@ -295,6 +295,309 @@ function QueueCard({
   );
 }
 
+type StuckQueueItem =
+  | { type: "quote"; quote: SnapshotQuote }
+  | { type: "conversation"; conversation: SnapshotConversation };
+
+function StuckQueueContent({
+  items,
+  snapshot,
+  baseUrl,
+}: {
+  items: StuckQueueItem[];
+  snapshot: BackofficeSnapshot;
+  baseUrl: string;
+}) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <div className="space-y-3 md:hidden">
+        {items.map((item) => {
+          if (item.type === "quote") {
+            const quote = item.quote;
+            return (
+              <QueueCard
+                key={quote.id}
+                title={customerName(quote.leads?.customers)}
+                meta={`${getProductLabel(quote.leads?.product_type)} · ฿${Number(quote.total).toLocaleString()}`}
+                badge={<Badge className={cn("border", statusToneClass(quote.status))}>{getQuoteStatusLabel(quote.status)}</Badge>}
+                footer={
+                  <div className="flex items-center justify-between gap-2">
+                    <a href={`${baseUrl}/quote/${quote.public_token}`} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-600 underline underline-offset-4">
+                      เปิด quote
+                    </a>
+                    <AdminQuoteActions
+                      quoteId={quote.id}
+                      publicToken={quote.public_token}
+                      quoteStatus={quote.status}
+                      paymentTerms={quote.payment_terms}
+                      paymentStatus={quote.payment_status}
+                      hasJob={Array.isArray(quote.jobs) && quote.jobs.length > 0}
+                    />
+                  </div>
+                }
+              >
+                <p className="text-xs text-slate-500">
+                  {PAYMENT_TERM_LABELS[quote.payment_terms]} · {PAYMENT_STATUS_LABELS[quote.payment_status]}
+                </p>
+              </QueueCard>
+            );
+          }
+
+          const bundle = getConversationBundle(snapshot, item.conversation.id);
+          return (
+            <QueueCard
+              key={item.conversation.id}
+              title={bundle.lead ? customerName(bundle.lead.customers) : `LINE ${item.conversation.line_user_id.slice(0, 12)}...`}
+              meta={WORKFLOW_STATE_LABELS[item.conversation.state]}
+              badge={<Badge className={cn("border", statusToneClass(item.conversation.state))}>{WORKFLOW_STATE_LABELS[item.conversation.state]}</Badge>}
+              footer={
+                <div className="flex items-center justify-end gap-2">
+                  <AdminConversationActions conversationId={item.conversation.id} currentState={item.conversation.state} compact />
+                </div>
+              }
+            >
+              <p className="text-xs text-slate-500">อัปเดตล่าสุด {formatDateTime(item.conversation.last_message_at)}</p>
+            </QueueCard>
+          );
+        })}
+      </div>
+
+      <div className="hidden md:block">
+        <div className="overflow-x-auto rounded-[20px] border border-slate-200 bg-white">
+          <table className="min-w-full text-left text-xs">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="px-4 py-3 font-semibold">รายการ</th>
+                <th className="px-4 py-3 font-semibold">สถานะ</th>
+                <th className="px-4 py-3 font-semibold">รายละเอียด</th>
+                <th className="px-4 py-3 text-right font-semibold">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {items.map((item) => {
+                if (item.type === "quote") {
+                  const quote = item.quote;
+                  return (
+                    <tr key={quote.id} className="align-top">
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-semibold text-slate-900">{customerName(quote.leads?.customers)}</p>
+                        <p className="mt-1 text-xs text-slate-500">{getProductLabel(quote.leads?.product_type)} · quote</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge className={cn("border", statusToneClass(quote.status))}>{getQuoteStatusLabel(quote.status)}</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        <p>{formatCurrency(quote.total)}</p>
+                        <p className="mt-1">{PAYMENT_TERM_LABELS[quote.payment_terms]} · {PAYMENT_STATUS_LABELS[quote.payment_status]}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <a href={`${baseUrl}/quote/${quote.public_token}`} target="_blank" rel="noreferrer" className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100">
+                            เปิด quote
+                          </a>
+                          <AdminQuoteActions
+                            quoteId={quote.id}
+                            publicToken={quote.public_token}
+                            quoteStatus={quote.status}
+                            paymentTerms={quote.payment_terms}
+                            paymentStatus={quote.payment_status}
+                            hasJob={Array.isArray(quote.jobs) && quote.jobs.length > 0}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
+                const conversation = item.conversation;
+                const bundle = getConversationBundle(snapshot, conversation.id);
+                return (
+                  <tr key={conversation.id} className="align-top">
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {bundle.lead ? customerName(bundle.lead.customers) : `LINE ${conversation.line_user_id.slice(0, 12)}...`}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">workflow</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge className={cn("border", statusToneClass(conversation.state))}>{WORKFLOW_STATE_LABELS[conversation.state]}</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      <p>อัปเดตล่าสุด {formatDateTime(conversation.last_message_at)}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end">
+                        <AdminConversationActions conversationId={conversation.id} currentState={conversation.state} compact />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function EscalationsQueueContent({ items }: { items: SnapshotEscalation[] }) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <div className="space-y-3 md:hidden">
+        {items.map((esc) => (
+          <QueueCard
+            key={esc.id}
+            title={esc.conversations ? `LINE ${esc.conversations.line_user_id.slice(0, 12)}...` : "ลูกค้า"}
+            meta={formatDateTime(esc.created_at)}
+            tone="danger"
+            badge={<Badge className="border border-rose-200 bg-rose-50 text-rose-700">ต้องตอบตอนนี้</Badge>}
+            footer={
+              esc.conversations ? (
+                <div className="flex justify-end">
+                  <AdminConversationActions conversationId={esc.conversations.id} currentState={esc.conversations.state} compact />
+                </div>
+              ) : null
+            }
+          >
+            <p className="text-sm text-rose-900">{esc.reason}</p>
+          </QueueCard>
+        ))}
+      </div>
+
+      <div className="hidden md:block">
+        <div className="overflow-x-auto rounded-[20px] border border-rose-200 bg-white">
+          <table className="min-w-full text-left text-xs">
+            <thead className="bg-rose-50 text-rose-700">
+              <tr>
+                <th className="px-4 py-3 font-semibold">ลูกค้า</th>
+                <th className="px-4 py-3 font-semibold">เหตุผล</th>
+                <th className="px-4 py-3 font-semibold">เวลา</th>
+                <th className="px-4 py-3 font-semibold">สถานะ</th>
+                <th className="px-4 py-3 text-right font-semibold">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-rose-100">
+              {items.map((esc) => (
+                <tr key={esc.id} className="bg-rose-50/30 align-top">
+                  <td className="px-4 py-3">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {esc.conversations ? `LINE ${esc.conversations.line_user_id.slice(0, 12)}...` : "ลูกค้า"}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-rose-900">{esc.reason}</td>
+                  <td className="px-4 py-3 text-slate-600">{formatDateTime(esc.created_at)}</td>
+                  <td className="px-4 py-3">
+                    <Badge className="border border-rose-200 bg-rose-50 text-rose-700">ต้องตอบตอนนี้</Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    {esc.conversations ? (
+                      <div className="flex justify-end">
+                        <AdminConversationActions
+                          conversationId={esc.conversations.id}
+                          currentState={esc.conversations.state}
+                          compact
+                        />
+                      </div>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ProductionReviewQueueContent({ items }: { items: SnapshotProductionEvent[] }) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <div className="space-y-3 md:hidden">
+        {items.map((event) => {
+          const job = firstRow(event.jobs);
+          const quote = firstRow(job?.quotes);
+          const lead = firstRow(quote?.leads);
+          return (
+            <QueueCard
+              key={event.id}
+              title={customerName(lead?.customers)}
+              meta={`${PRODUCTION_EVENT_TYPE_LABELS[event.event_type]} · ${formatDateTime(event.created_at)}`}
+              badge={<Badge className={cn("border", statusToneClass(event.review_status))}>{getReviewStatusLabel(event.review_status)}</Badge>}
+              footer={
+                <div className="flex flex-wrap items-center gap-2">
+                  <ProductionReviewActions eventId={event.id} reviewStatus={event.review_status} />
+                  {event.production_link_url ? <ProductionLinkCopy url={event.production_link_url} compact /> : null}
+                </div>
+              }
+            >
+              <p className="text-xs text-slate-500">{event.note || "รอแอดมินตรวจหลักฐานจากหน้างาน"}</p>
+            </QueueCard>
+          );
+        })}
+      </div>
+
+      <div className="hidden md:block">
+        <div className="overflow-x-auto rounded-[20px] border border-slate-200 bg-white">
+          <table className="min-w-full text-left text-xs">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="px-4 py-3 font-semibold">ลูกค้า</th>
+                <th className="px-4 py-3 font-semibold">ประเภท</th>
+                <th className="px-4 py-3 font-semibold">เวลา</th>
+                <th className="px-4 py-3 font-semibold">สถานะ</th>
+                <th className="px-4 py-3 font-semibold">หมายเหตุ</th>
+                <th className="px-4 py-3 text-right font-semibold">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {items.map((event) => {
+                const job = firstRow(event.jobs);
+                const quote = firstRow(job?.quotes);
+                const lead = firstRow(quote?.leads);
+                return (
+                  <tr key={event.id} className="align-top">
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-semibold text-slate-900">{customerName(lead?.customers)}</p>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{PRODUCTION_EVENT_TYPE_LABELS[event.event_type]}</td>
+                    <td className="px-4 py-3 text-slate-600">{formatDateTime(event.created_at)}</td>
+                    <td className="px-4 py-3">
+                      <Badge className={cn("border", statusToneClass(event.review_status))}>{getReviewStatusLabel(event.review_status)}</Badge>
+                    </td>
+                    <td className="max-w-[260px] px-4 py-3 text-slate-600">
+                      <p className="line-clamp-2">{event.note || "รอแอดมินตรวจหลักฐานจากหน้างาน"}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <ProductionReviewActions eventId={event.id} reviewStatus={event.review_status} />
+                        {event.production_link_url ? <ProductionLinkCopy url={event.production_link_url} compact /> : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function EmptyState({ title }: { title: string }) {
   return (
     <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
@@ -525,57 +828,13 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
                     ))
                   : null}
 
-                {section.key === "stuck"
-                  ? (section.items as Array<{ type: "quote"; quote: SnapshotQuote } | { type: "conversation"; conversation: SnapshotConversation }>).map((item) => {
-                      if (item.type === "quote") {
-                        const quote = item.quote;
-                        return (
-                          <QueueCard
-                            key={quote.id}
-                            title={customerName(quote.leads?.customers)}
-                            meta={`${getProductLabel(quote.leads?.product_type)} · ฿${Number(quote.total).toLocaleString()}`}
-                            badge={<Badge className={cn("border", statusToneClass(quote.status))}>{getQuoteStatusLabel(quote.status)}</Badge>}
-                            footer={
-                              <div className="flex items-center justify-between gap-2">
-                                <a href={`${baseUrl}/quote/${quote.public_token}`} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-600 underline underline-offset-4">
-                                  เปิด quote
-                                </a>
-                                <AdminQuoteActions
-                                  quoteId={quote.id}
-                                  publicToken={quote.public_token}
-                                  quoteStatus={quote.status}
-                                  paymentTerms={quote.payment_terms}
-                                  paymentStatus={quote.payment_status}
-                                  hasJob={Array.isArray(quote.jobs) && quote.jobs.length > 0}
-                                />
-                              </div>
-                            }
-                          >
-                            <p className="text-xs text-slate-500">
-                              {PAYMENT_TERM_LABELS[quote.payment_terms]} · {PAYMENT_STATUS_LABELS[quote.payment_status]}
-                            </p>
-                          </QueueCard>
-                        );
-                      }
-
-                      const bundle = getConversationBundle(snapshot, item.conversation.id);
-                      return (
-                        <QueueCard
-                          key={item.conversation.id}
-                          title={bundle.lead ? customerName(bundle.lead.customers) : `LINE ${item.conversation.line_user_id.slice(0, 12)}...`}
-                          meta={WORKFLOW_STATE_LABELS[item.conversation.state]}
-                          badge={<Badge className={cn("border", statusToneClass(item.conversation.state))}>{WORKFLOW_STATE_LABELS[item.conversation.state]}</Badge>}
-                          footer={
-                            <div className="flex items-center justify-end gap-2">
-                              <AdminConversationActions conversationId={item.conversation.id} currentState={item.conversation.state} compact />
-                            </div>
-                          }
-                        >
-                          <p className="text-xs text-slate-500">อัปเดตล่าสุด {formatDateTime(item.conversation.last_message_at)}</p>
-                        </QueueCard>
-                      );
-                    })
-                  : null}
+                {section.key === "stuck" ? (
+                  <StuckQueueContent
+                    items={section.items as StuckQueueItem[]}
+                    snapshot={snapshot}
+                    baseUrl={baseUrl}
+                  />
+                ) : null}
 
                 {section.key === "waiting-customer"
                   ? (section.items as Array<{ type: "lead"; lead: SnapshotLead } | { type: "conversation"; conversation: SnapshotConversation }>).map((item) => {
@@ -612,50 +871,13 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
                     })
                   : null}
 
-                {section.key === "production-review"
-                  ? (section.items as SnapshotProductionEvent[]).map((event) => {
-                      const job = firstRow(event.jobs);
-                      const quote = firstRow(job?.quotes);
-                      const lead = firstRow(quote?.leads);
-                      return (
-                        <QueueCard
-                          key={event.id}
-                          title={customerName(lead?.customers)}
-                          meta={`${PRODUCTION_EVENT_TYPE_LABELS[event.event_type]} · ${formatDateTime(event.created_at)}`}
-                          badge={<Badge className={cn("border", statusToneClass(event.review_status))}>{getReviewStatusLabel(event.review_status)}</Badge>}
-                          footer={
-                            <div className="flex flex-wrap items-center gap-2">
-                              <ProductionReviewActions eventId={event.id} reviewStatus={event.review_status} />
-                              {event.production_link_url ? <ProductionLinkCopy url={event.production_link_url} compact /> : null}
-                            </div>
-                          }
-                        >
-                          <p className="text-xs text-slate-500">{event.note || "รอแอดมินตรวจหลักฐานจากหน้างาน"}</p>
-                        </QueueCard>
-                      );
-                    })
-                  : null}
+                {section.key === "production-review" ? (
+                  <ProductionReviewQueueContent items={section.items as SnapshotProductionEvent[]} />
+                ) : null}
 
-                {section.key === "escalations"
-                  ? (section.items as SnapshotEscalation[]).map((esc) => (
-                      <QueueCard
-                        key={esc.id}
-                        title={esc.conversations ? `LINE ${esc.conversations.line_user_id.slice(0, 12)}...` : "ลูกค้า"}
-                        meta={formatDateTime(esc.created_at)}
-                        tone="danger"
-                        badge={<Badge className="border border-rose-200 bg-rose-50 text-rose-700">ต้องตอบตอนนี้</Badge>}
-                        footer={
-                          esc.conversations ? (
-                            <div className="flex justify-end">
-                              <AdminConversationActions conversationId={esc.conversations.id} currentState={esc.conversations.state} compact />
-                            </div>
-                          ) : null
-                        }
-                      >
-                        <p className="text-sm text-rose-900">{esc.reason}</p>
-                      </QueueCard>
-                    ))
-                  : null}
+                {section.key === "escalations" ? (
+                  <EscalationsQueueContent items={section.items as SnapshotEscalation[]} />
+                ) : null}
 
                 {section.count === 0 ? <EmptyState title="ยังไม่มีรายการในคิวนี้" /> : null}
               </div>
@@ -1098,7 +1320,22 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
                             ])}
                           />
 
-                          {Array.isArray(lead.ai_generated_images) && lead.ai_generated_images.length > 0 ? (
+                          {Array.isArray(lead.lead_media_assets) && lead.lead_media_assets.length > 0 ? (
+                            <div className="mt-3">
+                              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Customer reference</p>
+                              <div className="flex flex-wrap gap-2">
+                                {lead.lead_media_assets.slice(0, 4).map((asset) => asset.signed_url ? (
+                                  <a key={asset.id} href={asset.signed_url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                    {asset.mime_type?.startsWith("image/") ? (
+                                      <Image src={asset.signed_url} alt={asset.original_file_name || "Customer upload"} width={80} height={80} unoptimized className="h-20 w-20 object-cover" />
+                                    ) : (
+                                      <span className="flex h-20 w-20 items-center justify-center px-2 text-center text-[11px] font-semibold text-slate-600">เปิดไฟล์</span>
+                                    )}
+                                  </a>
+                                ) : null)}
+                              </div>
+                            </div>
+                          ) : Array.isArray(lead.ai_generated_images) && lead.ai_generated_images.length > 0 ? (
                             <div className="mt-3 flex flex-wrap gap-2">
                               {lead.ai_generated_images.slice(0, 4).map((imageUrl) => (
                                 <a key={imageUrl} href={imageUrl} target="_blank" rel="noreferrer" className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
