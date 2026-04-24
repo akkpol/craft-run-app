@@ -88,9 +88,30 @@ export default async function QuoteDownloadPage(props: {
     lead?.height_mm
   )} / ${lead?.qty || 0} ชิ้น`;
   const displayRows = items.length > 0 ? items : [null];
+  const paymentDetails = [
+    { label: "ธนาคาร", value: config.paymentBankName },
+    { label: "ชื่อบัญชี", value: config.paymentAccountName },
+    { label: "เลขบัญชี", value: config.paymentAccountNumber },
+    { label: "พร้อมเพย์ / PromptPay", value: config.paymentPromptPayId },
+  ].filter(
+    (detail): detail is { label: string; value: string } => Boolean(detail.value)
+  );
+  const paymentHelpText =
+    paymentTerms === "credit"
+      ? "รายการนี้เป็นเครดิต ทีมงานจะยืนยันรอบวางบิลหรือกำหนดชำระกับคุณโดยตรง"
+      : config.paymentInstructions ||
+        "หลังโอนเงินแล้ว กรุณาส่งสลิปกลับใน LINE แชตนี้เพื่อให้ทีมงานยืนยันการชำระ";
+  const paymentContact = joinContact([
+    config.businessPhone ? `โทรศัพท์ / Phone: ${config.businessPhone}` : null,
+    config.businessEmail ? `อีเมล / Email: ${config.businessEmail}` : null,
+  ]);
+  const paymentConfirmationText =
+    paymentTerms === "credit"
+      ? "เครดิตเทอมหรือรอบวางบิลจะมีทีมงานยืนยันให้ต่อใน LINE แชตนี้"
+      : "แจ้งชำระเงิน / Payment Confirmation: หลังโอนแล้วส่งสลิปกลับมาใน LINE แชตนี้เพื่อให้ทีมงานยืนยันยอดได้เร็วขึ้น";
 
   return (
-    <div className="min-h-screen bg-[#eef3f8] px-4 py-6 text-slate-950 print:bg-white print:p-0">
+    <div className="min-h-screen bg-[#eef3f8] px-3 py-4 text-slate-950 sm:px-4 sm:py-6 print:bg-white print:p-0">
       <style>{`
         @page {
           size: A4;
@@ -108,12 +129,13 @@ export default async function QuoteDownloadPage(props: {
         <PrintToolbar quoteUrl={quoteUrl} />
       </div>
 
-      <article className="mx-auto min-h-[297mm] w-full max-w-[210mm] bg-white px-4 py-4 shadow-[0_24px_90px_rgba(15,23,42,0.16)] sm:px-6 sm:py-6 md:px-[14mm] md:py-[14mm] print:min-h-0 print:max-w-none print:px-0 print:py-0 print:shadow-none">
-        <div className="flex min-h-[269mm] flex-col overflow-hidden rounded-sm border border-slate-200 print:min-h-0 print:border-slate-200">
-          <header className="grid gap-8 p-5 sm:p-6 md:grid-cols-[minmax(0,1.45fr)_minmax(0,0.9fr)]">
+      <article className="mx-auto min-h-0 w-full max-w-[210mm] rounded-[26px] bg-white px-3 py-3 shadow-[0_24px_90px_rgba(15,23,42,0.16)] sm:min-h-[297mm] sm:px-6 sm:py-6 md:px-[14mm] md:py-[14mm] print:min-h-0 print:max-w-none print:rounded-none print:px-0 print:py-0 print:shadow-none">
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-[20px] border border-slate-200 sm:min-h-[269mm] print:min-h-0 print:rounded-none print:border-slate-200">
+          <header className="grid gap-5 p-4 sm:gap-8 sm:p-6 md:grid-cols-[minmax(0,1.45fr)_minmax(0,0.9fr)]">
             <div className="min-w-0">
-              <h1 className="text-4xl font-black tracking-tight text-[#123B63]">
-                ใบเสนอราคา / Quotation
+              <h1 className="text-[2rem] leading-[0.94] font-black tracking-tight text-[#123B63] sm:text-[2.75rem] md:text-4xl">
+                <span className="block">ใบเสนอราคา</span>
+                <span className="block">/ Quotation</span>
               </h1>
               <p className="mt-3 break-words text-sm text-slate-600">
                 เอกสารสำหรับตรวจสอบรายละเอียดราคา อนุมัติงาน และอ้างอิงก่อนเริ่มผลิต
@@ -121,7 +143,7 @@ export default async function QuoteDownloadPage(props: {
             </div>
 
             <div className="grid min-w-0 gap-4">
-              <div className="flex justify-end">
+              <div className="flex justify-start md:justify-end">
                 <div className="flex h-[28mm] w-[38mm] items-center justify-center border border-dashed border-slate-400 bg-white text-sm font-bold text-slate-500">
                   {config.businessLogoUrl ? (
                     <Image
@@ -144,7 +166,7 @@ export default async function QuoteDownloadPage(props: {
             </div>
           </header>
 
-          <section className="grid gap-6 px-5 pb-6 sm:px-6 md:grid-cols-2">
+          <section className="grid gap-5 px-4 pb-5 sm:gap-6 sm:px-6 sm:pb-6 md:grid-cols-2">
             <InfoBox
               title="ผู้ออกใบเสนอราคา / Seller"
               rows={[
@@ -173,14 +195,14 @@ export default async function QuoteDownloadPage(props: {
             />
           </section>
 
-          <section className="px-5 pb-6 sm:px-6">
+          <section className="px-4 pb-5 sm:px-6 sm:pb-6">
             <DocumentField
               label="สรุปงาน / Project or Service Summary"
               value={summary}
             />
           </section>
 
-          <section className="px-5 sm:px-6">
+          <section className="px-4 sm:px-6">
             <div className="overflow-hidden border border-slate-200">
               <div className="hidden grid-cols-[12mm_minmax(0,1fr)_minmax(16mm,20mm)_minmax(24mm,30mm)_minmax(24mm,30mm)] bg-[#123B63] text-[11px] font-bold text-white md:grid print:grid">
                 <div className="px-3 py-3">ลำดับ / No.</div>
@@ -240,7 +262,7 @@ export default async function QuoteDownloadPage(props: {
             </div>
           </section>
 
-          <section className="grid gap-8 px-5 py-6 sm:px-6 md:grid-cols-[minmax(0,1fr)_74mm]">
+          <section className="grid gap-5 px-4 py-5 sm:gap-8 sm:px-6 sm:py-6 md:grid-cols-[minmax(0,1fr)_74mm]">
             <div className="min-w-0 space-y-3 text-sm text-slate-700">
               <p className="font-bold text-[#123B63]">เงื่อนไข / Terms</p>
               <p>
@@ -273,7 +295,54 @@ export default async function QuoteDownloadPage(props: {
             </div>
           </section>
 
-          <footer className="mt-auto grid gap-10 px-5 pb-6 pt-8 text-sm text-slate-600 sm:px-6 md:grid-cols-2">
+          <section className="px-4 pb-5 sm:px-6 sm:pb-6">
+            <div className={`rounded-xl border p-4 sm:p-5 ${paymentTerms === "credit"
+              ? "border-slate-200 bg-slate-50"
+              : "border-amber-200 bg-amber-50/80"}`}>
+              <div className="flex items-start gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[#123B63] ring-1 ring-slate-200/80">
+                  ฿
+                </div>
+                <div className="min-w-0">
+                  <p className="text-base font-black text-[#123B63]">
+                    ช่องทางชำระเงิน / Payment Instructions
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-700">{paymentHelpText}</p>
+                </div>
+              </div>
+
+              {paymentTerms === "credit" ? (
+                <div className="mt-4 rounded-xl bg-white px-4 py-3 text-sm leading-relaxed text-slate-700 ring-1 ring-slate-200/70">
+                  รายการนี้ไม่ต้องโอนทันที กรุณาติดต่อทีมงานเพื่อยืนยันรอบวางบิลหรือเครดิตเทอม
+                  {paymentContact !== "-" ? ` ที่ ${paymentContact}` : " ผ่าน LINE แชตนี้"}
+                </div>
+              ) : paymentDetails.length > 0 ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {paymentDetails.map((detail) => (
+                    <div key={detail.label} className="rounded-xl bg-white px-4 py-3 ring-1 ring-slate-200/70">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        {detail.label}
+                      </p>
+                      <p className="mt-2 break-words text-sm font-semibold text-slate-950">
+                        {detail.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4 rounded-xl bg-white px-4 py-3 text-sm leading-relaxed text-slate-700 ring-1 ring-slate-200/70">
+                  ยังไม่ได้ระบุบัญชีรับโอนในระบบ กรุณาติดต่อทีมงาน
+                  {paymentContact !== "-" ? ` ที่ ${paymentContact}` : " ผ่าน LINE แชตนี้"}
+                </div>
+              )}
+
+              <div className="mt-4 rounded-xl bg-white/80 px-4 py-3 text-xs leading-relaxed text-slate-600 ring-1 ring-slate-200/60">
+                {paymentConfirmationText}
+              </div>
+            </div>
+          </section>
+
+          <footer className="mt-auto grid gap-6 px-4 pb-5 pt-6 text-sm text-slate-600 sm:gap-10 sm:px-6 sm:pb-6 sm:pt-8 md:grid-cols-2">
             <SignatureBlock label="ผู้มีอำนาจลงนาม / Authorized Signature" />
             <SignatureBlock label="ผู้ยอมรับใบเสนอราคา / Customer Acceptance" />
           </footer>
@@ -286,18 +355,18 @@ export default async function QuoteDownloadPage(props: {
 function DocumentField({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="border-b border-slate-300 pb-1 text-sm font-bold text-slate-600">
+      <p className="border-b border-slate-300 pb-1 text-xs font-bold text-slate-600 sm:text-sm">
         {label}
       </p>
-      <p className="break-words pt-2 text-sm text-slate-950">{value}</p>
+      <p className="break-words pt-1.5 text-sm text-slate-950 sm:pt-2">{value}</p>
     </div>
   );
 }
 
 function InfoBox({ title, rows }: { title: string; rows: string[] }) {
   return (
-    <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-5">
-      <p className="mb-4 text-lg font-black text-[#123B63]">{title}</p>
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+      <p className="mb-3 text-base font-black text-[#123B63] sm:mb-4 sm:text-lg">{title}</p>
       <div className="space-y-1.5 text-sm leading-6 text-slate-950">
         {rows.map((row, index) => (
           <p key={`${title}-${index}`} className="break-words">

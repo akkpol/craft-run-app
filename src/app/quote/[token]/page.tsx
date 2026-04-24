@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getRuntimeAppConfig } from "@/lib/app-settings";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -7,6 +8,7 @@ import {
   Clock3,
   Download,
   FileText,
+  Landmark,
   ShieldCheck,
   XCircle,
   type LucideIcon,
@@ -128,6 +130,7 @@ function getQuoteStatusMeta({
 export default async function QuotePage(props: { params: Promise<{ token: string }> }) {
   const { token } = await props.params;
   const supabase = createAdminClient();
+  const config = await getRuntimeAppConfig();
 
   const { data: quote } = await supabase
     .from("quotes")
@@ -159,6 +162,29 @@ export default async function QuotePage(props: { params: Promise<{ token: string
     isRejected,
     isExpired,
   });
+  const paymentDetails = [
+    { label: "ธนาคาร", value: config.paymentBankName },
+    { label: "ชื่อบัญชี", value: config.paymentAccountName },
+    { label: "เลขบัญชี", value: config.paymentAccountNumber },
+    { label: "พร้อมเพย์ / PromptPay", value: config.paymentPromptPayId },
+  ].filter(
+    (detail): detail is { label: string; value: string } => Boolean(detail.value)
+  );
+  const paymentHelpText =
+    paymentTerms === "credit"
+      ? "รายการนี้เป็นเครดิต ทีมงานจะยืนยันรอบวางบิลหรือกำหนดชำระกับคุณโดยตรง"
+      : config.paymentInstructions ||
+        "หลังโอนเงินแล้ว กรุณาส่งสลิปกลับใน LINE แชตนี้เพื่อให้ทีมงานยืนยันการชำระ";
+  const paymentContact = [
+    config.businessPhone ? `โทร ${config.businessPhone}` : null,
+    config.businessEmail ? `อีเมล ${config.businessEmail}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const paymentConfirmationText =
+    paymentTerms === "credit"
+      ? "เครดิตเทอมหรือรอบวางบิลจะมีทีมงานยืนยันให้ต่อใน LINE แชตนี้"
+      : "แจ้งชำระเงิน: ส่งสลิปหรือหลักฐานการโอนกลับมาใน LINE แชตนี้เพื่อให้ทีมงานตรวจสอบได้เร็วขึ้น";
   const StatusIcon = statusMeta.icon;
   const showActionPanel = (!hasJob && !isApproved && !isRejected && !isExpired) ||
     (waitingPayment && canRescopeQuote);
@@ -225,6 +251,60 @@ export default async function QuotePage(props: { params: Promise<{ token: string
         <div className="bg-white px-6 py-4 border-b border-gray-100 space-y-1 text-sm">
           <div className="flex justify-between"><span className="text-gray-500">เงื่อนไขชำระเงิน</span><span>{PAYMENT_TERM_LABELS[paymentTerms]}</span></div>
           <div className="flex justify-between"><span className="text-gray-500">สถานะชำระเงิน</span><span>{PAYMENT_STATUS_LABELS[paymentStatus]}</span></div>
+        </div>
+
+        <div className="bg-white px-6 py-4 border-b border-gray-100">
+          <div
+            className={`overflow-hidden rounded-[24px] border ${waitingPayment
+              ? "border-amber-200 bg-amber-50/80"
+              : "border-slate-200 bg-slate-50/80"}`}
+          >
+            <div className="flex flex-col gap-4 p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-700 ring-1 ring-slate-200/80">
+                  <Landmark className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900">ช่องทางชำระเงิน / Payment Instructions</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">{paymentHelpText}</p>
+                  {waitingPayment ? (
+                    <p className="mt-2 text-xs font-medium text-amber-700">
+                      งานจะเริ่มต่อเมื่อทีมงานยืนยันยอดชำระตามเงื่อนไขนี้แล้ว
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
+              {paymentTerms === "credit" ? (
+                <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm leading-relaxed text-slate-600 ring-1 ring-slate-200/70">
+                  รายการนี้ไม่ต้องโอนทันที หากต้องการเอกสารประกอบการชำระหรือรอบวางบิล กรุณาติดต่อทีมงาน
+                  {paymentContact ? ` ที่ ${paymentContact}` : " ผ่าน LINE แชตนี้"}
+                </div>
+              ) : paymentDetails.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {paymentDetails.map((detail) => (
+                    <div key={detail.label} className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200/70">
+                      <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-400">
+                        {detail.label}
+                      </p>
+                      <p className="mt-2 break-words text-sm font-semibold text-slate-950">
+                        {detail.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm leading-relaxed text-slate-600 ring-1 ring-slate-200/70">
+                  ยังไม่ได้ตั้งค่าบัญชีรับโอนในระบบ กรุณาติดต่อทีมงาน
+                  {paymentContact ? ` ที่ ${paymentContact}` : " ผ่าน LINE แชตนี้"}
+                </div>
+              )}
+
+              <div className="rounded-2xl bg-white/70 px-4 py-3 text-xs leading-relaxed text-slate-500 ring-1 ring-slate-200/60">
+                {paymentConfirmationText}
+              </div>
+            </div>
+          </div>
         </div>
 
         {quote.valid_until && (
