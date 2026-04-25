@@ -363,7 +363,6 @@ export async function POST(request: NextRequest) {
   }
 
   let referenceUploadWarning: string | null = null;
-
   if (customerMediaFiles.length > 0) {
     try {
       await uploadLeadMediaFiles({

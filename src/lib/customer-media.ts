@@ -129,7 +129,6 @@ export async function uploadLeadMediaFiles({
     if (insertedAssetIds.length > 0) {
       await supabase.from("lead_media_assets").delete().in("id", insertedAssetIds);
     }
-    
     throw error;
   }
 }
