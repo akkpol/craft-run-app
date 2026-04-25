@@ -19,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn, firstRow } from "@/lib/utils";
 import { isTerminalConversationState } from "@/lib/workflow-transitions";
+import { getDesignQueueLeads } from "@/lib/admin-dashboard-queues";
 import {
   DESIGN_STATUS_LABELS,
   JOB_STATUS_LABELS,
@@ -691,10 +692,7 @@ export default function AdminDashboardClient({ baseUrl, kpis, snapshot }: Dashbo
   const supersededLeads = snapshot.leads.filter((lead) => Boolean(lead.superseded_at));
   const activeLeads = snapshot.leads.filter((lead) => !lead.superseded_at);
   const sentQuotes = snapshot.quotes.filter((quote) => quote.status === "sent");
-  const designQueueLeads = activeLeads.filter((lead) => {
-    const designStatus = lead.design_status || "not_started";
-    return lead.status === "new" || ["not_started", "drafting", "revision_requested"].includes(designStatus);
-  });
+  const designQueueLeads = getDesignQueueLeads(snapshot);
   const customerWaitingLeads = activeLeads.filter((lead) => {
     const designStatus = lead.design_status || "not_started";
     return designStatus === "preview_sent" || Boolean(lead.hold_reason);
