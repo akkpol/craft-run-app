@@ -1,6 +1,20 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getRuntimeAppConfig } from "@/lib/app-settings";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import {
+  CheckCircle2,
+  CircleAlert,
+  Clock3,
+  Download,
+  FileText,
+  Landmark,
+  ShieldCheck,
+  XCircle,
+  type LucideIcon,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   PAYMENT_STATUS_LABELS,
   PAYMENT_TERM_LABELS,
@@ -11,9 +25,112 @@ import {
 import QuoteApproveButton from "./approve-button";
 import { paymentUnlocksProduction } from "@/lib/quote-workflow";
 
+type QuoteStatusMeta = {
+  badgeLabel: string;
+  badgeVariant: "secondary" | "warning" | "success" | "destructive";
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  panelClassName: string;
+  iconWrapClassName: string;
+};
+
+function formatMoney(value: number | string | null | undefined) {
+  return `฿${Number(value || 0).toLocaleString("th-TH")}`;
+}
+
+function formatDate(value: string | null | undefined) {
+  return value ? new Date(value).toLocaleDateString("th-TH") : "-";
+}
+
+function getQuoteStatusMeta({
+  hasJob,
+  waitingPayment,
+  isApproved,
+  isRejected,
+  isExpired,
+}: {
+  hasJob: boolean;
+  waitingPayment: boolean;
+  isApproved: boolean;
+  isRejected: boolean;
+  isExpired: boolean;
+}): QuoteStatusMeta {
+  if (hasJob) {
+    return {
+      badgeLabel: "กำลังดำเนินการ",
+      badgeVariant: "success",
+      title: "ทีมงานเริ่มดำเนินการตามใบเสนอราคาแล้ว",
+      description: "ใบเสนอราคานี้ได้รับการยืนยัน และงานถูกส่งเข้าสู่ขั้นตอนถัดไปเรียบร้อยแล้ว",
+      icon: CheckCircle2,
+      panelClassName: "border-emerald-200/80 bg-gradient-to-br from-white via-emerald-50/70 to-emerald-100/60",
+      iconWrapClassName: "bg-emerald-100 text-emerald-700",
+    };
+  }
+
+  if (waitingPayment) {
+    return {
+      badgeLabel: "รอยืนยันการชำระ",
+      badgeVariant: "warning",
+      title: "อนุมัติแล้ว และกำลังรอทีมงานยืนยันการชำระเงิน",
+      description: "หากเงื่อนไขหรือรายละเอียดบางส่วนยังไม่ตรง คุณยังสามารถส่งคำขอแก้ไขกลับให้ทีมงานได้",
+      icon: Clock3,
+      panelClassName: "border-amber-200/80 bg-gradient-to-br from-white via-amber-50/70 to-amber-100/60",
+      iconWrapClassName: "bg-amber-100 text-amber-700",
+    };
+  }
+
+  if (isApproved) {
+    return {
+      badgeLabel: "อนุมัติแล้ว",
+      badgeVariant: "success",
+      title: "ใบเสนอราคาได้รับการอนุมัติเรียบร้อย",
+      description: "ทีมงานได้รับคำตอบของคุณแล้ว และจะอัปเดตความคืบหน้าให้ในขั้นตอนถัดไป",
+      icon: ShieldCheck,
+      panelClassName: "border-emerald-200/80 bg-gradient-to-br from-white via-emerald-50/70 to-emerald-100/60",
+      iconWrapClassName: "bg-emerald-100 text-emerald-700",
+    };
+  }
+
+  if (isRejected) {
+    return {
+      badgeLabel: "ปฏิเสธแล้ว",
+      badgeVariant: "destructive",
+      title: "ใบเสนอราคานี้ถูกปฏิเสธแล้ว",
+      description: "หากต้องการกลับมาปรับรายละเอียดใหม่ คุณสามารถติดต่อทีมงานเพื่อออกใบเสนอราคาอีกครั้งได้",
+      icon: XCircle,
+      panelClassName: "border-rose-200/80 bg-gradient-to-br from-white via-rose-50/70 to-rose-100/60",
+      iconWrapClassName: "bg-rose-100 text-rose-700",
+    };
+  }
+
+  if (isExpired) {
+    return {
+      badgeLabel: "หมดอายุ",
+      badgeVariant: "destructive",
+      title: "ใบเสนอราคานี้หมดอายุแล้ว",
+      description: "หากยังต้องการดำเนินงาน กรุณาแจ้งทีมงานเพื่ออัปเดตราคาและวันหมดอายุใหม่",
+      icon: CircleAlert,
+      panelClassName: "border-rose-200/80 bg-gradient-to-br from-white via-rose-50/70 to-rose-100/60",
+      iconWrapClassName: "bg-rose-100 text-rose-700",
+    };
+  }
+
+  return {
+    badgeLabel: "รอการอนุมัติ",
+    badgeVariant: "secondary",
+    title: "พร้อมให้คุณตรวจสอบและเลือกการดำเนินการ",
+    description: "ตรวจรายละเอียดราคาและเงื่อนไขให้ครบก่อนกดยืนยัน หากยังต้องการแก้ไขสามารถส่งกลับให้ทีมงานได้ทันที",
+    icon: FileText,
+    panelClassName: "border-slate-200/80 bg-gradient-to-br from-white via-slate-50/70 to-slate-100/60",
+    iconWrapClassName: "bg-slate-100 text-slate-700",
+  };
+}
+
 export default async function QuotePage(props: { params: Promise<{ token: string }> }) {
   const { token } = await props.params;
   const supabase = createAdminClient();
+  const config = await getRuntimeAppConfig();
 
   const { data: quote } = await supabase
     .from("quotes")
@@ -38,37 +155,77 @@ export default async function QuotePage(props: { params: Promise<{ token: string
   const canRejectQuote = quote.status === "sent" && !isExpired;
   const canRescopeQuote = !hasJob && !isExpired && (quote.status === "sent" || waitingPayment);
   const downloadUrl = `/quote/${token}/download`;
+  const statusMeta = getQuoteStatusMeta({
+    hasJob,
+    waitingPayment,
+    isApproved,
+    isRejected,
+    isExpired,
+  });
+  const paymentDetails = [
+    { label: "ธนาคาร", value: config.paymentBankName },
+    { label: "ชื่อบัญชี", value: config.paymentAccountName },
+    { label: "เลขบัญชี", value: config.paymentAccountNumber },
+    { label: "พร้อมเพย์ / PromptPay", value: config.paymentPromptPayId },
+  ].filter(
+    (detail): detail is { label: string; value: string } => Boolean(detail.value)
+  );
+  const paymentHelpText =
+    paymentTerms === "credit"
+      ? "รายการนี้เป็นเครดิต ทีมงานจะยืนยันรอบวางบิลหรือกำหนดชำระกับคุณโดยตรง"
+      : config.paymentInstructions ||
+        "หลังโอนเงินแล้ว กรุณาส่งสลิปกลับใน LINE แชตนี้เพื่อให้ทีมงานยืนยันการชำระ";
+  const paymentContact = [
+    config.businessPhone ? `โทร ${config.businessPhone}` : null,
+    config.businessEmail ? `อีเมล ${config.businessEmail}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const paymentConfirmationText =
+    paymentTerms === "credit"
+      ? "เครดิตเทอมหรือรอบวางบิลจะมีทีมงานยืนยันให้ต่อใน LINE แชตนี้"
+      : "แจ้งชำระเงิน: ส่งสลิปหรือหลักฐานการโอนกลับมาใน LINE แชตนี้เพื่อให้ทีมงานตรวจสอบได้เร็วขึ้น";
+  const StatusIcon = statusMeta.icon;
+  const showActionPanel = (!hasJob && !isApproved && !isRejected && !isExpired) ||
+    (waitingPayment && canRescopeQuote);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-lg mx-auto">
-        <div className="bg-white rounded-t-2xl px-6 py-5 border-b border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">📄 ใบเสนอราคา</h1>
-              <p className="text-xs text-gray-400 mt-1">FOGUS Print &amp; Sign</p>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] px-4 py-8">
+      <div className="mx-auto max-w-lg overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.12)]">
+        <div className="border-b border-gray-100 bg-[linear-gradient(180deg,rgba(248,250,252,0.96)_0%,rgba(255,255,255,1)_100%)] px-6 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-4">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 ring-1 ring-slate-200/80">
+                <FileText className="size-5" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-lg font-bold text-gray-900">ใบเสนอราคา</h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  ตรวจสอบรายละเอียดราคาและเลือกการดำเนินการที่ต้องการ
+                </p>
+                <p className="mt-2 text-xs font-medium tracking-[0.14em] text-slate-400 uppercase">
+                  FOGUS Print &amp; Sign
+                </p>
+              </div>
             </div>
-            <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-              waitingPayment
-                ? "bg-amber-100 text-amber-700"
-                : isApproved
-                  ? "bg-green-100 text-green-700"
-                  : isRejected
-                    ? "bg-rose-100 text-rose-700"
-                  : isExpired
-                    ? "bg-red-100 text-red-700"
-                    : "bg-yellow-100 text-yellow-700"
-            }`}>
-              {waitingPayment
-                ? "อนุมัติแล้ว รอชำระ"
-                : isApproved
-                  ? "อนุมัติแล้ว"
-                  : isRejected
-                    ? "ปฏิเสธแล้ว"
-                    : isExpired
-                      ? "หมดอายุ"
-                      : "รอการอนุมัติ"}
-            </div>
+
+            <Badge variant={statusMeta.badgeVariant} className="shrink-0">
+              {statusMeta.badgeLabel}
+            </Badge>
+          </div>
+        </div>
+
+        <div className="border-b border-sky-100 bg-sky-50/60 px-6 py-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-700">เลขติดตามงาน</p>
+          <p className="mt-1 font-mono text-sm font-semibold text-sky-900 break-all">{token}</p>
+          <p className="mt-1 text-xs text-sky-800">ใช้โค้ดนี้เพื่อเปิดหน้าใบเสนอราคา/สถานะงานจากหน้าค้นหา</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link href={`/status/${token}`} className="inline-flex rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700">
+              ดูสถานะงาน
+            </Link>
+            <Link href="/status" className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+              ค้นหาด้วยเลขติดตาม
+            </Link>
           </div>
         </div>
 
@@ -94,15 +251,15 @@ export default async function QuotePage(props: { params: Promise<{ token: string
           {items.map((item: { id: string; label: string; line_total: number }) => (
             <div key={item.id} className="flex justify-between text-sm py-1">
               <span className="text-gray-700">{item.label}</span>
-              <span className="font-medium">฿{Number(item.line_total).toLocaleString()}</span>
+              <span className="font-medium">{formatMoney(item.line_total)}</span>
             </div>
           ))}
         </div>
 
         <div className="bg-white px-6 py-4 border-b border-gray-100 space-y-1">
-          <div className="flex justify-between text-sm"><span className="text-gray-500">ราคาก่อน VAT</span><span>฿{Number(quote.subtotal).toLocaleString()}</span></div>
-          <div className="flex justify-between text-sm"><span className="text-gray-500">VAT 7%</span><span>฿{Number(quote.vat).toLocaleString()}</span></div>
-          <div className="flex justify-between text-base font-bold pt-2 border-t border-gray-100"><span>รวมทั้งสิ้น</span><span className="text-[#1a1a2e]">฿{Number(quote.total).toLocaleString()}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-gray-500">ราคาก่อน VAT</span><span>{formatMoney(quote.subtotal)}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-gray-500">VAT 7%</span><span>{formatMoney(quote.vat)}</span></div>
+          <div className="flex justify-between border-t border-gray-100 pt-2 text-base font-bold"><span>รวมทั้งสิ้น</span><span className="text-slate-950">{formatMoney(quote.total)}</span></div>
         </div>
 
         <div className="bg-white px-6 py-4 border-b border-gray-100 space-y-1 text-sm">
@@ -110,62 +267,145 @@ export default async function QuotePage(props: { params: Promise<{ token: string
           <div className="flex justify-between"><span className="text-gray-500">สถานะชำระเงิน</span><span>{PAYMENT_STATUS_LABELS[paymentStatus]}</span></div>
         </div>
 
-        {quote.valid_until && (
-          <div className="bg-white px-6 py-3 border-b border-gray-100">
-            <p className="text-xs text-gray-400 text-center">ใบเสนอราคาใช้ได้ถึง {new Date(quote.valid_until).toLocaleDateString("th-TH")}</p>
-          </div>
-        )}
-
         <div className="bg-white px-6 py-4 border-b border-gray-100">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">ต้องการเก็บเอกสารไว้ก่อน?</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  ดาวน์โหลดใบเสนอราคาแยกได้ โดยไม่เปลี่ยนสถานะการอนุมัติ
-                </p>
+          <div
+            className={`overflow-hidden rounded-[24px] border ${waitingPayment
+              ? "border-amber-200 bg-amber-50/80"
+              : "border-slate-200 bg-slate-50/80"}`}
+          >
+            <div className="flex flex-col gap-4 p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-700 ring-1 ring-slate-200/80">
+                  <Landmark className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900">ช่องทางชำระเงิน / Payment Instructions</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">{paymentHelpText}</p>
+                  {waitingPayment ? (
+                    <p className="mt-2 text-xs font-medium text-amber-700">
+                      งานจะเริ่มต่อเมื่อทีมงานยืนยันยอดชำระตามเงื่อนไขนี้แล้ว
+                    </p>
+                  ) : null}
+                </div>
               </div>
-              <Link
-                href={downloadUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
-              >
-                ดาวน์โหลดใบเสนอราคา
-              </Link>
+
+              {paymentTerms === "credit" ? (
+                <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm leading-relaxed text-slate-600 ring-1 ring-slate-200/70">
+                  รายการนี้ไม่ต้องโอนทันที หากต้องการเอกสารประกอบการชำระหรือรอบวางบิล กรุณาติดต่อทีมงาน
+                  {paymentContact ? ` ที่ ${paymentContact}` : " ผ่าน LINE แชตนี้"}
+                </div>
+              ) : paymentDetails.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {paymentDetails.map((detail) => (
+                    <div key={detail.label} className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200/70">
+                      <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-400">
+                        {detail.label}
+                      </p>
+                      <p className="mt-2 break-words text-sm font-semibold text-slate-950">
+                        {detail.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm leading-relaxed text-slate-600 ring-1 ring-slate-200/70">
+                  ยังไม่ได้ตั้งค่าบัญชีรับโอนในระบบ กรุณาติดต่อทีมงาน
+                  {paymentContact ? ` ที่ ${paymentContact}` : " ผ่าน LINE แชตนี้"}
+                </div>
+              )}
+
+              <div className="rounded-2xl bg-white/70 px-4 py-3 text-xs leading-relaxed text-slate-500 ring-1 ring-slate-200/60">
+                {paymentConfirmationText}
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-b-2xl px-6 py-5">
-          {hasJob ? (
-            <div className="text-center text-green-600 font-medium">✅ อนุมัติแล้ว — ทีมงานกำลังดำเนินการ</div>
-          ) : waitingPayment ? (
-            <div className="space-y-4">
-              <div className="text-center text-amber-600 font-medium">⏳ อนุมัติแล้ว รอทีมงานยืนยันการชำระเงินก่อนเริ่มผลิต</div>
-              {canRescopeQuote ? (
-                <QuoteApproveButton
-                  quoteToken={token}
-                  allowApprove={false}
-                  allowReject={false}
-                  allowRescope
-                />
+        {quote.valid_until && (
+          <div className="bg-white px-6 py-3 border-b border-gray-100">
+            <p className="text-xs text-gray-400 text-center">ใบเสนอราคาใช้ได้ถึง {formatDate(quote.valid_until)}</p>
+          </div>
+        )}
+
+        <div className="bg-white px-6 py-4 border-b border-gray-100">
+          <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-[linear-gradient(135deg,rgba(248,250,252,0.95)_0%,rgba(241,245,249,0.85)_100%)]">
+            <div className="flex flex-col gap-4 p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-700 ring-1 ring-slate-200/80">
+                  <Download className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900">ต้องการเก็บเอกสารไว้ก่อน?</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    ดาวน์โหลดใบเสนอราคาแยกได้ โดยไม่เปลี่ยนสถานะการอนุมัติหรือขั้นตอนงาน
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="rounded-2xl bg-white/80 px-3 py-2 text-xs leading-relaxed text-slate-500 ring-1 ring-slate-200/70">
+                  เอกสารดาวน์โหลดเป็นสำเนาสำหรับตรวจสอบและพิมพ์เก็บไว้ภายหลัง
+                </div>
+
+                <Button asChild variant="outline" className="w-full bg-white sm:w-auto">
+                  <Link href={downloadUrl} target="_blank" rel="noreferrer">
+                    <Download className="size-4" />
+                    ดาวน์โหลดใบเสนอราคา
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-b-[28px] px-6 py-5">
+          <div className={`overflow-hidden rounded-[24px] border ${statusMeta.panelClassName}`}>
+            <div className="p-5">
+              <div className="flex items-start gap-4">
+                <div
+                  className={`flex size-11 shrink-0 items-center justify-center rounded-2xl ${statusMeta.iconWrapClassName}`}
+                >
+                  <StatusIcon className="size-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-base font-semibold text-slate-950">{statusMeta.title}</p>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                        {statusMeta.description}
+                      </p>
+                    </div>
+
+                    <Badge variant={statusMeta.badgeVariant} className="shrink-0 self-start">
+                      {statusMeta.badgeLabel}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {showActionPanel ? (
+                <div className="mt-5 border-t border-slate-200/80 pt-5">
+                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">
+                    การดำเนินการ
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    {waitingPayment
+                      ? "หากข้อมูลหรือเงื่อนไขยังไม่ตรง คุณสามารถส่งคำขอแก้ไขกลับให้ทีมงานได้ทันที"
+                      : "เมื่อรายละเอียดทั้งหมดถูกต้อง คุณสามารถอนุมัติใบเสนอราคา หรือส่งกลับให้ทีมงานปรับรายละเอียดเพิ่มเติมได้"}
+                  </p>
+
+                  <div className="mt-4">
+                    <QuoteApproveButton
+                      quoteToken={token}
+                      allowApprove={!waitingPayment}
+                      allowReject={canRejectQuote}
+                      allowRescope={canRescopeQuote}
+                    />
+                  </div>
+                </div>
               ) : null}
             </div>
-          ) : isApproved ? (
-            <div className="text-center text-green-600 font-medium">✅ อนุมัติแล้ว — ทีมงานได้รับรายการแล้ว</div>
-          ) : isRejected ? (
-            <div className="text-center text-rose-600 font-medium">🛑 ใบเสนอราคานี้ถูกปฏิเสธแล้ว</div>
-          ) : isExpired ? (
-            <div className="text-center text-red-500 text-sm">ใบเสนอราคานี้หมดอายุแล้ว</div>
-          ) : (
-            <QuoteApproveButton
-              quoteToken={token}
-              allowApprove
-              allowReject={canRejectQuote}
-              allowRescope={canRescopeQuote}
-            />
-          )}
+          </div>
         </div>
       </div>
     </div>

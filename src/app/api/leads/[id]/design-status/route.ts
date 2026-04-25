@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDesignStatus } from "@/lib/types";
 import { logHumanAction } from "@/lib/action-log";
+import { getSupabaseHost } from "@/lib/utils";
 
 function appendNote(existing: string | null | undefined, note: string) {
   return existing?.trim() ? `${existing.trim()}\n${note}` : note;
@@ -42,6 +43,21 @@ export async function POST(
     .single();
 
   if (leadError || !lead) {
+    console.error("Lead design-status lookup failed:", {
+      path: request.nextUrl.pathname,
+      origin: request.nextUrl.origin,
+      host: request.headers.get("host"),
+      supabaseHost: getSupabaseHost(),
+      leadId: id,
+      requestedDesignStatus: body.designStatus,
+      leadError: leadError
+        ? {
+            code: leadError.code,
+            message: leadError.message,
+            details: leadError.details,
+          }
+        : null,
+    });
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
 

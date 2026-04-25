@@ -133,11 +133,11 @@ export default function IntakeForm({
   const [loading, setLoading] = useState(false);
   const [submitOutcome, setSubmitOutcome] = useState<"quote" | "review" | null>(null);
   const [submitMessage, setSubmitMessage] = useState("");
+  const [submitWarning, setSubmitWarning] = useState("");
   const [error, setError] = useState("");
   const [lineUserId, setLineUserId] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [liffIdToken, setLiffIdToken] = useState("");
-
   const [productType, setProductType] = useState("");
   const [width, setWidth] = useState("");
   const [height, setHeight] = useState("");
@@ -173,17 +173,19 @@ export default function IntakeForm({
           return;
         }
 
-        try {
-          await window.liff.requestFriendship();
-        } catch {
-          // non-critical
-        }
-
         const profile = await window.liff.getProfile();
         const idToken = window.liff.getIDToken();
         setLineUserId(profile.userId);
         setDisplayName(profile.displayName);
         setLiffIdToken(idToken || "");
+
+        if (window.liff.isInClient()) {
+          try {
+            await window.liff.requestFriendship();
+          } catch {
+            // Only supported in the LIFF browser full-screen flow.
+          }
+        }
 
         // Prefill returning customer data (skip for fresh/restart mode)
         if (intakeMode !== "fresh" && idToken) {
@@ -236,10 +238,19 @@ export default function IntakeForm({
     }
 
     for (const file of incoming) {
+      if (!file.type) {
+        setError("ไฟล์ต้องมีประเภทที่ชัดเจน กรุณาเลือกไฟล์ใหม่");
+        return;
+      }
       const isAllowed =
-        file.type.startsWith("image/") || file.type === "application/pdf";
+        file.type === "image/png" ||
+        file.type === "image/jpeg" ||
+        file.type === "image/webp" ||
+        file.type === "image/heic" ||
+        file.type === "image/heif" ||
+        file.type === "application/pdf";
       if (!isAllowed) {
-        setError("รองรับเฉพาะรูปภาพหรือ PDF");
+        setError("รองรับเฉพาะรูปภาพ PNG, JPG, WEBP, HEIC, HEIF หรือ PDF");
         return;
       }
       if (file.size > MAX_REFERENCE_FILE_SIZE) {
@@ -287,6 +298,7 @@ export default function IntakeForm({
       e.preventDefault();
       setLoading(true);
       setError("");
+      setSubmitWarning("");
 
       if (!productType) {
         setError("กรุณาเลือกประเภทงาน");
@@ -357,8 +369,10 @@ export default function IntakeForm({
             ? "ทีมงานได้รับข้อมูลแล้ว และจะติดต่อกลับทาง LINE เพื่อช่วยสรุปรายละเอียดเพิ่มเติมค่ะ"
             : "เราจะส่งใบเสนอราคาให้ทาง LINE ค่ะ"
         );
+        setSubmitWarning(typeof result.referenceUploadWarning === "string" ? result.referenceUploadWarning : "");
         if (typeof window !== "undefined" && window.liff?.isInClient()) {
-          setTimeout(() => window.liff.closeWindow(), 3000);
+          const closeDelayMs = typeof result.referenceUploadWarning === "string" ? 5500 : 3000;
+          setTimeout(() => window.liff.closeWindow(), closeDelayMs);
         }
       } catch {
         setError("ไม่สามารถส่งข้อมูลได้ กรุณาลองใหม่");
@@ -406,6 +420,11 @@ export default function IntakeForm({
             {submitOutcome === "review" ? "ทีมงานรับเคสแล้ว" : "ส่งข้อมูลเรียบร้อยแล้ว!"}
           </h2>
           <p className="text-sm text-slate-600">{submitMessage}</p>
+          {submitWarning ? (
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm leading-6 text-amber-900">
+              {submitWarning}
+            </div>
+          ) : null}
           <p className="mt-4 text-xs text-slate-400">หน้าต่างจะปิดอัตโนมัติ...</p>
         </div>
       </div>
@@ -514,7 +533,7 @@ export default function IntakeForm({
                       aria-label="หน่วยวัด"
                       value={unit}
                       onChange={(e) => setUnit(e.target.value)}
-                      className={`${selectClassName} w-auto min-w-[88px]`}
+                      className={`${selectClassName} w-auto min-w-22`}
                     >
                       {UNITS.map((u) => (
                         <option key={u.value} value={u.value}>
@@ -591,7 +610,7 @@ export default function IntakeForm({
                     <span className="mt-1 text-xs font-normal text-slate-500">สูงสุด 5 ไฟล์, ไฟล์ละไม่เกิน 10MB</span>
                     <input
                       type="file"
-                      accept="image/*,application/pdf"
+                      accept="image/png,image/jpeg,image/webp,image/heic,image/heif,application/pdf"
                       multiple
                       capture="environment"
                       onChange={(e) => {

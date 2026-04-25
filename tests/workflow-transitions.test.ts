@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import ts from "typescript";
 
-import { normalizeWorkflowState } from "../src/lib/workflow-state.ts";
+import { normalizeWorkflowState } from "../src/lib/workflow-state";
 
 const workflowTransitionsUrl = new URL(
   "../src/lib/workflow-transitions.ts",

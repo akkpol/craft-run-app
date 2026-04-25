@@ -6,6 +6,7 @@ import {
   isDesignStatus,
 } from "@/lib/types";
 import { logHumanAction } from "@/lib/action-log";
+import { getSupabaseHost } from "@/lib/utils";
 
 type PublicQuoteAction =
   | "approve_quote"
@@ -46,6 +47,21 @@ export async function POST(
     .single();
 
   if (error || !quote) {
+    console.error("Public quote action lookup failed:", {
+      path: request.nextUrl.pathname,
+      origin: request.nextUrl.origin,
+      host: request.headers.get("host"),
+      supabaseHost: getSupabaseHost(),
+      tokenPrefix: token.slice(0, 8),
+      action: body.action,
+      quoteError: error
+        ? {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+          }
+        : null,
+    });
     return NextResponse.json({ error: "Quote not found" }, { status: 404 });
   }
 
@@ -54,6 +70,17 @@ export async function POST(
   const note = body.note?.trim();
 
   if (!lead) {
+    console.error("Public quote action missing lead relation:", {
+      path: request.nextUrl.pathname,
+      origin: request.nextUrl.origin,
+      host: request.headers.get("host"),
+      supabaseHost: getSupabaseHost(),
+      tokenPrefix: token.slice(0, 8),
+      action: body.action,
+      quoteId: quote.id,
+      quoteLeadId: quote.lead_id,
+      hasJobs: Boolean(job?.id),
+    });
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
 

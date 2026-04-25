@@ -50,8 +50,13 @@ export function validateCustomerMediaFiles(files: File[]) {
       throw new Error("ไฟล์ใหญ่เกิน 10MB กรุณาลดขนาดรูปแล้วลองใหม่");
     }
 
-    if (file.type && !ALLOWED_CUSTOMER_MEDIA_TYPES.has(file.type)) {
-      throw new Error("รองรับเฉพาะรูปภาพ PNG, JPG, WEBP, HEIC หรือ PDF");
+    // Reject files with missing MIME type to avoid upload failures
+    if (!file.type) {
+      throw new Error("ไฟล์ต้องมีประเภทที่ชัดเจน กรุณาเลือกไฟล์ใหม่");
+    }
+
+    if (!ALLOWED_CUSTOMER_MEDIA_TYPES.has(file.type)) {
+      throw new Error("รองรับเฉพาะรูปภาพ PNG, JPG, WEBP, HEIC, HEIF หรือ PDF");
     }
   }
 }
@@ -73,6 +78,7 @@ export async function uploadLeadMediaFiles({
 
   const createdAt = new Date().toISOString();
   const uploadedPaths: string[] = [];
+  const insertedAssetIds: string[] = [];
 
   try {
     const assetRows: LeadMediaAssetRow[] = [];
@@ -92,12 +98,14 @@ export async function uploadLeadMediaFiles({
       }
 
       uploadedPaths.push(storagePath);
+      const assetId = randomUUID();
+      insertedAssetIds.push(assetId);
       assetRows.push({
-        id: randomUUID(),
+        id: assetId,
         lead_id: leadId,
         storage_path: storagePath,
         original_file_name: file.name || null,
-        mime_type: file.type || null,
+        mime_type: file.type,
         file_size_bytes: file.size,
         created_at: createdAt,
       });
@@ -113,11 +121,14 @@ export async function uploadLeadMediaFiles({
 
     return assetRows;
   } catch (error) {
+    // Clean up only the files and DB rows from this failed request
     if (uploadedPaths.length > 0) {
       await supabase.storage.from(CUSTOMER_MEDIA_BUCKET).remove(uploadedPaths);
     }
 
-    await supabase.from("lead_media_assets").delete().eq("lead_id", leadId);
+    if (insertedAssetIds.length > 0) {
+      await supabase.from("lead_media_assets").delete().in("id", insertedAssetIds);
+    }
     throw error;
   }
 }

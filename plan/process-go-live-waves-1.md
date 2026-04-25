@@ -2,15 +2,15 @@
 goal: FOGUS Go-Live Execution Waves
 version: 1.0
 date_created: 2026-04-19
-last_updated: 2026-04-19
+last_updated: 2026-04-25
 owner: Delivery Engineering
-status: Planned
+status: In progress
 tags: [process, delivery, go-live, waves, backlog]
 ---
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: In Progress](https://img.shields.io/badge/status-In%20Progress-yellow)
 
 This plan converts the current FOGUS remaining work into a deterministic wave-based execution checklist. It is designed to be used as the day-by-day delivery guide after the baseline quality checks already passed.
 
@@ -39,11 +39,13 @@ This plan converts the current FOGUS remaining work into a deterministic wave-ba
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-001 | Audit and harden backoffice auth in `src/lib/middleware.ts` so `/admin` access requires an authenticated staff/admin account, not just any authenticated user. |  |  |
-| TASK-002 | Replace production reliance on public sign-up by updating `src/app/auth/sign-up/page.tsx`, `src/components/sign-up-form.tsx`, and `src/components/login-form.tsx` to remove or clearly disable self-service admin registration. |  |  |
-| TASK-003 | Define the fastest staff access rule for v1 using an explicit allowlist such as `ADMIN_ALLOWED_EMAILS`, and document it in `.env.example`, `docs/ENV_AND_LINE_SETUP.md`, and `README.md`. |  |  |
+| TASK-001 | Audit and harden backoffice auth in `src/lib/middleware.ts` so `/admin` access requires an authenticated staff/admin account, not just any authenticated user. | Yes | 2026-04-25 |
+| TASK-002 | Replace production reliance on public sign-up by updating `src/app/auth/sign-up/page.tsx`, `src/components/sign-up-form.tsx`, and `src/components/login-form.tsx` to remove or clearly disable self-service admin registration. | Yes | 2026-04-25 |
+| TASK-003 | Define the fastest staff access rule for v1 using an explicit allowlist such as `ADMIN_ALLOWED_EMAILS`, and document it in `.env.example`, `docs/ENV_AND_LINE_SETUP.md`, and `README.md`. | Yes | 2026-04-25 |
 | TASK-004 | Verify login success, login rejection, and redirect behavior for `/auth/login`, `/admin`, and `/protected` using the current Supabase auth flow in `src/components/login-form.tsx`, `src/app/auth/login/page.tsx`, and `src/app/protected/page.tsx`. |  |  |
 | TASK-005 | Re-run `npm run build` and `npm run lint` after auth hardening to confirm the access changes did not break the app shell. |  |  |
+
+Wave 1 is no longer a greenfield hardening wave. The access lock, sign-up disablement, and allowlist documentation are already in place; the remaining work in this wave is validation on the current landing candidate.
 
 ### Implementation Phase 2 — Wave 2 / Environment Wiring
 
@@ -57,7 +59,9 @@ This plan converts the current FOGUS remaining work into a deterministic wave-ba
 | TASK-009 | In LIFF Console, register endpoint as `<base-url>/liff` and verify the LIFF ID used by `src/app/liff/page.tsx` and `src/app/liff/intake/page.tsx`. |  |  |
 | TASK-010 | Verify `/admin/settings` persists runtime configuration correctly through `src/app/admin/settings/settings-form.tsx`, `src/app/api/settings/route.ts`, and `src/lib/app-settings.ts`. |  |  |
 | TASK-011 | Verify company runtime settings automatically derive `webhookUrl` and `liffEndpointUrl` from `base_url` via `src/lib/app-settings.ts`, and document which values are auto-derived versus manually entered. |  |  |
-| TASK-012 | Add or verify `settings.updated` audit logging for runtime settings changes so configuration changes are traceable in production. |  |  |
+| TASK-012 | Add or verify `settings.updated` audit logging for runtime settings changes so configuration changes are traceable in production. | Yes | 2026-04-25 |
+
+Wave 2 still needs real-environment verification for console wiring and deployed settings persistence, but the `settings.updated` audit event is now implemented in the landing branch.
 
 ### Implementation Phase 3 — Wave 3 / End-To-End Acceptance
 

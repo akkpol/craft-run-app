@@ -34,6 +34,7 @@ import {
   type StudioPrimitiveAsset,
   type StudioPrimitivePlacement,
 } from "./studio-art";
+import StudioArchitectureMap from "./studio-architecture-map";
 
 type StudioSurfaceProps = {
   view: StudioViewModel;
@@ -44,6 +45,7 @@ type StudioSurfaceProps = {
 type StudioLaneTone = "critical" | "branch" | "archive";
 type StudioMotionSignature = "steady" | "focus" | "hum" | "archive";
 type StudioStationModel = StudioViewModel["stations"][number];
+type StudioSurfaceMode = "workflow" | "architecture";
 
 const STATION_LAYOUT_CLASS: Record<StudioStationId, string> = {
   inbox: "xl:[grid-area:1/1/2/3]",
@@ -889,6 +891,7 @@ export default function StudioSurface({
     null
   );
   const [filterId, setFilterId] = useState<StudioFilterId>("all");
+  const [surfaceMode, setSurfaceMode] = useState<StudioSurfaceMode>("workflow");
   const [justArrivedTokenIds, setJustArrivedTokenIds] = useState<string[]>([]);
   const deferredFilterId = useDeferredValue(filterId);
   const tokenRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -1218,12 +1221,12 @@ export default function StudioSurface({
               <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                 <div className="max-w-3xl">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    Playfield
+                    {surfaceMode === "workflow" ? "Playfield" : "Architecture Map"}
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
-                    Each station maps to one canonical workflow zone. Tokens move when
-                    the underlying workflow changes, while hold and review stay readable
-                    as side branches instead of swallowing the board.
+                    {surfaceMode === "workflow"
+                      ? "Each station maps to one canonical workflow zone. Tokens move when the underlying workflow changes, while hold and review stay readable as side branches instead of swallowing the board."
+                      : "LINE entry, orchestration, ERP, AI, storage, event, and BI modules are shown as one stacked Studio architecture map."}
                   </p>
                 </div>
 
@@ -1261,26 +1264,80 @@ export default function StudioSurface({
               </div>
 
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex flex-wrap gap-2">
-                  {STUDIO_FILTERS.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        startTransition(() => {
-                          setFilterId(item.id);
-                        });
-                      }}
-                      className={cn(
-                        "rounded-full border px-3 py-1.5 text-xs font-medium transition",
-                        filterId === item.id
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                      )}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+                <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
+                  <div
+                    className="inline-flex w-fit rounded-full border border-slate-200 bg-slate-50 p-1"
+                    role="tablist"
+                    aria-label="Studio view"
+                  >
+                    {[
+                      { id: "workflow", label: "Workflow Board" },
+                      { id: "architecture", label: "Architecture Map" },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={surfaceMode === item.id}
+                        onClick={() => {
+                          startTransition(() => {
+                            setSurfaceMode(item.id as StudioSurfaceMode);
+                          });
+                        }}
+                        className={cn(
+                          "rounded-full px-3 py-1.5 text-xs font-medium transition",
+                          surfaceMode === item.id
+                            ? "bg-slate-900 text-white shadow-sm"
+                            : "text-slate-600 hover:bg-white hover:text-slate-900"
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {surfaceMode === "workflow" ? (
+                    <div className="flex flex-wrap gap-2">
+                      {STUDIO_FILTERS.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            startTransition(() => {
+                              setFilterId(item.id);
+                            });
+                          }}
+                          className={cn(
+                            "rounded-full border px-3 py-1.5 text-xs font-medium transition",
+                            filterId === item.id
+                              ? "border-slate-900 bg-slate-900 text-white"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                          )}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        "Channel",
+                        "Gateway",
+                        "ERP",
+                        "AI",
+                        "Storage",
+                        "Events",
+                        "BI",
+                      ].map((label) => (
+                        <span
+                          key={label}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600"
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <p className="text-xs text-slate-500">
@@ -1289,48 +1346,66 @@ export default function StudioSurface({
               </div>
             </div>
 
-            <div className="studio-board-wrap px-4 py-5 sm:px-5">
-              <div className="studio-board relative rounded-[30px] border border-slate-200/80 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.95),rgba(241,245,249,0.84))] p-3 shadow-inner sm:p-4">
-                <div className="studio-floor pointer-events-none absolute inset-x-6 bottom-5 top-10 rounded-[30px]" />
-                <div className="studio-atmosphere pointer-events-none absolute inset-0 rounded-[30px]" />
-                {STUDIO_CONNECTOR_ART.map((connector) => (
-                  <StudioPrimitiveLayer
-                    key={connector.asset.id}
-                    asset={connector.asset}
-                    placement={connector.placement}
-                    className={cn("pointer-events-none studio-connector", connector.className)}
-                  />
-                ))}
-
-                <div className="pointer-events-none absolute inset-3 hidden xl:grid xl:grid-cols-7 xl:grid-rows-3 xl:gap-3">
-                  <div className="studio-zone xl:[grid-area:1/1/3/8]" data-zone-tone="critical">
-                    <span className="studio-zone-label">Critical path</span>
-                  </div>
-                  <div className="studio-zone xl:[grid-area:3/2/4/6]" data-zone-tone="branch">
-                    <span className="studio-zone-label">Side branches</span>
-                  </div>
-                  <div className="studio-zone xl:[grid-area:3/6/4/8]" data-zone-tone="archive">
-                    <span className="studio-zone-label">Archive shelf</span>
-                  </div>
-                </div>
-
-                <div className="relative z-[2] grid gap-3 md:grid-cols-4 xl:grid-cols-7 xl:grid-rows-3">
-                  {filteredStations.map((station) => (
-                    <StudioStationNode
-                      key={station.id}
-                      station={station}
-                      sceneMeta={STATION_SCENE_META[station.id]}
-                      selectedStationId={selectedStationId}
-                      selectedTokenId={selectedToken?.id || null}
-                      justArrivedTokenIds={justArrivedTokenIds}
-                      onStationSelect={handleStationSelect}
-                      onTokenSelect={handleTokenSelect}
-                      setTokenRef={setTokenRef}
+            {surfaceMode === "workflow" ? (
+              <div className="studio-board-wrap px-4 py-5 sm:px-5">
+                <div className="studio-board relative rounded-[30px] border border-slate-200/80 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.95),rgba(241,245,249,0.84))] p-3 shadow-inner sm:p-4">
+                  <div className="studio-floor pointer-events-none absolute inset-x-6 bottom-5 top-10 rounded-[30px]" />
+                  <div className="studio-atmosphere pointer-events-none absolute inset-0 rounded-[30px]" />
+                  {STUDIO_CONNECTOR_ART.map((connector) => (
+                    <StudioPrimitiveLayer
+                      key={connector.asset.id}
+                      asset={connector.asset}
+                      placement={connector.placement}
+                      className={cn(
+                        "pointer-events-none studio-connector",
+                        connector.className
+                      )}
                     />
                   ))}
+
+                  <div className="pointer-events-none absolute inset-3 hidden xl:grid xl:grid-cols-7 xl:grid-rows-3 xl:gap-3">
+                    <div
+                      className="studio-zone xl:[grid-area:1/1/3/8]"
+                      data-zone-tone="critical"
+                    >
+                      <span className="studio-zone-label">Critical path</span>
+                    </div>
+                    <div
+                      className="studio-zone xl:[grid-area:3/2/4/6]"
+                      data-zone-tone="branch"
+                    >
+                      <span className="studio-zone-label">Side branches</span>
+                    </div>
+                    <div
+                      className="studio-zone xl:[grid-area:3/6/4/8]"
+                      data-zone-tone="archive"
+                    >
+                      <span className="studio-zone-label">Archive shelf</span>
+                    </div>
+                  </div>
+
+                  <div className="relative z-[2] grid gap-3 md:grid-cols-4 xl:grid-cols-7 xl:grid-rows-3">
+                    {filteredStations.map((station) => (
+                      <StudioStationNode
+                        key={station.id}
+                        station={station}
+                        sceneMeta={STATION_SCENE_META[station.id]}
+                        selectedStationId={selectedStationId}
+                        selectedTokenId={selectedToken?.id || null}
+                        justArrivedTokenIds={justArrivedTokenIds}
+                        onStationSelect={handleStationSelect}
+                        onTokenSelect={handleTokenSelect}
+                        setTokenRef={setTokenRef}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="px-4 py-5 sm:px-5">
+                <StudioArchitectureMap />
+              </div>
+            )}
           </section>
 
           <StudioDrawer

@@ -47,99 +47,113 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ─── CMYK Brand Theme — TD ALL CO.,LTD. ───────────────────────────────────
+   Cyan    #00AEEF → oklch(0.70 0.17 214)
+   Magenta #EC008C → oklch(0.52 0.28 332)
+   Yellow  #FFF200 → oklch(0.97 0.22 102)
+   Black   #231F20 → oklch(0.14 0.003 300)
+   ───────────────────────────────────────────────────────────────────────── */
 :root {
-    --background: oklch(0.99 0 0);
-    --foreground: oklch(0.15 0 0);
     --card: oklch(1 0 0);
-    --card-foreground: oklch(0.15 0 0);
+    --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.15 0 0);
-    --primary: oklch(0.47 0.14 264);
-    --primary-foreground: oklch(0.99 0 0);
-    --secondary: oklch(0.96 0.005 264);
-    --secondary-foreground: oklch(0.15 0 0);
-    --muted: oklch(0.96 0.005 264);
-    --muted-foreground: oklch(0.52 0.015 264);
-    --accent: oklch(0.96 0.005 264);
-    --accent-foreground: oklch(0.15 0 0);
-    --destructive: oklch(0.55 0.22 27);
-    --border: oklch(0.90 0.005 264);
-    --input: oklch(0.93 0.005 264);
-    --ring: oklch(0.47 0.14 264);
-    --chart-1: oklch(0.65 0.19 264);
-    --chart-2: oklch(0.70 0.15 142);
-    --chart-3: oklch(0.75 0.12 60);
-    --chart-4: oklch(0.68 0.18 330);
-    --chart-5: oklch(0.60 0.16 200);
-    --radius: 0.75rem;
-    --sidebar: oklch(0.98 0 0);
-    --sidebar-foreground: oklch(0.15 0 0);
-    --sidebar-primary: oklch(0.47 0.14 264);
-    --sidebar-primary-foreground: oklch(0.99 0 0);
-    --sidebar-accent: oklch(0.96 0.005 264);
-    --sidebar-accent-foreground: oklch(0.15 0 0);
-    --sidebar-border: oklch(0.90 0.005 264);
-    --sidebar-ring: oklch(0.47 0.14 264);
+    --popover-foreground: oklch(0.145 0 0);
+    /* Primary = Process Cyan */
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    /* Secondary = light cyan tint */
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    /* Accent = Process Yellow (muted for UI) */
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    /* Destructive = Process Magenta */
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);
+    /* Chart palette = C / M / Y / K + mixed */
+    --chart-1: oklch(0.845 0.143 164.978);   /* Cyan */
+    --chart-2: oklch(0.696 0.17 162.48);   /* Magenta */
+    --chart-3: oklch(0.596 0.145 163.225);   /* Yellow */
+    --chart-4: oklch(0.508 0.118 165.612);  /* Key Black */
+    --chart-5: oklch(0.432 0.095 166.913);   /* Violet (C+M mix) */
+    --radius: 0.625rem;
+    --sidebar: oklch(0.985 0 0);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: oklch(0.708 0 0);
     --flow-shell-bg:
-      radial-gradient(circle at top left, rgba(245, 158, 11, 0.16), transparent 24%),
-      radial-gradient(circle at top right, rgba(16, 185, 129, 0.12), transparent 30%),
-      linear-gradient(180deg, #f8fafc 0%, #f8fafc 100%);
+      radial-gradient(circle at top left, rgba(0, 174, 239, 0.14), transparent 24%),
+      radial-gradient(circle at top right, rgba(236, 0, 140, 0.10), transparent 30%),
+      linear-gradient(180deg, #f0fbff 0%, #f8fafc 100%);
     --flow-hero-bg:
-      radial-gradient(circle at 18% 25%, rgba(245, 158, 11, 0.18), transparent 24%),
-      radial-gradient(circle at 82% 65%, rgba(16, 185, 129, 0.18), transparent 30%),
-      linear-gradient(135deg, #111827 0%, #1e293b 100%);
+      radial-gradient(circle at 18% 25%, rgba(255, 242, 0, 0.18), transparent 24%),
+      radial-gradient(circle at 82% 65%, rgba(0, 174, 239, 0.20), transparent 30%),
+      linear-gradient(135deg, #0a1628 0%, #0d2137 100%);
     --flow-panel-bg: rgba(255, 255, 255, 0.96);
-    --flow-panel-border: rgba(226, 232, 240, 0.88);
-    --flow-soft-bg: rgba(248, 250, 252, 0.95);
-    --flow-note-bg: rgba(255, 251, 235, 0.98);
-    --flow-note-border: rgba(253, 230, 138, 0.7);
+    --flow-panel-border: rgba(0, 174, 239, 0.18);
+    --flow-soft-bg: rgba(240, 251, 255, 0.95);
+    --flow-note-bg: rgba(255, 252, 224, 0.98);
+    --flow-note-border: rgba(255, 242, 0, 0.55);
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
 }
 
 .dark {
-    --background: oklch(0.13 0.01 264);
-    --foreground: oklch(0.96 0.005 264);
-    --card: oklch(0.17 0.01 264);
-    --card-foreground: oklch(0.96 0.005 264);
-    --popover: oklch(0.17 0.01 264);
-    --popover-foreground: oklch(0.96 0.005 264);
-    --primary: oklch(0.65 0.19 264);
-    --primary-foreground: oklch(0.99 0 0);
-    --secondary: oklch(0.22 0.015 264);
-    --secondary-foreground: oklch(0.96 0.005 264);
-    --muted: oklch(0.22 0.015 264);
-    --muted-foreground: oklch(0.65 0.02 264);
-    --accent: oklch(0.22 0.015 264);
-    --accent-foreground: oklch(0.96 0.005 264);
-    --destructive: oklch(0.60 0.20 25);
-    --border: oklch(0.28 0.015 264);
-    --input: oklch(0.24 0.015 264);
-    --ring: oklch(0.65 0.19 264);
-    --chart-1: oklch(0.65 0.19 264);
-    --chart-2: oklch(0.70 0.15 142);
-    --chart-3: oklch(0.75 0.12 60);
-    --chart-4: oklch(0.68 0.18 330);
-    --chart-5: oklch(0.60 0.16 200);
-    --sidebar: oklch(0.15 0.01 264);
-    --sidebar-foreground: oklch(0.96 0.005 264);
-    --sidebar-primary: oklch(0.65 0.19 264);
-    --sidebar-primary-foreground: oklch(0.99 0 0);
-    --sidebar-accent: oklch(0.22 0.015 264);
-    --sidebar-accent-foreground: oklch(0.96 0.005 264);
-    --sidebar-border: oklch(0.28 0.015 264);
-    --sidebar-ring: oklch(0.65 0.19 264);
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    /* Primary = brighter Cyan on dark */
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    /* Accent = muted Yellow on dark */
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    /* Destructive = Process Magenta */
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.845 0.143 164.978);   /* Cyan bright */
+    --chart-2: oklch(0.696 0.17 162.48);   /* Magenta bright */
+    --chart-3: oklch(0.596 0.145 163.225);   /* Yellow */
+    --chart-4: oklch(0.508 0.118 165.612);  /* Key grey */
+    --chart-5: oklch(0.432 0.095 166.913);   /* Violet */
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
     --flow-shell-bg:
-      radial-gradient(circle at top left, rgba(245, 158, 11, 0.22), transparent 28%),
-      radial-gradient(circle at top right, rgba(16, 185, 129, 0.2), transparent 32%),
-      linear-gradient(180deg, #020617 0%, #0f172a 100%);
+      radial-gradient(circle at top left, rgba(0, 174, 239, 0.20), transparent 28%),
+      radial-gradient(circle at top right, rgba(236, 0, 140, 0.16), transparent 32%),
+      linear-gradient(180deg, #020c14 0%, #04111c 100%);
     --flow-hero-bg:
-      radial-gradient(circle at 18% 25%, rgba(245, 158, 11, 0.2), transparent 28%),
-      radial-gradient(circle at 82% 65%, rgba(16, 185, 129, 0.18), transparent 32%),
-      linear-gradient(135deg, #020617 0%, #0f172a 100%);
-    --flow-panel-bg: rgba(15, 23, 42, 0.86);
-    --flow-panel-border: rgba(148, 163, 184, 0.3);
-    --flow-soft-bg: rgba(30, 41, 59, 0.75);
-    --flow-note-bg: rgba(120, 53, 15, 0.3);
-    --flow-note-border: rgba(253, 230, 138, 0.4);
+      radial-gradient(circle at 18% 25%, rgba(255, 242, 0, 0.16), transparent 28%),
+      radial-gradient(circle at 82% 65%, rgba(0, 174, 239, 0.20), transparent 32%),
+      linear-gradient(135deg, #020c14 0%, #04111c 100%);
+    --flow-panel-bg: rgba(10, 20, 32, 0.86);
+    --flow-panel-border: rgba(0, 174, 239, 0.25);
+    --flow-soft-bg: rgba(14, 30, 46, 0.75);
+    --flow-note-bg: rgba(60, 50, 0, 0.35);
+    --flow-note-border: rgba(255, 242, 0, 0.35);
 }
 
 @layer base {
@@ -203,9 +217,9 @@
     min-height: 100dvh;
     padding-bottom: env(safe-area-inset-bottom);
     background:
-      radial-gradient(circle at top left, rgba(34, 197, 94, 0.18), transparent 28%),
-      radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.12), transparent 30%),
-      linear-gradient(180deg, #f0fdf4 0%, #f8fafc 56%, #eef2ff 100%);
+      radial-gradient(circle at top left, rgba(0, 174, 239, 0.16), transparent 28%),
+      radial-gradient(circle at bottom right, rgba(236, 0, 140, 0.10), transparent 30%),
+      linear-gradient(180deg, #f0fbff 0%, #f8fafc 56%, #fff0fa 100%);
   }
 
   .liff-panel {
@@ -219,9 +233,9 @@
   .admin-shell {
     min-height: 100vh;
     background:
-      radial-gradient(circle at top left, rgba(59, 130, 246, 0.14), transparent 22%),
-      radial-gradient(circle at top right, rgba(168, 85, 247, 0.14), transparent 26%),
-      linear-gradient(180deg, #020617 0%, #0f172a 18%, #e2e8f0 18%, #f8fafc 100%);
+      radial-gradient(circle at top left, rgba(0, 174, 239, 0.18), transparent 22%),
+      radial-gradient(circle at top right, rgba(236, 0, 140, 0.14), transparent 26%),
+      linear-gradient(180deg, #040e18 0%, #071825 18%, #e8f6fd 18%, #f8fafc 100%);
   }
 
   .admin-panel {
@@ -242,10 +256,10 @@
     position: relative;
     isolation: isolate;
     background:
-      radial-gradient(circle at top left, rgba(125, 211, 252, 0.26), transparent 24%),
-      radial-gradient(circle at top right, rgba(196, 181, 253, 0.22), transparent 28%),
-      radial-gradient(circle at bottom right, rgba(251, 191, 36, 0.18), transparent 24%),
-      linear-gradient(180deg, #f8fafc 0%, #eff6ff 38%, #eef2ff 100%);
+      radial-gradient(circle at top left, rgba(0, 174, 239, 0.24), transparent 24%),
+      radial-gradient(circle at top right, rgba(236, 0, 140, 0.18), transparent 28%),
+      radial-gradient(circle at bottom right, rgba(255, 242, 0, 0.16), transparent 24%),
+      linear-gradient(180deg, #f0fbff 0%, #f8fafc 38%, #fff8ff 100%);
   }
 
   .studio-shell::before {
@@ -747,6 +761,252 @@
     backdrop-filter: blur(10px);
   }
 
+  .studio-architecture-map {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 30px;
+    background:
+      linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.86)),
+      linear-gradient(135deg, rgba(186, 230, 253, 0.22), rgba(221, 214, 254, 0.18));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.82),
+      0 20px 46px rgba(15, 23, 42, 0.08);
+    padding: clamp(1rem, 2.4vw, 1.5rem);
+  }
+
+  .studio-architecture-map::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+      linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: linear-gradient(180deg, transparent, black 14%, black 84%, transparent);
+    opacity: 0.42;
+  }
+
+  .studio-architecture-stack {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1.35rem;
+  }
+
+  .studio-architecture-stack::before {
+    content: "";
+    position: absolute;
+    left: 1.35rem;
+    top: 2rem;
+    bottom: 2rem;
+    width: 2px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #22c55e, #3b82f6 38%, #7c3aed 62%, #14b8a6);
+    opacity: 0.34;
+  }
+
+  .studio-architecture-level {
+    position: relative;
+    padding-left: 3.6rem;
+  }
+
+  .studio-architecture-level-node {
+    position: absolute;
+    left: 0;
+    top: 1.35rem;
+    z-index: 3;
+    display: grid;
+    height: 2.8rem;
+    width: 2.8rem;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.86);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.88);
+    color: white;
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.16);
+  }
+
+  .studio-architecture-level-node span {
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+  }
+
+  .studio-architecture-floor {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border: 1px solid rgba(203, 213, 225, 0.86);
+    border-radius: 28px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.84)),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(226, 232, 240, 0.22));
+    padding: clamp(0.95rem, 2vw, 1.25rem);
+    box-shadow:
+      0 18px 40px rgba(15, 23, 42, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  }
+
+  .studio-architecture-floor::before {
+    content: "";
+    position: absolute;
+    inset: 28% 4% -18% 4%;
+    z-index: -2;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 34px;
+    background:
+      linear-gradient(135deg, rgba(226, 232, 240, 0.46), rgba(255, 255, 255, 0.2)),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+      linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+    background-size: auto, 32px 32px, 32px 32px;
+    transform: perspective(900px) rotateX(66deg) rotateZ(-1.4deg);
+    transform-origin: center bottom;
+  }
+
+  .studio-architecture-floor::after {
+    content: "";
+    position: absolute;
+    inset: auto 8% -18px;
+    z-index: -3;
+    height: 34px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.1);
+    filter: blur(16px);
+  }
+
+  .studio-architecture-floor-header {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .studio-architecture-floor-header p {
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(71, 85, 105, 0.88);
+  }
+
+  .studio-architecture-groups {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  .studio-architecture-groups-split {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .studio-architecture-group {
+    --architecture-accent: #3b82f6;
+    --architecture-soft: #dbeafe;
+    --architecture-deep: #1e3a8a;
+    --architecture-shadow: rgba(59, 130, 246, 0.2);
+    position: relative;
+    overflow: hidden;
+    border: 1px solid color-mix(in oklab, var(--architecture-accent) 28%, white);
+    border-radius: 24px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.72)),
+      linear-gradient(135deg, var(--architecture-soft), rgba(255, 255, 255, 0.24));
+    padding: 0.85rem;
+    box-shadow: 0 14px 30px var(--architecture-shadow);
+  }
+
+  .studio-architecture-group::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 4px;
+    background: var(--architecture-accent);
+  }
+
+  .studio-architecture-group-header {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .studio-architecture-section-index {
+    display: grid;
+    min-width: 1.8rem;
+    height: 1.8rem;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--architecture-accent);
+    color: white;
+    font-size: 0.72rem;
+    font-weight: 800;
+    box-shadow: 0 10px 18px var(--architecture-shadow);
+  }
+
+  .studio-architecture-group-header h4 {
+    color: #0f172a;
+    font-size: 0.9rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+  }
+
+  .studio-architecture-module-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 0.62rem;
+  }
+
+  .studio-architecture-module {
+    display: flex;
+    min-height: 82px;
+    align-items: center;
+    gap: 0.62rem;
+    border: 1px solid rgba(226, 232, 240, 0.92);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.88);
+    padding: 0.62rem;
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease,
+      transform 160ms ease;
+  }
+
+  .studio-architecture-module:hover {
+    border-color: color-mix(in oklab, var(--architecture-accent) 44%, white);
+    box-shadow: 0 16px 28px var(--architecture-shadow);
+    transform: translateY(-2px);
+  }
+
+  .studio-architecture-module-icon {
+    display: grid;
+    flex: 0 0 auto;
+    height: 3.2rem;
+    width: 3.2rem;
+    place-items: center;
+    border-radius: 16px;
+    background:
+      radial-gradient(circle at 26% 18%, rgba(255, 255, 255, 0.88), transparent 38%),
+      linear-gradient(180deg, white, var(--architecture-soft));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.88),
+      0 10px 18px var(--architecture-shadow);
+  }
+
+  .studio-architecture-module-label {
+    color: #0f172a;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.25rem;
+    overflow-wrap: anywhere;
+  }
+
   .studio-drawer {
     position: sticky;
     top: 1.25rem;
@@ -791,6 +1051,59 @@
 }
 
 @media (max-width: 1279px) {
+  .studio-architecture-groups-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .studio-architecture-map {
+    border-radius: 24px;
+    padding: 0.85rem;
+  }
+
+  .studio-architecture-stack::before {
+    display: none;
+  }
+
+  .studio-architecture-level {
+    padding-left: 0;
+    padding-top: 2.6rem;
+  }
+
+  .studio-architecture-level-node {
+    left: 0;
+    top: 0;
+    height: 2.2rem;
+    width: 2.2rem;
+  }
+
+  .studio-architecture-floor {
+    border-radius: 22px;
+    padding: 0.8rem;
+  }
+
+  .studio-architecture-floor::before {
+    transform: none;
+    opacity: 0.42;
+  }
+
+  .studio-architecture-module-grid {
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  }
+
+  .studio-architecture-module {
+    min-height: 74px;
+    align-items: flex-start;
+  }
+
+  .studio-architecture-module-icon {
+    height: 2.8rem;
+    width: 2.8rem;
+  }
+}
+
+@media (max-width: 1279px) {
   .studio-drawer {
     position: static;
   }
@@ -817,7 +1130,8 @@
 @media (prefers-reduced-motion: reduce) {
   .studio-reveal-panel,
   .studio-station,
-  .studio-token {
+  .studio-token,
+  .studio-architecture-module {
     animation: none !important;
     transition-duration: 0.01ms !important;
   }
