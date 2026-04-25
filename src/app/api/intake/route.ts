@@ -362,6 +362,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let referenceUploadWarning: string | null = null;
+
   if (customerMediaFiles.length > 0) {
     try {
       await uploadLeadMediaFiles({
@@ -374,10 +376,13 @@ export async function POST(request: NextRequest) {
       // to avoid orphaned leads on retry. The lead will be visible in admin
       // and can be manually processed.
       console.error(`Media upload failed for lead ${lead.id}:`, error);
-      
-      // Return success but note the media upload issue
+
+      // Keep the lead/quote flow intact, but tell the client the attachments
+      // were not stored so the customer can follow up without retrying intake.
       const mediaError = error instanceof Error ? error.message : "Unknown upload error";
       console.warn(`Lead ${lead.id} created successfully but media upload failed: ${mediaError}`);
+      referenceUploadWarning =
+        "เราได้รับรายละเอียดงานแล้ว แต่ไฟล์อ้างอิงยังอัปโหลดไม่สำเร็จ กรุณาส่งไฟล์กลับมาใน LINE หรือแนบลิงก์ไฟล์อีกครั้งเพื่อให้ทีมงานตรวจสอบได้ครบถ้วน";
     }
   }
 
@@ -451,6 +456,8 @@ export async function POST(request: NextRequest) {
       leadId: lead.id,
       needsReview: true,
       message: "Lead created — waiting for more customer input",
+      referenceUploadFailed: Boolean(referenceUploadWarning),
+      referenceUploadWarning,
     });
   }
 
@@ -540,5 +547,7 @@ export async function POST(request: NextRequest) {
     quoteId: quote.id,
     quoteToken: quote.public_token,
     total,
+    referenceUploadFailed: Boolean(referenceUploadWarning),
+    referenceUploadWarning,
   });
 }

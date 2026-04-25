@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { getDesignQueueLeads } from "../src/lib/admin-dashboard-queues";
-import type { BackofficeSnapshot } from "../src/lib/backoffice-snapshot";
+import { getDesignQueueLeads } from "../src/lib/admin-dashboard-queues.ts";
+import type { BackofficeSnapshot } from "../src/lib/backoffice-snapshot.ts";
 
 function makeSnapshot(): BackofficeSnapshot {
   return {

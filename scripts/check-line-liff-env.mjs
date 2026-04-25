@@ -75,9 +75,8 @@ const REQUIRED_ENV = [
 const isDeployCheck =
   process.argv.includes("--strict") ||
   process.env.CHECK_LINE_LIFF_ENV === "1" ||
-  process.env.VERCEL === "1" ||
-  process.env.CI === "true" ||
-  process.env.CI === "1";
+  process.env.CHECK_LINE_LIFF_ENV === "true" ||
+  process.env.VERCEL === "1";
 
 function clean(value) {
   return (value || "").trim();
@@ -101,7 +100,7 @@ const liffMismatch = liffId && publicLiffId && liffId !== publicLiffId;
 
 if (!isDeployCheck) {
   console.log(
-    "[line-liff-env] Skipping strict deploy env check outside Vercel/CI. Run with CHECK_LINE_LIFF_ENV=1 to validate locally."
+    "[line-liff-env] Skipping strict deploy env check outside Vercel or an explicit CHECK_LINE_LIFF_ENV run. Use CHECK_LINE_LIFF_ENV=1 to validate locally or in CI."
   );
   process.exit(0);
 }

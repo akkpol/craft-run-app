@@ -173,6 +173,25 @@ ADMIN_ALLOWED_EMAILS="admin@example.com,ops@example.com"
 
 ปกติไม่ต้อง มันไม่ใช่ app config หลักของระบบนี้
 
+## GitHub Actions CI
+
+CI (`npm run build`) จะรันในทุก push/PR และต้องมีค่า env ครบเช่นกัน
+ตั้งค่าเหล่านี้ใน **GitHub Repository → Settings → Secrets and variables → Actions**:
+
+| Secret | ค่าตัวอย่าง | หมายเหตุ |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://xxx.supabase.co` | |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_xxx` | |
+| `SUPABASE_SECRET_KEY` | `sb_secret_xxx` | |
+| `LINE_CHANNEL_SECRET` | `xxx` | |
+| `LINE_CHANNEL_ACCESS_TOKEN` | `xxx` | |
+| `LIFF_ID` | `1234567890-xxxxxxxx` | |
+| `NEXT_PUBLIC_LIFF_ID` | ค่าเดียวกับ `LIFF_ID` | |
+| `NEXT_PUBLIC_BASE_URL` | `https://your-app.vercel.app` | |
+| `ADMIN_ALLOWED_EMAILS` | `admin@example.com` | อีเมลที่เข้า `/admin` ได้ รองรับหลายอีเมลด้วย `,` หรือ `;` |
+
+ถ้าไม่ตั้ง `ADMIN_ALLOWED_EMAILS` build จะล้มด้วย `Missing admin allowlist` เพราะระบบ fail-closed
+
 ## คำเตือนสำคัญ
 
 - อย่า commit `.env.local`

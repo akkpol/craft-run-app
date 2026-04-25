@@ -2,6 +2,7 @@
 goal: Universal Action Tracking — Add action_ref to every system action
 version: 1.0
 date_created: 2026-04-19
+last_updated: 2026-04-25
 owner: Delivery Engineering
 status: In progress
 tags: [tracking, audit-log, action_ref, traceability]
@@ -58,6 +59,12 @@ Provides `logAction()`, `logSystemAction()`, `logAiAction()`, `logHumanAction()`
 |---|---|
 | `supabase/migrations/010_action_log.sql` | Create table + sequence + trigger |
 | `src/lib/action-log.ts` | Helper functions |
+
+### Current Verified Coverage
+
+- `src/app/api/settings/route.ts` now logs `settings.updated` through `logHumanAction()` with a sanitized payload of changed field names only.
+- The helper layer remains non-fatal by design; failed audit writes should not block the customer or admin path.
+- Unless explicitly noted here, the wave items below should still be treated as pending verification or pending implementation.
 
 ### Wave 2 — System/Webhook Layer
 | File | actor_type | Actions to log |
@@ -159,3 +166,4 @@ Never include: LINE user display names, phone numbers, or financial amounts in p
 - [ ] Manual test: submit LIFF form → verify `action_log` contains `lead.created` + `quote.created` with correct `action_ref` format
 - [ ] Manual test: admin changes job status → verify `job.status_changed` with `actor_type = 'human'`
 - [ ] Manual test: AI preview → verify `ai.preview_generated` with `actor_type = 'ai'`
+- [ ] Manual test: update runtime settings in `/admin/settings` → verify `settings.updated` with sanitized `changed_fields`
