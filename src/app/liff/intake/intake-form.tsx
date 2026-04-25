@@ -236,10 +236,19 @@ export default function IntakeForm({
     }
 
     for (const file of incoming) {
+      if (!file.type) {
+        setError("ไฟล์ต้องมีประเภทที่ชัดเจน กรุณาเลือกไฟล์ใหม่");
+        return;
+      }
       const isAllowed =
-        file.type.startsWith("image/") || file.type === "application/pdf";
+        file.type === "image/png" ||
+        file.type === "image/jpeg" ||
+        file.type === "image/webp" ||
+        file.type === "image/heic" ||
+        file.type === "image/heif" ||
+        file.type === "application/pdf";
       if (!isAllowed) {
-        setError("รองรับเฉพาะรูปภาพหรือ PDF");
+        setError("รองรับเฉพาะรูปภาพ PNG, JPG, WEBP, HEIC, HEIF หรือ PDF");
         return;
       }
       if (file.size > MAX_REFERENCE_FILE_SIZE) {
@@ -591,7 +600,7 @@ export default function IntakeForm({
                     <span className="mt-1 text-xs font-normal text-slate-500">สูงสุด 5 ไฟล์, ไฟล์ละไม่เกิน 10MB</span>
                     <input
                       type="file"
-                      accept="image/*,application/pdf"
+                      accept="image/png,image/jpeg,image/webp,image/heic,image/heif,application/pdf"
                       multiple
                       capture="environment"
                       onChange={(e) => {

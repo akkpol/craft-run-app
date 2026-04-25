@@ -2,17 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDesignStatus } from "@/lib/types";
 import { logHumanAction } from "@/lib/action-log";
+import { getSupabaseHost } from "@/lib/utils";
 
 function appendNote(existing: string | null | undefined, note: string) {
   return existing?.trim() ? `${existing.trim()}\n${note}` : note;
-}
-
-function getSupabaseHost() {
-  try {
-    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || "").host || "unknown";
-  } catch {
-    return "invalid";
-  }
 }
 
 export async function POST(

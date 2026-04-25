@@ -6,6 +6,7 @@ import {
   isDesignStatus,
 } from "@/lib/types";
 import { logHumanAction } from "@/lib/action-log";
+import { getSupabaseHost } from "@/lib/utils";
 
 type PublicQuoteAction =
   | "approve_quote"
@@ -17,14 +18,6 @@ type PublicQuoteAction =
 
 function appendCustomerNote(existing: string | null | undefined, note: string) {
   return existing?.trim() ? `${existing.trim()}\n${note}` : note;
-}
-
-function getSupabaseHost() {
-  try {
-    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || "").host || "unknown";
-  } catch {
-    return "invalid";
-  }
 }
 
 export async function POST(

@@ -251,7 +251,17 @@ export async function fetchBackofficeSnapshot(): Promise<BackofficeSnapshot> {
         .limit(20),
     ]);
 
-  const leads = (leadsRes.data || []) as SnapshotLead[];
+  const leads = leadsRes.error 
+    ? await (async () => {
+        // Fallback query without lead_media_assets if the relation is missing
+        const fallbackLeadsRes = await supabase
+          .from("leads")
+          .select("*, customers(*)")
+          .order("created_at", { ascending: false })
+          .limit(50);
+        return (fallbackLeadsRes.data || []) as SnapshotLead[];
+      })()
+    : ((leadsRes.data || []) as SnapshotLead[]);
   const quotes = (quotesRes.data || []) as SnapshotQuote[];
   let jobs = (jobsRes.data || []) as SnapshotJob[];
   if (jobsRes.error) {

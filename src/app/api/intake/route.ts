@@ -370,15 +370,14 @@ export async function POST(request: NextRequest) {
         files: customerMediaFiles,
       });
     } catch (error) {
-      return NextResponse.json(
-        {
-          error:
-            error instanceof Error
-              ? `ไม่สามารถอัปโหลดรูปอ้างอิงได้: ${error.message}`
-              : "ไม่สามารถอัปโหลดรูปอ้างอิงได้",
-        },
-        { status: 500 }
-      );
+      // Media upload failed after lead creation - log but don't rollback lead
+      // to avoid orphaned leads on retry. The lead will be visible in admin
+      // and can be manually processed.
+      console.error(`Media upload failed for lead ${lead.id}:`, error);
+      
+      // Return success but note the media upload issue
+      const mediaError = error instanceof Error ? error.message : "Unknown upload error";
+      console.warn(`Lead ${lead.id} created successfully but media upload failed: ${mediaError}`);
     }
   }
 

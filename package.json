@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "node --max-old-space-size=8192 ./node_modules/next/dist/bin/next dev",
     "dev:webpack": "node --max-old-space-size=12288 ./node_modules/next/dist/bin/next dev --webpack",
+    "prebuild": "node scripts/check-line-liff-env.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "check:line-liff-env": "node scripts/check-line-liff-env.mjs --strict",
     "check:workflow-policy": "node scripts/workflow-policy-smoke.mjs",
     "sandbox:help": "sandbox --help",
     "sandbox:login": "sandbox login",
@@ -17,6 +19,7 @@
     "sandbox:locked": "sandbox create --runtime node24 --timeout 30m --network-policy deny-all --connect"
   },
   "dependencies": {
+    "@google/stitch-sdk": "^0.1.0",
     "@line/bot-sdk": "^9.7.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@supabase/ssr": "^0.10.2",
