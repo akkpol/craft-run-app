@@ -204,6 +204,93 @@ When to do this:
 - treat `staff/admin profile` as the next real product gap
 - keep `Gemini` and `/studio` as controlled follow-up work, not launch blockers
 
+## PRD Additive Update (2026-04-25, Branch Scope)
+
+This update folds committed branch-only scope from `fix/quote-payment-instructions` into the existing product narrative.
+
+Included scope:
+
+- only committed changes in `origin/main..fix/quote-payment-instructions`
+- specifically the 8 commits listed in `docs/COPILOT_PRD_UPDATE_2026-04-25.md`
+
+Excluded scope:
+
+- uncommitted working-tree edits
+- local experiments not present in branch commits
+
+### 1. Product Overview
+
+- FOGUS remains LINE-first with payment-gated ERP flow as the business core.
+- Branch scope adds operational depth in three layers:
+	- customer self-service surfaces for quote and status tracking
+	- queue-first admin triage for day-to-day operations
+	- `/studio` companion visibility layer for architecture and queue context
+- The workflow canon is unchanged: runtime policy/state sources remain authoritative.
+
+### 2. Customer Journey
+
+- customer can still enter from LINE OA to LIFF intake and receive quote/status links.
+- customer-facing quote/status surfaces were refreshed and hardened for invalid/missing lead contexts.
+- customer now has tracking-code lookup at `/status` in addition to token links at `/status/[token]`.
+- intake now supports customer reference uploads directly from the LIFF form.
+
+### 3. Admin Operations / Queue Management
+
+- admin dashboard evolved into hybrid table/card triage queues for faster queue-first operation.
+- queue grouping and workflow-sensitive placement are formalized in shared queue logic and tests.
+- queue behavior must keep payment-gated work out of design queue until unlocked.
+
+### 4. Quote Approval And Payment Communication
+
+- payment instructions are now admin-configurable application settings.
+- payment instruction content is shown on both interactive quote pages and downloadable quote views.
+- payment gate behavior is unchanged in principle; commercial settings improve communication, not business-rule authority.
+
+### 5. Customer File Intake And Reference Handling
+
+- intake upload is now a real workflow capability, not cosmetic UI.
+- runtime write-path uses `customer-media` bucket and `lead_media_assets` metadata table.
+- admin read-path includes media preview in backoffice snapshot surfaces.
+- intake upload is separate from production evidence upload; do not merge these workflows in product logic.
+
+### 6. Tracking And Self-Service Status Lookup
+
+- tracking code is now a cross-surface retrieval handle for both customer follow-up and support operations.
+- customer can lookup by tracking code at `/status` and continue to token-specific status details.
+- admin quote/status surfaces expose tracking context to reduce support friction.
+
+### 7. Studio / Design Visibility Layer
+
+- `/studio` now includes an architecture-map layer and queue helper integration.
+- `/studio` is a companion visibility surface for design/ops context.
+- `/studio` is not the canonical workflow engine and must not override workflow policy sources.
+
+### 8. Runtime Prerequisites And Rollout Dependencies
+
+- apply migration `supabase/migrations/013_payment_instruction_settings.sql` before relying on configurable payment instructions.
+- apply migration `supabase/migrations/014_customer_media_assets.sql` and ensure storage bucket setup before enabling intake upload in production.
+- use go-live runbooks for upload and auth recovery:
+	- `docs/PRODUCTION_UPLOAD_GO_LIVE_CHECKLIST.md`
+	- `docs/SUPABASE_CLI_UNAUTHORIZED_RECOVERY.md`
+- operational readiness checks include:
+	- LIFF/LINE env wiring correctness
+	- schema cache freshness when new relations are deployed
+	- storage bucket availability and access policy correctness
+
+### 9. Risks / Non-Goals
+
+Risks:
+
+- runtime/config drift if migrations are not applied before enabling dependent UI/API paths
+- support confusion if tracking lookup and token links are presented inconsistently
+- queue regressions if payment-gated states leak into design queue
+
+Non-goals for this additive update:
+
+- no new business states beyond canonical workflow definitions
+- no replacement of workflow policy with prose-only PRD text
+- no one-shot cutover that merges intake upload and production evidence flows
+
 ## Actor Use Cases
 
 ### Customer
@@ -468,7 +555,9 @@ Explicit side branches:
 - GET  /liff (LIFF endpoint)
 - GET  /liff/intake (intake form)
 - GET  /quote/[token]
+- GET  /status (tracking code lookup)
 - GET  /status/[token]
+- GET  /studio
 - GET  /admin
 
 ## Smoke Test Checklist
