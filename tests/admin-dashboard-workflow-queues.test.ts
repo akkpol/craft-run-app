@@ -1,12 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { getDesignQueueLeads } from "../src/lib/admin-dashboard-queues.ts";
-import type { BackofficeSnapshot } from "../src/lib/backoffice-snapshot.ts";
+import { getDesignQueueLeads } from "../src/lib/admin-dashboard-queues";
+import type { BackofficeSnapshot } from "../src/lib/backoffice-snapshot";
 
 function makeSnapshot(): BackofficeSnapshot {
   return {
     leads: [
+      {
+        id: "lead-waiting-quote-approval",
+        conversation_id: "conv-waiting-quote-approval",
+        product_type: "signage",
+        width_mm: 900,
+        height_mm: 450,
+        qty: 1,
+        status: "approved",
+        created_at: "2026-04-25T09:58:00.000Z",
+        design_status: "not_started",
+        customers: { display_name: "Quote Gate", phone: null },
+      },
       {
         id: "lead-waiting-payment",
         conversation_id: "conv-waiting-payment",
@@ -39,6 +51,13 @@ function makeSnapshot(): BackofficeSnapshot {
     recentConversations: [],
     conversations: [
       {
+        id: "conv-waiting-quote-approval",
+        line_user_id: "line-user-0",
+        state: "WAITING_QUOTE_APPROVAL",
+        last_message_at: "2026-04-25T09:58:00.000Z",
+        created_at: "2026-04-25T09:50:00.000Z",
+      },
+      {
         id: "conv-waiting-payment",
         line_user_id: "line-user-1",
         state: "WAITING_PAYMENT",
@@ -56,10 +75,12 @@ function makeSnapshot(): BackofficeSnapshot {
   };
 }
 
-test("payment-gated leads do not leak into the design queue", () => {
+test("quote/payment-gated leads do not leak into the design queue", () => {
   const designQueueLeadIds = getDesignQueueLeads(makeSnapshot()).map(
     (lead) => lead.id
   );
 
   assert.deepEqual(designQueueLeadIds, ["lead-in-design"]);
+  assert.equal(designQueueLeadIds.includes("lead-waiting-quote-approval"), false);
+  assert.equal(designQueueLeadIds.includes("lead-waiting-payment"), false);
 });

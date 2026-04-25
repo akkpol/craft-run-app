@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { getLineLoginChannelIdFromLiffId } from "../src/lib/line-liff-identity.ts";
-import { getProductionReviewDecision } from "../src/lib/production-review.ts";
+import { getLineLoginChannelIdFromLiffId } from "../src/lib/line-liff-identity";
+import { getProductionReviewDecision } from "../src/lib/production-review";
 
 test("getLineLoginChannelIdFromLiffId extracts the LINE Login channel ID", () => {
   assert.equal(
