@@ -20,9 +20,23 @@ export default function LeadAiPreviewActions({ leadId, prompt, status }: Props) 
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [toast, setToast] = useState<AdminToastState | null>(null);
+  const localCommand = `pwsh -File .\\scripts\\invoke-gpt-image-2.ps1 -LeadId "${leadId}" -PromptFromClipboard`;
 
   if (!prompt) {
     return null;
+  }
+
+  async function copyValue(value: string, title: string, description: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setToast({
+        tone: "success",
+        title,
+        description,
+      });
+    } catch {
+      window.prompt("คัดลอกข้อความนี้", value);
+    }
   }
 
   async function generatePreview() {
@@ -91,6 +105,47 @@ export default function LeadAiPreviewActions({ leadId, prompt, status }: Props) 
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-700">
             {prompt}
+          </div>
+          <div className="rounded-2xl border border-dashed border-sky-200 bg-sky-50/70 p-4 text-sm text-slate-700">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="max-w-xl">
+                <p className="font-medium text-slate-900">Local GPT Image 2 handoff</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">
+                  ใช้กับ /studio หรือ local design assist ได้โดยคัดลอก prompt แล้วรัน wrapper ใน repo นี้บนเครื่อง dev
+                  เส้นทางนี้เป็น local workflow ไม่ใช่ provider ของ production route
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={() =>
+                    copyValue(
+                      prompt,
+                      "คัดลอก prompt แล้ว",
+                      "พร้อมใช้กับ GPT Image 2 local หรือ workflow อื่นฝั่ง studio"
+                    )
+                  }
+                >
+                  คัดลอก prompt
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={() =>
+                    copyValue(
+                      localCommand,
+                      "คัดลอกคำสั่ง GPT Image 2 แล้ว",
+                      "รันจาก root ของ repo นี้ และเติม -DryRun ถ้าต้องการเช็ก command ก่อน"
+                    )
+                  }
+                >
+                  คัดลอกคำสั่ง GPT Image 2
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </AdminActionSheet>

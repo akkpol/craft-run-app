@@ -1,56 +1,45 @@
 import { getRuntimeAppConfig } from "@/lib/app-settings";
 import {
-  fetchBackofficeSnapshot,
-  getBackofficeKpis,
-} from "@/lib/backoffice-snapshot";
-import { buildProductionLinkUrl } from "@/lib/production-links";
-import { getShareableProductionToken, isExpired } from "@/lib/production-media";
+  fetchAdminOverviewPage,
+  isOverviewFilterKey,
+} from "@/lib/admin-overview";
+import { buildBackofficeAutomationSnapshot } from "@/lib/backoffice-automation";
+import { fetchBackofficeSnapshot } from "@/lib/backoffice-snapshot";
 
 import AdminDashboardClient from "./admin-dashboard-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminPage() {
-  const config = await getRuntimeAppConfig();
-  const snapshot = await fetchBackofficeSnapshot();
-  const kpis = getBackofficeKpis(snapshot);
-  const baseUrl = config.baseUrl;
+function firstValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
 
-  const snapshotWithLinks = {
-    ...snapshot,
-    jobs: snapshot.jobs.map((job) => {
-      const activeLink = (job.job_production_links || []).find(
-        (link) => link.status === "active" && !isExpired(link.expires_at)
-      );
+export default async function AdminPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const searchParams = await props.searchParams;
+  const requestedFilter = firstValue(searchParams.filter);
+  const requestedPage = Number(firstValue(searchParams.page) || "1");
+  const filter = requestedFilter && isOverviewFilterKey(requestedFilter)
+    ? requestedFilter
+    : "all";
 
-      return {
-        ...job,
-        production_link_url: activeLink
-          ? buildProductionLinkUrl(
-              baseUrl,
-              getShareableProductionToken(activeLink.id)
-            )
-          : null,
-      };
-    }),
-    productionReviewQueue: snapshot.productionReviewQueue.map((event) => ({
-      ...event,
-      production_link_url:
-        event.job_production_links?.status === "active" &&
-        !isExpired(event.job_production_links.expires_at)
-          ? buildProductionLinkUrl(
-              baseUrl,
-              getShareableProductionToken(event.job_production_links.id)
-            )
-          : null,
-    })),
-  };
+  const [config, snapshot] = await Promise.all([
+    getRuntimeAppConfig(),
+    fetchBackofficeSnapshot(),
+  ]);
+  const automation = buildBackofficeAutomationSnapshot(snapshot);
+  const overview = await fetchAdminOverviewPage({
+    baseUrl: config.baseUrl,
+    filter,
+    page: Number.isFinite(requestedPage) ? requestedPage : 1,
+  });
 
   return (
     <AdminDashboardClient
-      baseUrl={baseUrl}
-      kpis={kpis}
-      snapshot={snapshotWithLinks}
+      baseUrl={config.baseUrl}
+      automation={automation}
+      overview={overview}
     />
   );
 }

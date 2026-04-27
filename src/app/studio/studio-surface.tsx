@@ -316,7 +316,7 @@ function StudioTokenNode({
       data-has-owner={token.ownerLabel ? "true" : "false"}
       data-just-arrived={isJustArrived ? "true" : "false"}
       className={cn(
-        "studio-token group relative flex min-w-[134px] max-w-[180px] flex-col gap-2 rounded-[26px] px-0 py-0 text-left transition duration-300 hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/75",
+        "studio-token group relative flex min-w-33.5 max-w-45 flex-col gap-2 rounded-[26px] px-0 py-0 text-left transition duration-300 hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/75",
         isSelected ? "ring-2 ring-slate-900/70" : "ring-0"
       )}
       onClick={(event) => {
@@ -538,7 +538,7 @@ function StudioDrawer({
   const stationArt = station ? getStationArtConfig(station.id) : null;
 
   return (
-    <aside className="studio-drawer studio-reveal-panel flex min-h-[420px] flex-col overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/96 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur">
+    <aside className="studio-drawer studio-reveal-panel flex min-h-105 flex-col overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/96 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur">
       <div className="border-b border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.98),rgba(255,255,255,0.94))] px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -645,7 +645,7 @@ function StudioDrawer({
                       "No production object yet"}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    Updated {new Date(token.lastUpdatedAt).toLocaleString("th-TH")}
+                    Updated {token.lastUpdatedLabel}
                   </p>
                 </div>
               </section>
@@ -859,7 +859,7 @@ function StudioDrawer({
               </section>
             </div>
           ) : (
-            <div className="flex h-full min-h-[260px] items-center justify-center px-8 text-center">
+            <div className="flex h-full min-h-65 items-center justify-center px-8 text-center">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Cute Studio is ready</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -1065,7 +1065,7 @@ export default function StudioSurface({
 
   return (
     <div className="studio-shell min-h-screen px-4 py-5 text-slate-950 sm:px-5 lg:px-6">
-      <div className="mx-auto flex max-w-[1660px] flex-col gap-5">
+      <div className="mx-auto flex max-w-415 flex-col gap-5">
         <header className="studio-hero studio-reveal-panel overflow-hidden rounded-[34px] border border-slate-900/10 px-5 py-5 text-slate-950 shadow-[0_26px_70px_rgba(15,23,42,0.16)] sm:px-6">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-4xl">
@@ -1113,6 +1113,12 @@ export default function StudioSurface({
                 className="rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
               >
                 Admin Fallback
+              </Link>
+              <Link
+                href="/admin/profile"
+                className="rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
+              >
+                Profile
               </Link>
               <Link
                 href="/admin/settings"
@@ -1230,7 +1236,7 @@ export default function StudioSurface({
                   </p>
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-3 xl:min-w-[520px]">
+                <div className="grid gap-2 sm:grid-cols-3 xl:min-w-130">
                   {[
                     {
                       label: "Escalated now",
@@ -1384,7 +1390,7 @@ export default function StudioSurface({
                     </div>
                   </div>
 
-                  <div className="relative z-[2] grid gap-3 md:grid-cols-4 xl:grid-cols-7 xl:grid-rows-3">
+                  <div className="relative z-2 grid gap-3 md:grid-cols-4 xl:grid-cols-7 xl:grid-rows-3">
                     {filteredStations.map((station) => (
                       <StudioStationNode
                         key={station.id}

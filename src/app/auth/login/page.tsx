@@ -5,6 +5,8 @@ const LOGIN_ERROR_MESSAGES = {
     'ยังไม่ได้ตั้งค่า ADMIN_ALLOWED_EMAILS หรือ ADMIN_EMAIL ระบบจึงปิด /admin ไว้ก่อนเพื่อความปลอดภัย',
   admin_not_allowed:
     'บัญชีนี้ล็อกอินได้ แต่ยังไม่ได้รับสิทธิ์เข้า /admin ติดต่อผู้ดูแลให้เพิ่มอีเมลนี้ใน allowlist ก่อน',
+  invalid_credentials: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
+  login_failed: 'ยังไม่สามารถเข้าสู่ระบบได้ในตอนนี้ ลองใหม่อีกครั้ง',
 } as const
 
 function firstValue(value: string | string[] | undefined) {
