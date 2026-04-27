@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import ts from "typescript";
 
-import { normalizeWorkflowState } from "../src/lib/workflow-state";
+import { normalizeWorkflowState } from "../src/lib/workflow-state.ts";
 
 const workflowTransitionsUrl = new URL(
   "../src/lib/workflow-transitions.ts",
@@ -12,7 +12,7 @@ const workflowTransitionsUrl = new URL(
 const workflowStateUrl = new URL("../src/lib/workflow-state.ts", import.meta.url);
 const workflowTransitionsSource = await readFile(workflowTransitionsUrl, "utf8");
 const patchedWorkflowTransitionsSource = workflowTransitionsSource.replace(
-  'from "./workflow-state";',
+  /from "\.\/workflow-state";/,
   `from ${JSON.stringify(workflowStateUrl.href)};`
 );
 const transpiledWorkflowTransitions = ts.transpileModule(
