@@ -52,6 +52,7 @@ export type SnapshotLead = {
   reference_info?: string | null;
   design_brief?: string | null;
   ai_image_prompt?: string | null;
+  ai_prompt_snapshot?: string | null;
   ai_image_status?: string | null;
   ai_generated_images?: string[] | null;
   requested_document_type?: string | null;

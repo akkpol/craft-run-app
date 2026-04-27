@@ -585,6 +585,7 @@ export interface LeadRow {
   reference_info: string;
   design_brief?: string;
   ai_image_prompt?: string;
+  ai_prompt_snapshot?: string;
   ai_image_status?: "not_requested" | "pending" | "generated" | "failed";
   ai_generated_images?: string[];
   ai_image_error?: string;

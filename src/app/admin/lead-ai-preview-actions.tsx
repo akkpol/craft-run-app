@@ -86,7 +86,7 @@ export default function LeadAiPreviewActions({ leadId, prompt, status }: Props) 
         open={open}
         onClose={() => setOpen(false)}
         title="สร้างภาพตัวอย่างด้วย AI"
-        description="ระบบจะใช้ prompt เดิมของ lead เพื่อ generate preview และเลื่อนสถานะไปยังขั้นตอนให้ลูกค้าตรวจแบบ"
+        description="ระบบจะใช้ final prompt snapshot ของ lead เพื่อ generate preview และเลื่อนสถานะไปยังขั้นตอนให้ลูกค้าตรวจแบบ"
         badge="Design"
         footer={
           <div className="flex items-center justify-end gap-2">
@@ -101,7 +101,7 @@ export default function LeadAiPreviewActions({ leadId, prompt, status }: Props) 
       >
         <div className="space-y-3">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            prompt นี้จะถูกใช้ตรง ๆ กับ AI pipeline ของระบบ
+            final prompt snapshot นี้จะถูกใช้ตรง ๆ กับ AI pipeline ของระบบ
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-700">
             {prompt}
