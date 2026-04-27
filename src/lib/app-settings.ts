@@ -3,6 +3,14 @@ import {
   getDefaultProductionSettings,
   normalizeProductionRetentionDays,
 } from "@/lib/production-settings";
+import {
+  DEFAULT_PAYMENT_DISPLAY_MODE,
+  type PaymentDisplayMode,
+} from "@/lib/payment-display";
+import {
+  type PaymentRoutingTermScope,
+  type PaymentRoutingCustomerScope,
+} from "@/lib/payment-routing";
 
 export const APP_SETTINGS_ID = "default";
 
@@ -15,6 +23,20 @@ export type AppSettingsRow = {
   payment_bank_name: string | null;
   payment_account_number: string | null;
   payment_promptpay_id: string | null;
+  payment_qr_code_url: string | null;
+  payment_qr_code_label: string | null;
+  payment_display_mode: PaymentDisplayMode | null;
+  payment_secondary_account_name: string | null;
+  payment_secondary_bank_name: string | null;
+  payment_secondary_account_number: string | null;
+  payment_secondary_promptpay_id: string | null;
+  payment_secondary_qr_code_url: string | null;
+  payment_secondary_qr_code_label: string | null;
+  payment_secondary_display_mode: PaymentDisplayMode | null;
+  payment_secondary_instructions: string | null;
+  payment_secondary_max_quote_total: number | null;
+  payment_secondary_customer_scope: PaymentRoutingCustomerScope | null;
+  payment_secondary_payment_terms_scope: PaymentRoutingTermScope | null;
   payment_instructions: string | null;
   business_logo_url: string | null;
   business_catalog_url: string | null;
@@ -44,6 +66,20 @@ export type RuntimeAppConfig = {
   paymentBankName: string;
   paymentAccountNumber: string;
   paymentPromptPayId: string;
+  paymentQrCodeUrl: string;
+  paymentQrCodeLabel: string;
+  paymentDisplayMode: PaymentDisplayMode;
+  paymentSecondaryAccountName: string;
+  paymentSecondaryBankName: string;
+  paymentSecondaryAccountNumber: string;
+  paymentSecondaryPromptPayId: string;
+  paymentSecondaryQrCodeUrl: string;
+  paymentSecondaryQrCodeLabel: string;
+  paymentSecondaryDisplayMode: PaymentDisplayMode;
+  paymentSecondaryInstructions: string;
+  paymentSecondaryMaxQuoteTotal: number | null;
+  paymentSecondaryCustomerScope: PaymentRoutingCustomerScope;
+  paymentSecondaryPaymentTermsScope: PaymentRoutingTermScope;
   paymentInstructions: string;
   businessLogoUrl: string;
   businessCatalogUrl: string;
@@ -119,6 +155,26 @@ export async function getRuntimeAppConfig(): Promise<RuntimeAppConfig> {
     paymentBankName: normalizeText(settings?.payment_bank_name),
     paymentAccountNumber: normalizeText(settings?.payment_account_number),
     paymentPromptPayId: normalizeText(settings?.payment_promptpay_id),
+    paymentQrCodeUrl: normalizeUrl(settings?.payment_qr_code_url),
+    paymentQrCodeLabel: normalizeText(settings?.payment_qr_code_label),
+    paymentDisplayMode: settings?.payment_display_mode || DEFAULT_PAYMENT_DISPLAY_MODE,
+    paymentSecondaryAccountName: normalizeText(settings?.payment_secondary_account_name),
+    paymentSecondaryBankName: normalizeText(settings?.payment_secondary_bank_name),
+    paymentSecondaryAccountNumber: normalizeText(settings?.payment_secondary_account_number),
+    paymentSecondaryPromptPayId: normalizeText(settings?.payment_secondary_promptpay_id),
+    paymentSecondaryQrCodeUrl: normalizeUrl(settings?.payment_secondary_qr_code_url),
+    paymentSecondaryQrCodeLabel: normalizeText(settings?.payment_secondary_qr_code_label),
+    paymentSecondaryDisplayMode:
+      settings?.payment_secondary_display_mode || DEFAULT_PAYMENT_DISPLAY_MODE,
+    paymentSecondaryInstructions: normalizeText(settings?.payment_secondary_instructions),
+    paymentSecondaryMaxQuoteTotal:
+      typeof settings?.payment_secondary_max_quote_total === "number"
+        ? settings.payment_secondary_max_quote_total
+        : null,
+    paymentSecondaryCustomerScope:
+      settings?.payment_secondary_customer_scope || "none",
+    paymentSecondaryPaymentTermsScope:
+      settings?.payment_secondary_payment_terms_scope || "none",
     paymentInstructions: normalizeText(settings?.payment_instructions),
     businessLogoUrl: normalizeUrl(settings?.business_logo_url),
     businessCatalogUrl: normalizeUrl(settings?.business_catalog_url),

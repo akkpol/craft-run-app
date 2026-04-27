@@ -8,6 +8,65 @@ import { getLineLoginChannelIdFromLiffId } from "./line-liff-identity";
 import type { ProductionEventType } from "@/lib/production-review";
 import type { WorkflowState } from "@/lib/types";
 
+type VerifyIdTokenResponse = {
+  sub?: unknown;
+  name?: unknown;
+  picture?: unknown;
+  email?: unknown;
+  auth_time?: unknown;
+  amr?: unknown;
+  error_description?: unknown;
+};
+
+type VerifyAccessTokenResponse = {
+  scope?: unknown;
+  client_id?: unknown;
+  expires_in?: unknown;
+  error_description?: unknown;
+};
+
+type LineProfileResponse = {
+  userId?: unknown;
+  displayName?: unknown;
+  pictureUrl?: unknown;
+  statusMessage?: unknown;
+};
+
+type FriendshipStatusResponse = {
+  friendFlag?: unknown;
+};
+
+function normalizeText(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : null;
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => normalizeText(entry))
+      .filter((entry): entry is string => Boolean(entry));
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(/\s+/)
+      .map((entry) => normalizeText(entry))
+      .filter((entry): entry is string => Boolean(entry));
+  }
+
+  return [];
+}
+
+async function readJsonResponse<T>(response: Response): Promise<T | null> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 export async function getLineClient() {
   const config = await getRuntimeAppConfig();
   return new messagingApi.MessagingApiClient({
@@ -27,6 +86,10 @@ export async function verifySignature(body: string, signature: string): Promise<
 export async function verifyLiffIdToken(idToken: string): Promise<{
   userId: string;
   displayName: string | null;
+  pictureUrl: string | null;
+  email: string | null;
+  authTime: number | null;
+  amr: string[];
 }> {
   const trimmedIdToken = idToken.trim();
   if (!trimmedIdToken) {
@@ -51,23 +114,7 @@ export async function verifyLiffIdToken(idToken: string): Promise<{
     cache: "no-store",
   });
 
-  let payload:
-    | {
-        sub?: unknown;
-        name?: unknown;
-        error_description?: unknown;
-      }
-    | null = null;
-
-  try {
-    payload = (await response.json()) as {
-      sub?: unknown;
-      name?: unknown;
-      error_description?: unknown;
-    };
-  } catch {
-    payload = null;
-  }
+  const payload = await readJsonResponse<VerifyIdTokenResponse>(response);
 
   if (!response.ok) {
     const description =
@@ -87,6 +134,118 @@ export async function verifyLiffIdToken(idToken: string): Promise<{
     displayName:
       typeof payload?.name === "string" && payload.name.trim().length > 0
         ? payload.name.trim()
+        : null,
+    pictureUrl: normalizeText(payload?.picture),
+    email: normalizeText(payload?.email),
+    authTime:
+      typeof payload?.auth_time === "number" && Number.isFinite(payload.auth_time)
+        ? payload.auth_time
+        : null,
+    amr: normalizeStringList(payload?.amr),
+  };
+}
+
+export async function getVerifiedLiffAccessProfile(
+  accessToken: string,
+  expectedUserId?: string | null
+): Promise<{
+  userId: string;
+  displayName: string | null;
+  pictureUrl: string | null;
+  statusMessage: string | null;
+  friendshipStatus: boolean | null;
+  scope: string[];
+  expiresIn: number | null;
+}> {
+  const trimmedAccessToken = accessToken.trim();
+  if (!trimmedAccessToken) {
+    throw new Error("Missing LIFF access token");
+  }
+
+  const config = await getRuntimeAppConfig();
+  const clientId = getLineLoginChannelIdFromLiffId(config.liffId);
+  if (!clientId) {
+    throw new Error("Missing or invalid LIFF ID configuration");
+  }
+
+  const verifyResponse = await fetch(
+    `https://api.line.me/oauth2/v2.1/verify?${new URLSearchParams({
+      access_token: trimmedAccessToken,
+    }).toString()}`,
+    {
+      cache: "no-store",
+    }
+  );
+  const verifyPayload = await readJsonResponse<VerifyAccessTokenResponse>(
+    verifyResponse
+  );
+
+  if (!verifyResponse.ok) {
+    const description =
+      typeof verifyPayload?.error_description === "string"
+        ? verifyPayload.error_description
+        : "LINE rejected the LIFF access token";
+    throw new Error(description);
+  }
+
+  if (normalizeText(verifyPayload?.client_id) !== clientId) {
+    throw new Error("LIFF access token was issued for a different LINE channel");
+  }
+
+  const profileResponse = await fetch("https://api.line.me/v2/profile", {
+    headers: {
+      Authorization: `Bearer ${trimmedAccessToken}`,
+    },
+    cache: "no-store",
+  });
+  const profilePayload = await readJsonResponse<LineProfileResponse>(
+    profileResponse
+  );
+
+  if (!profileResponse.ok) {
+    throw new Error("Failed to load LINE profile from LIFF access token");
+  }
+
+  const userId = normalizeText(profilePayload?.userId);
+  if (!userId) {
+    throw new Error("LINE profile response did not include a user ID");
+  }
+
+  if (expectedUserId && expectedUserId.trim() && expectedUserId !== userId) {
+    throw new Error("LIFF access token user does not match the verified ID token user");
+  }
+
+  let friendshipStatus: boolean | null = null;
+  const friendshipResponse = await fetch(
+    "https://api.line.me/friendship/v1/status",
+    {
+      headers: {
+        Authorization: `Bearer ${trimmedAccessToken}`,
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (friendshipResponse.ok) {
+    const friendshipPayload =
+      await readJsonResponse<FriendshipStatusResponse>(friendshipResponse);
+    friendshipStatus =
+      typeof friendshipPayload?.friendFlag === "boolean"
+        ? friendshipPayload.friendFlag
+        : null;
+  }
+
+  return {
+    userId,
+    displayName: normalizeText(profilePayload?.displayName),
+    pictureUrl: normalizeText(profilePayload?.pictureUrl),
+    statusMessage: normalizeText(profilePayload?.statusMessage),
+    friendshipStatus,
+    scope: normalizeStringList(verifyPayload?.scope),
+    expiresIn:
+      typeof verifyPayload?.expires_in === "number" &&
+      Number.isFinite(verifyPayload.expires_in)
+        ? verifyPayload.expires_in
         : null,
   };
 }

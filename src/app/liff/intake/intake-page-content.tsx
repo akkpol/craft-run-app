@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { getRuntimeAppConfig } from "@/lib/app-settings";
 import IntakeForm from "./intake-form";
 
@@ -11,21 +12,40 @@ function firstValue(
   return value;
 }
 
+function isLocalHost(host: string | null) {
+  if (!host) {
+    return false;
+  }
+
+  const normalizedHost = host.toLowerCase();
+
+  return (
+    normalizedHost.startsWith("localhost:") ||
+    normalizedHost.startsWith("127.0.0.1:") ||
+    normalizedHost.startsWith("0.0.0.0:")
+  );
+}
+
 export default async function IntakePageContent(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const config = await getRuntimeAppConfig();
   const searchParams = await props.searchParams;
+  const headerStore = await headers();
+  const requestHost =
+    headerStore.get("x-forwarded-host") || headerStore.get("host");
   const initialCategory = firstValue(searchParams.category);
   const initialProduct =
     firstValue(searchParams.product) || firstValue(searchParams.productType);
   const intakeMode =
     firstValue(searchParams.mode) === "fresh" ? "fresh" : "resume";
   const disableLiffForLocalTest =
-    process.env.NODE_ENV !== "production" && firstValue(searchParams.devNoLiff) === "1";
+    isLocalHost(requestHost) ||
+    (process.env.NODE_ENV !== "production" && firstValue(searchParams.devNoLiff) === "1");
 
   return (
     <IntakeForm
+      businessName={config.businessName}
       liffId={disableLiffForLocalTest ? "" : config.liffId}
       uploadUrl={config.customerUploadUrl}
       uploadLabel={config.customerUploadLabel}
