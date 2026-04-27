@@ -151,6 +151,22 @@ type StationDef = (typeof STUDIO_STATIONS)[number];
 type StudioTokenKind = "conversation" | "quote" | "job";
 type StudioPriorityTone = "neutral" | "active" | "blocked" | "done";
 
+const STUDIO_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat("th-TH", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Asia/Bangkok",
+});
+
+function formatStudioTimestamp(value: string) {
+  const parsedDate = new Date(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return value;
+  }
+
+  return STUDIO_TIMESTAMP_FORMATTER.format(parsedDate);
+}
+
 export type StudioToken = {
   id: string;
   conversationId: string;
@@ -170,6 +186,7 @@ export type StudioToken = {
   amountLabel: string | null;
   createdAt: string;
   lastUpdatedAt: string;
+  lastUpdatedLabel: string;
   availableActions: string[];
   conversation: SnapshotConversation;
   lead: SnapshotLead | null;
@@ -478,6 +495,9 @@ export function buildStudioView(snapshot: BackofficeSnapshot): StudioViewModel {
       amountLabel: quote ? `฿${Number(quote.total).toLocaleString("en-US")}` : null,
       createdAt: conversation.created_at,
       lastUpdatedAt: conversation.last_message_at || conversation.created_at,
+      lastUpdatedLabel: formatStudioTimestamp(
+        conversation.last_message_at || conversation.created_at
+      ),
       availableActions: getAvailableActions(conversation, lead, quote, job),
       conversation,
       lead,

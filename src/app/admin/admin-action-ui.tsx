@@ -59,7 +59,7 @@ export function AdminActionToast({
     );
 
   return (
-    <div className="pointer-events-none fixed inset-x-4 top-4 z-[90] flex justify-end sm:inset-x-auto sm:right-4 sm:w-full sm:max-w-sm">
+    <div className="pointer-events-none fixed inset-x-4 top-4 z-90 flex justify-end sm:inset-x-auto sm:right-4 sm:w-full sm:max-w-sm">
       <div
         className={cn(
           "pointer-events-auto w-full rounded-2xl border bg-white p-4 shadow-[0_20px_50px_rgba(15,23,42,0.2)]",
@@ -221,7 +221,7 @@ export function AdminActionSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-[80]">
+    <div className="fixed inset-0 z-50">
       <button
         type="button"
         aria-label="ปิดแผงจัดการ"

@@ -12,7 +12,9 @@ export default async function Customer360Page(
 
   const { data: customer, error } = await supabase
     .from("customers")
-    .select("id, line_user_id, display_name, phone, created_at")
+    .select(
+      "id, line_user_id, display_name, phone, line_email, line_picture_url, line_status_message, line_friendship_status, last_liff_profile, last_liff_context, created_at"
+    )
     .eq("id", id)
     .single();
 
@@ -31,7 +33,7 @@ export default async function Customer360Page(
       supabase
         .from("leads")
         .select(
-          "id, product_type, width_mm, height_mm, qty, status, due_date, note_from_form, created_at"
+          "id, product_type, width_mm, height_mm, qty, status, due_date, note_from_form, requested_document_type, billing_entity_type, billing_name, tax_id, billing_address, liff_profile_snapshot, liff_context_snapshot, created_at"
         )
         .eq("customer_id", id)
         .order("created_at", { ascending: false })

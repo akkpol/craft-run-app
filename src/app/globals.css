@@ -217,17 +217,36 @@
     min-height: 100dvh;
     padding-bottom: env(safe-area-inset-bottom);
     background:
-      radial-gradient(circle at top left, rgba(0, 174, 239, 0.16), transparent 28%),
-      radial-gradient(circle at bottom right, rgba(236, 0, 140, 0.10), transparent 30%),
-      linear-gradient(180deg, #f0fbff 0%, #f8fafc 56%, #fff0fa 100%);
+      radial-gradient(circle at 10% 12%, rgba(245, 158, 11, 0.12), transparent 22%),
+      radial-gradient(circle at 88% 18%, rgba(15, 23, 42, 0.05), transparent 24%),
+      radial-gradient(circle at 78% 92%, rgba(251, 191, 36, 0.12), transparent 20%),
+      linear-gradient(180deg, #f6f2ea 0%, #fbfaf7 48%, #f2ece2 100%);
   }
 
   .liff-panel {
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    border-radius: 24px;
-    background: rgba(255, 255, 255, 0.94);
-    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
-    backdrop-filter: blur(14px);
+    border: 1px solid rgba(120, 113, 108, 0.14);
+    border-radius: 22px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.9)),
+      linear-gradient(135deg, rgba(255, 251, 235, 0.42), rgba(255, 255, 255, 0));
+    box-shadow:
+      0 24px 56px rgba(28, 25, 23, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(18px);
+  }
+
+  .liff-thai {
+    font-family: var(--font-liff-thai), var(--font-sans), system-ui, sans-serif;
+  }
+
+  .liff-thai h1,
+  .liff-thai h2,
+  .liff-thai h3,
+  .liff-thai button,
+  .liff-thai input,
+  .liff-thai select,
+  .liff-thai textarea {
+    font-family: inherit;
   }
 
   .admin-shell {
@@ -1018,6 +1037,13 @@
   }
 
   .flow-theme-hero {
+    position: relative;
+    overflow: hidden;
+    color: white;
+    background: var(--flow-hero-bg);
+  }
+
+  .liff-flow-hero {
     position: relative;
     overflow: hidden;
     color: white;
