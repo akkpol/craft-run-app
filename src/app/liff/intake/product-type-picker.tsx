@@ -7,29 +7,28 @@ import {
   getDefaultProductCatalog,
   type ProductCatalogItem,
 } from "@/lib/product-catalog";
-import {
-  type ProductCategoryValue,
-  type ProductTypeValue,
-} from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+type ProductCatalogValue = string;
+type ProductCatalogCategory = string;
 
 type ProductTypePickerProps = {
   value: string;
-  onChange: (value: ProductTypeValue | "") => void;
+  onChange: (value: ProductCatalogValue | "") => void;
   onSelectedProductChange?: (product: ProductCatalogItem | null) => void;
   initialCategory?: string;
   initialProduct?: string;
 };
 
 type ProductCategoryOption = {
-  value: "all" | ProductCategoryValue;
+  value: "all" | ProductCatalogCategory;
   label: string;
 };
 
 function normalizeCategory(
   value: string | undefined,
   products: ProductCatalogItem[]
-): "all" | ProductCategoryValue {
+): "all" | ProductCatalogCategory {
   if (!value) {
     return "all";
   }
@@ -42,7 +41,7 @@ function normalizeCategory(
 function normalizeProduct(
   value: string | undefined,
   products: ProductCatalogItem[]
-): ProductTypeValue | null {
+): ProductCatalogValue | null {
   if (!value) {
     return null;
   }
@@ -65,7 +64,7 @@ export default function ProductTypePicker({
   const [catalogSource, setCatalogSource] = useState<
     "loading" | "database" | "fallback"
   >("loading");
-  const [activeCategory, setActiveCategory] = useState<"all" | ProductCategoryValue>(
+  const [activeCategory, setActiveCategory] = useState<"all" | ProductCatalogCategory>(
     normalizeCategory(initialCategory, getDefaultProductCatalog())
   );
   const [query, setQuery] = useState("");

@@ -12,7 +12,7 @@ export async function POST(
 
   const { data: lead, error } = await supabase
     .from("leads")
-    .select("id, product_type, width_mm, height_mm, qty, note_from_form, reference_info, ai_image_prompt")
+    .select("id, product_type, width_mm, height_mm, qty, note_from_form, reference_info, design_brief, ai_image_prompt")
     .eq("id", id)
     .single();
 
