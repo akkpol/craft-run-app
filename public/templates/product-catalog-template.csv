@@ -1,0 +1,4 @@
+value,label,category,category_label,description,keywords,per_sqm,min_charge,active,sort_order
+vinyl_banner,ป้ายไวนิล,signage,ป้ายและหน้าร้าน,เหมาะกับป้ายโปรโมชัน ป้ายหน้าร้าน และงานด่วน,"ไวนิล|แบนเนอร์|banner",250,500,true,10
+acrylic_sign,ป้ายอะคริลิค,signage,ป้ายและหน้าร้าน,งานป้ายพรีเมียม ตัวอักษร โลโก้ หรือป้ายบริษัท,"อะคริลิค|โลโก้|acrylic",3500,1500,true,20
+sticker,สติ๊กเกอร์,label,สติ๊กเกอร์และฉลาก,ฉลากสินค้า สติ๊กเกอร์ติดแพ็กเกจ และงานไดคัท,"สติ๊กเกอร์|label|sticker",350,300,true,30

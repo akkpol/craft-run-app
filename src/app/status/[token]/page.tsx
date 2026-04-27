@@ -2,9 +2,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { resolveProductCatalogLabel } from "@/lib/product-catalog";
 import {
   DESIGN_STATUS_LABELS,
-  PRODUCT_TYPES,
   designStatusNeedsCustomerResponse,
   isDesignStatus,
   type DesignStatus,
@@ -43,7 +43,10 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   ) || [];
 
-  const productLabel = PRODUCT_TYPES.find((p) => p.value === lead?.product_type)?.label || lead?.product_type || "ไม่ระบุ";
+  const productLabel = resolveProductCatalogLabel({
+    productType: lead?.product_type,
+    productLabelSnapshot: lead?.product_label_snapshot,
+  });
   const statusInfo = STATUS_DISPLAY[job?.status] || { label: job?.status || "ไม่ระบุ", color: "bg-gray-100 text-gray-700", icon: "📋" };
   const designStatus: DesignStatus | null = isDesignStatus(lead?.design_status || "")
     ? (lead.design_status as DesignStatus)
@@ -66,7 +69,16 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
 
         {/* Current status */}
         <div className="bg-white px-6 py-6 border-b border-gray-100 text-center">
-          <div className="text-4xl mb-2">{statusInfo.icon}</div>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <div className="text-4xl">{statusInfo.icon}</div>
+            <button
+              onClick={() => navigator.clipboard.writeText(token)}
+              className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+              title="Copy tracking code"
+            >
+              📋
+            </button>
+          </div>
           <div className={`inline-block px-4 py-1.5 rounded-full text-sm font-medium ${statusInfo.color}`}>
             {statusInfo.label}
           </div>
