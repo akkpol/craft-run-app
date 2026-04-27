@@ -15,11 +15,12 @@ FOGUS is a LINE OA + LIFF + Next.js 16.2 ERP for a Thai print & signage shop. Cu
 ```bash
 npm run dev                        # local development
 npm run build                      # validate production compilation
+npm test                           # stable mixed-runner test suite (node:test + Vitest)
 npm run lint                       # ESLint (run after route/middleware/TS changes)
 npm run check:workflow-policy      # smoke-test workflow policy consistency
 ```
 
-No automated test script exists. Validate with lint + build + manual flow verification.
+Use `npm test` for the repository test suite. Keep validating major app changes with `npm run lint`, `npm run build`, and manual flow verification.
 
 ---
 

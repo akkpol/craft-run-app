@@ -6,9 +6,17 @@ Scope ของฟีเจอร์:
 
 - ลูกค้าอัปโหลดไฟล์จากหน้า `/liff/intake`
 - API intake รับ `multipart/form-data`
-- backend อัปโหลดไฟล์เข้า storage bucket `customer-media`
+- backend อัปโหลดไฟล์เข้า storage provider ที่ active อยู่:
+  - default = Supabase Storage bucket `customer-media`
+  - optional = private Cloudflare R2 bucket `customer-media`
 - metadata ถูกบันทึกในตาราง `lead_media_assets`
 - admin เห็น preview ใน Design Queue
+
+หมายเหตุ rollout ปัจจุบัน:
+
+- `lead_media_assets` เป็น source of truth สำหรับ metadata เสมอ
+- ถ้าเปิด R2 ต้อง apply migration ที่เพิ่ม `storage_provider` และ `storage_bucket` ด้วย
+- current phase ยังไม่ใช้ direct browser-to-R2 upload จาก LIFF
 
 ## 1) Pre-flight
 
@@ -80,6 +88,12 @@ where id = 'customer-media';
 
 - query แรกต้องคืนค่า `public.lead_media_assets`
 - query สองต้องมี row ของ bucket `customer-media`
+
+ถ้าเปิดใช้ R2 ด้วย ให้ยืนยันเพิ่ม:
+
+- migration `20260426174619_lead_media_storage_provider_r2.sql` ถูก apply แล้ว
+- ตาราง `lead_media_assets` มีคอลัมน์ `storage_provider` และ `storage_bucket`
+- Vercel env ของ `CLOUDFLARE_R2_BUCKET`, `CLOUDFLARE_R2_ENDPOINT`, `CLOUDFLARE_R2_ACCESS_KEY_ID`, `CLOUDFLARE_R2_SECRET_ACCESS_KEY` ถูกตั้งครบ
 
 ## 4) Application Smoke Checks (Production)
 

@@ -15,6 +15,7 @@
 - `LINE MINI App / LIFF` = หน้า mini app ที่เปิดใน LINE
 - `Supabase` = database, auth, server data
 - `NEXT_PUBLIC_BASE_URL` = URL หลักของแอป
+- `Cloudflare R2` = optional private blob storage สำหรับ customer media โดยยังให้ Supabase ถือ metadata/permission mapping
 - Backoffice ใช้ `Supabase Auth + email allowlist` ไม่ได้ใช้ password จาก env โดยตรง
 
 ## หมายเหตุอัปเดต 2026
@@ -91,6 +92,11 @@
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase Project Settings | publishable key สำหรับ browser/SSR | public/client |
 | `SUPABASE_SECRET_KEY` | Supabase Project Settings | สิทธิ์ server-only สำหรับ API/admin work | server only |
 | `NEXT_PUBLIC_BASE_URL` | กำหนดเอง | ใช้สร้างลิงก์ `/quote/...`, `/status/...`, `/liff` | public/client |
+| `CLOUDFLARE_R2_BUCKET` | Cloudflare Dashboard > R2 | ชื่อ bucket สำหรับเก็บ customer media blobs | server only |
+| `CLOUDFLARE_R2_ENDPOINT` | Cloudflare Dashboard > R2 | S3-compatible endpoint สำหรับ signed upload/read | server only |
+| `CLOUDFLARE_R2_ACCESS_KEY_ID` | Cloudflare Dashboard > R2 API Tokens | access key สำหรับ server-side R2 client | server only |
+| `CLOUDFLARE_R2_SECRET_ACCESS_KEY` | Cloudflare Dashboard > R2 API Tokens | secret key สำหรับ server-side R2 client | server only |
+| `CLOUDFLARE_R2_REGION` | กำหนดเอง | region hint สำหรับ S3 client; ใช้ `auto` สำหรับ R2 โดยทั่วไป | server only |
 | `VERCEL_OIDC_TOKEN` | Vercel CLI / runtime | token สำหรับ integration บางแบบ ไม่ใช่ค่าที่ user ต้องกรอกเอง | deployment only |
 
 ## URL ที่ต้องใส่ให้ถูก
@@ -150,6 +156,23 @@ ADMIN_ALLOWED_EMAILS="admin@example.com,ops@example.com"
 - `NEXT_PUBLIC_LIFF_ID` ใช้ได้
 - `SUPABASE_SECRET_KEY` ห้ามย้ายไปเป็น `NEXT_PUBLIC_`
 - `LINE_CHANNEL_SECRET` ห้ามใช้ฝั่ง client
+- `CLOUDFLARE_R2_ACCESS_KEY_ID` และ `CLOUDFLARE_R2_SECRET_ACCESS_KEY` ต้องอยู่ฝั่ง server เท่านั้น
+
+## Cloudflare R2 สำหรับ customer media
+
+โหมดที่รองรับในตอนนี้คือ:
+
+- upload request ยังเข้าที่ application/API boundary เหมือนเดิม
+- server เป็นคนอัปโหลดไฟล์เข้า private R2 bucket เมื่อ env ของ R2 ถูกตั้งครบ
+- Supabase ยังเก็บ metadata ของไฟล์และ mapping กับ lead/job/customer
+- ถ้า env ของ R2 ยังไม่ครบ ระบบจะ fallback ไป Supabase Storage path เดิม
+
+ข้อสำคัญ:
+
+- อย่า expose credential ของ R2 ไปที่ LIFF client
+- อย่าเปิด bucket ลูกค้าเป็น public เพื่อแก้ปัญหา preview เร็ว ๆ
+- signed URL ควรถูกสร้างจาก server-side code เท่านั้น
+- ถ้าจะไปสู่ direct browser-to-R2 upload ให้ถือว่าเป็น phase ถัดไปที่ต้องทดสอบ LIFF/LINE behavior แยกต่างหาก
 
 ## ข้อที่งงบ่อย
 

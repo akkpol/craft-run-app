@@ -2,7 +2,7 @@
 goal: Customer Handoff Plan for FOGUS ERP Production Delivery
 version: 1.0
 date_created: 2026-04-18
-last_updated: 2026-04-18
+last_updated: 2026-04-26
 owner: Delivery Engineering
 status: In progress
 tags: [process, release, handoff, deployment, verification]
@@ -13,6 +13,14 @@ tags: [process, release, handoff, deployment, verification]
 ![Status: In progress](https://img.shields.io/badge/status-In%20progress-yellow)
 
 This plan defines a deterministic production handoff process for delivering the FOGUS application to a customer with verifiable quality gates, environment correctness, and operational readiness.
+
+## Role In Plan Stack
+
+This file is a supporting handoff and release-readiness plan, not the primary execution plan.
+
+Use it when the work is about release evidence, go/no-go verification, deployment readiness, or customer handoff procedure.
+
+For day-to-day implementation order and current backlog sequencing, use [process-go-live-waves-1.md](process-go-live-waves-1.md) first.
 
 ## 1. Requirements & Constraints
 
@@ -79,6 +87,42 @@ This plan defines a deterministic production handoff process for delivering the 
 | TASK-020 | Record release evidence: command outputs, screenshots, quote PDF output, and test outcomes mapped to requirements IDs. |  |  |
 | TASK-021 | Conduct Go/No-Go review using section 7 risks and assumptions. |  |  |
 | TASK-022 | Obtain customer acceptance sign-off and schedule hypercare window (48-72 hours). |  |  |
+
+#### Handoff Package Skeleton
+
+Use this skeleton as the fill-in structure for TASK-018 through TASK-022.
+
+| Section | Required Fields | Status |
+|---|---|---|
+| Release Identity | deployed URL, admin URL, active branch, landing commit or tag, handoff date | Pending |
+| Ownership Map | Vercel owner, Supabase owner, LINE console owner, LIFF owner, primary technical contact | Pending |
+| Environment Ownership | env key owner, where each secret is stored, rotation owner, last rotation note | Pending |
+| Access Rules | approved admin/staff emails, sign-in path, escalation contact if access fails | Pending |
+| Evidence Bundle | build result, lint result, workflow smoke result, manual UAT notes, quote PDF sample, screenshots | Pending |
+| Runtime Configuration | base URL, derived webhook URL, derived LIFF endpoint URL, company settings owner | Pending |
+| Rollback Trigger | exact conditions that trigger rollback, rollback owner, fastest rollback step | Pending |
+| Hypercare Window | start time, end time, primary responder, backup responder, support channel | Pending |
+| Acceptance Record | decision owner, sign-off date, open issues accepted into backlog, next review checkpoint | Pending |
+
+#### Current Pre-Filled Snapshot (2026-04-26)
+
+| Field | Current Known Value |
+|---|---|
+| Repository | `akkpol/craft-run-app` |
+| Active branch | `fix/quote-payment-instructions` |
+| Default branch | `main` |
+| Local build signal | `npm run build` exited with code `0` |
+| Local lint signal | `npm run lint` exited with code `0` |
+| Local workflow signal | `node scripts/workflow-policy-smoke.mjs` exited with code `0` |
+| Still missing before handoff package is complete | deployed URL, admin URL, env ownership map, console ownership map, rollback owner, decision-owner sign-off |
+
+#### Handoff Evidence Intake Checklist
+
+- Build and lint results must be attached as summaries, not just marked verbally complete.
+- Workflow smoke evidence must reference the exact command and date run.
+- At least one printable quote sample should be attached or linked for the handoff dossier.
+- Manual LINE and LIFF checks should record who executed them and against which environment.
+- Open known issues must be explicitly moved into backlog instead of staying implied.
 
 ### Implementation Phase 5
 
