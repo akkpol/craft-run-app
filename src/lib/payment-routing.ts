@@ -1,7 +1,7 @@
 import {
   DEFAULT_PAYMENT_DISPLAY_MODE,
   type PaymentDisplayMode,
-} from "./payment-display.ts";
+} from "./payment-display";
 
 export const PAYMENT_ROUTING_CUSTOMER_SCOPES = [
   "none",
@@ -62,8 +62,8 @@ type PaymentRoutingSettings = {
   primaryProfile: PaymentProfile;
   secondaryProfile?: PaymentProfile | null;
   secondaryMaxQuoteTotal?: number | null;
-  secondaryCustomerScope?: PaymentRoutingCustomerScope | string | null;
-  secondaryPaymentTermsScope?: PaymentRoutingTermScope | string | null;
+  secondaryCustomerScope?: PaymentRoutingCustomerScope | string | null | undefined;
+  secondaryPaymentTermsScope?: PaymentRoutingTermScope | string | null | undefined;
 };
 
 type PaymentRoutingConfigInput = {
@@ -141,13 +141,15 @@ export function isPaymentRoutingTermScope(
 function normalizeCustomerScope(
   value: string | null | undefined
 ): PaymentRoutingCustomerScope {
-  return isPaymentRoutingCustomerScope(value || "") ? value : "none";
+  const candidate = value || "";
+  return isPaymentRoutingCustomerScope(candidate) ? candidate : "none";
 }
 
 function normalizeTermScope(
   value: string | null | undefined
 ): PaymentRoutingTermScope {
-  return isPaymentRoutingTermScope(value || "") ? value : "none";
+  const candidate = value || "";
+  return isPaymentRoutingTermScope(candidate) ? candidate : "none";
 }
 
 function profileHasAnyChannel(profile: Required<PaymentProfile>) {

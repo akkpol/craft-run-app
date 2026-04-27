@@ -80,15 +80,19 @@ export async function POST(request: NextRequest) {
     if (contentType.includes("multipart/form-data")) {
       const formData = await request.formData();
       const getString = (name: string) => String(formData.get(name) || "");
+      const getOptionalString = (name: string) => {
+        const value = getString(name);
+        return value || undefined;
+      };
       customerMediaFiles = formData
         .getAll("referenceFiles")
         .filter((value): value is File => value instanceof File && value.size > 0);
       data = {
-        lineUserId: getString("lineUserId") || undefined,
-        displayName: getString("displayName") || undefined,
-        liffIdToken: getString("liffIdToken") || undefined,
-        liffAccessToken: getString("liffAccessToken") || undefined,
-        liffContextSnapshot: getString("liffContextSnapshot") || undefined,
+        lineUserId: getOptionalString("lineUserId"),
+        displayName: getOptionalString("displayName"),
+        liffIdToken: getOptionalString("liffIdToken"),
+        liffAccessToken: getOptionalString("liffAccessToken"),
+        liffContextSnapshot: getOptionalString("liffContextSnapshot"),
         productType: getString("productType"),
         width: Number(getString("width")),
         height: Number(getString("height")),
@@ -96,26 +100,30 @@ export async function POST(request: NextRequest) {
         qty: Number(getString("qty")) || 1,
         dueDate: getString("dueDate"),
         phone: getString("phone"),
-        requestedDocumentType: getString("requestedDocumentType") || undefined,
+        requestedDocumentType:
+          getOptionalString("requestedDocumentType") as IntakeFormData["requestedDocumentType"],
         note: getString("note"),
         referenceInfo: getString("referenceInfo"),
-        billingEntityType: getString("billingEntityType") || undefined,
-        billingBranchType: getString("billingBranchType") || undefined,
-        billingBranchCode: getString("billingBranchCode") || undefined,
-        billingName: getString("billingName") || undefined,
-        taxId: getString("taxId") || undefined,
-        billingAddress: getString("billingAddress") || undefined,
-        fulfillmentMode: getString("fulfillmentMode") || undefined,
-        fulfillmentAddressLine1: getString("fulfillmentAddressLine1") || undefined,
-        fulfillmentAddressLine2: getString("fulfillmentAddressLine2") || undefined,
-        fulfillmentSubdistrict: getString("fulfillmentSubdistrict") || undefined,
-        fulfillmentDistrict: getString("fulfillmentDistrict") || undefined,
-        fulfillmentProvince: getString("fulfillmentProvince") || undefined,
-        fulfillmentPostalCode: getString("fulfillmentPostalCode") || undefined,
+        billingEntityType:
+          getOptionalString("billingEntityType") as IntakeFormData["billingEntityType"],
+        billingBranchType:
+          getOptionalString("billingBranchType") as IntakeFormData["billingBranchType"],
+        billingBranchCode: getOptionalString("billingBranchCode"),
+        billingName: getOptionalString("billingName"),
+        taxId: getOptionalString("taxId"),
+        billingAddress: getOptionalString("billingAddress"),
+        fulfillmentMode:
+          getOptionalString("fulfillmentMode") as IntakeFormData["fulfillmentMode"],
+        fulfillmentAddressLine1: getOptionalString("fulfillmentAddressLine1"),
+        fulfillmentAddressLine2: getOptionalString("fulfillmentAddressLine2"),
+        fulfillmentSubdistrict: getOptionalString("fulfillmentSubdistrict"),
+        fulfillmentDistrict: getOptionalString("fulfillmentDistrict"),
+        fulfillmentProvince: getOptionalString("fulfillmentProvince"),
+        fulfillmentPostalCode: getOptionalString("fulfillmentPostalCode"),
         fulfillmentLatitude: parseOptionalNumber(getString("fulfillmentLatitude")) ?? undefined,
         fulfillmentLongitude: parseOptionalNumber(getString("fulfillmentLongitude")) ?? undefined,
-        aiImagePrompt: getString("aiImagePrompt") || undefined,
-        intakeMode: (getString("intakeMode") || undefined) as IntakeFormData["intakeMode"],
+        aiImagePrompt: getOptionalString("aiImagePrompt"),
+        intakeMode: getOptionalString("intakeMode") as IntakeFormData["intakeMode"],
       };
     } else {
       data = await request.json();
@@ -169,7 +177,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let intakeIdentity: { userId: string; displayName: string | null };
+  let intakeIdentity: Awaited<ReturnType<typeof verifyLiffIdToken>>;
   if (providedLiffIdToken) {
     try {
       intakeIdentity = await verifyLiffIdToken(providedLiffIdToken);
@@ -185,6 +193,10 @@ export async function POST(request: NextRequest) {
     intakeIdentity = {
       userId: providedLineUserId,
       displayName: providedDisplayName || "ลูกค้า",
+      pictureUrl: null,
+      email: null,
+      authTime: null,
+      amr: [],
     };
   } else {
     return NextResponse.json(

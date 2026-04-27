@@ -1,9 +1,14 @@
-import { PRICING, PRODUCT_TYPES } from "@/lib/types";
+import {
+  PRICING,
+  PRODUCT_TYPES,
+  type ProductCategoryValue,
+  type ProductTypeValue,
+} from "@/lib/types";
 
 export type ProductCatalogItem = {
-  value: string;
+  value: ProductTypeValue | string;
   label: string;
-  category: string;
+  category: ProductCategoryValue | string;
   categoryLabel: string;
   description: string;
   keywords: string[];
@@ -119,7 +124,7 @@ function buildGeneratedProductValue(
   return `product-${lineNumber}-${simpleHash(`${category}:${label}`)}`;
 }
 
-export function getDefaultProductCatalog() {
+export function getDefaultProductCatalog(): ProductCatalogItem[] {
   return DEFAULT_PRODUCT_CATALOG.map((item) => ({
     ...item,
     keywords: [...item.keywords],
