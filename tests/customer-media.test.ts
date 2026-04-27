@@ -11,6 +11,43 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+const { mockR2Send, mockGetSignedUrl } = vi.hoisted(() => ({
+  mockR2Send: vi.fn(),
+  mockGetSignedUrl: vi.fn(),
+}));
+
+vi.mock("@aws-sdk/client-s3", () => ({
+  S3Client: class {
+    send = mockR2Send;
+  },
+  PutObjectCommand: class {
+    input: unknown;
+
+    constructor(input: unknown) {
+      this.input = input;
+    }
+  },
+  DeleteObjectCommand: class {
+    input: unknown;
+
+    constructor(input: unknown) {
+      this.input = input;
+    }
+  },
+  GetObjectCommand: class {
+    input: unknown;
+
+    constructor(input: unknown) {
+      this.input = input;
+    }
+  },
+}));
+
+vi.mock("@aws-sdk/s3-request-presigner", () => ({
+  getSignedUrl: mockGetSignedUrl,
+}));
+
 import {
   validateCustomerMediaFiles,
   uploadLeadMediaFiles,
@@ -110,6 +147,11 @@ describe("validateCustomerMediaFiles", () => {
 describe("uploadLeadMediaFiles", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.CLOUDFLARE_R2_BUCKET;
+    delete process.env.CLOUDFLARE_R2_ENDPOINT;
+    delete process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+    delete process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+    delete process.env.CLOUDFLARE_R2_REGION;
   });
 
   it("should return empty array for no files", async () => {
@@ -261,11 +303,42 @@ describe("uploadLeadMediaFiles", () => {
     expect(mockSupabase.storage.from).not.toHaveBeenCalled();
     expect(mockSupabase.from).not.toHaveBeenCalled();
   });
+
+  it("should upload files to R2 when R2 env is configured", async () => {
+    process.env.CLOUDFLARE_R2_BUCKET = "customer-media";
+    process.env.CLOUDFLARE_R2_ENDPOINT = "https://example.r2.cloudflarestorage.com";
+    process.env.CLOUDFLARE_R2_ACCESS_KEY_ID = "test-access-key";
+    process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY = "test-secret-key";
+
+    mockR2Send.mockResolvedValue({});
+    vi.mocked(mockSupabase.from).mockReturnValue({
+      insert: vi.fn().mockResolvedValue({ error: null }),
+      delete: vi.fn(),
+    } as never);
+
+    const result = await uploadLeadMediaFiles({
+      supabase: mockSupabase,
+      leadId: "test-lead-id",
+      files: [createMockFile("test.jpg", "image/jpeg", 1024)],
+    });
+
+    expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+    expect(mockR2Send).toHaveBeenCalledTimes(1);
+    expect(result[0]).toMatchObject({
+      storage_provider: "r2",
+      storage_bucket: "customer-media",
+    });
+  });
 });
 
 describe("signLeadMediaAssetPaths", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.CLOUDFLARE_R2_BUCKET;
+    delete process.env.CLOUDFLARE_R2_ENDPOINT;
+    delete process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+    delete process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+    delete process.env.CLOUDFLARE_R2_REGION;
   });
 
   it("should create signed URLs for valid paths", async () => {
@@ -329,5 +402,28 @@ describe("signLeadMediaAssetPaths", () => {
     const result = await signLeadMediaAssetPaths(mockSupabase, []);
     expect(result).toEqual({});
     expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+  });
+
+  it("should create signed URLs for R2-backed assets", async () => {
+    process.env.CLOUDFLARE_R2_BUCKET = "customer-media";
+    process.env.CLOUDFLARE_R2_ENDPOINT = "https://example.r2.cloudflarestorage.com";
+    process.env.CLOUDFLARE_R2_ACCESS_KEY_ID = "test-access-key";
+    process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY = "test-secret-key";
+
+    mockGetSignedUrl.mockResolvedValue("https://example.com/r2-signed");
+
+    const result = await signLeadMediaAssetPaths(mockSupabase, [
+      {
+        storage_path: "path-r2.jpg",
+        storage_provider: "r2",
+        storage_bucket: "customer-media",
+      },
+    ]);
+
+    expect(result).toEqual({
+      "path-r2.jpg": "https://example.com/r2-signed",
+    });
+    expect(mockSupabase.storage.from).not.toHaveBeenCalled();
+    expect(mockGetSignedUrl).toHaveBeenCalledTimes(1);
   });
 });

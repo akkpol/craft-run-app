@@ -1,10 +1,18 @@
 import { randomUUID } from "node:crypto";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  getDefaultCustomerMediaBucket,
+  removeCustomerMediaObjects,
+  signCustomerMediaAssetLocators,
+  type CustomerMediaAssetLocator,
+  type CustomerMediaStorageProvider,
+  uploadCustomerMediaObject,
+} from "./customer-media-storage";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
-export const CUSTOMER_MEDIA_BUCKET = "customer-media";
+export const CUSTOMER_MEDIA_BUCKET = getDefaultCustomerMediaBucket();
 export const MAX_CUSTOMER_MEDIA_FILES = 5;
 export const MAX_CUSTOMER_MEDIA_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -22,6 +30,8 @@ export type LeadMediaAssetRow = {
   id: string;
   lead_id: string;
   storage_path: string;
+  storage_provider?: CustomerMediaStorageProvider | null;
+  storage_bucket?: string | null;
   original_file_name: string | null;
   mime_type: string | null;
   file_size_bytes: number | null;
@@ -77,7 +87,7 @@ export async function uploadLeadMediaFiles({
   }
 
   const createdAt = new Date().toISOString();
-  const uploadedPaths: string[] = [];
+  const uploadedAssets: CustomerMediaAssetLocator[] = [];
   const insertedAssetIds: string[] = [];
 
   try {
@@ -86,24 +96,22 @@ export async function uploadLeadMediaFiles({
     for (const file of files) {
       const storagePath = buildLeadMediaStoragePath(leadId, file.name);
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const { error: uploadError } = await supabase.storage
-        .from(CUSTOMER_MEDIA_BUCKET)
-        .upload(storagePath, bytes, {
-          contentType: file.type || "application/octet-stream",
-          upsert: false,
-        });
+      const uploadedAsset = await uploadCustomerMediaObject({
+        supabase,
+        storagePath,
+        bytes,
+        contentType: file.type || "application/octet-stream",
+      });
 
-      if (uploadError) {
-        throw new Error(uploadError.message);
-      }
-
-      uploadedPaths.push(storagePath);
+      uploadedAssets.push(uploadedAsset);
       const assetId = randomUUID();
       insertedAssetIds.push(assetId);
       assetRows.push({
         id: assetId,
         lead_id: leadId,
         storage_path: storagePath,
+        storage_provider: uploadedAsset.storage_provider,
+        storage_bucket: uploadedAsset.storage_bucket,
         original_file_name: file.name || null,
         mime_type: file.type,
         file_size_bytes: file.size,
@@ -122,8 +130,11 @@ export async function uploadLeadMediaFiles({
     return assetRows;
   } catch (error) {
     // Clean up only the files and DB rows from this failed request
-    if (uploadedPaths.length > 0) {
-      await supabase.storage.from(CUSTOMER_MEDIA_BUCKET).remove(uploadedPaths);
+    if (uploadedAssets.length > 0) {
+      await removeCustomerMediaObjects({
+        supabase,
+        assets: uploadedAssets,
+      });
     }
 
     if (insertedAssetIds.length > 0) {
@@ -133,23 +144,39 @@ export async function uploadLeadMediaFiles({
   }
 }
 
+function normalizeLeadMediaAssetInputs(
+  assetsOrPaths: Array<
+    string | Pick<LeadMediaAssetRow, "storage_path" | "storage_provider" | "storage_bucket">
+  >
+): CustomerMediaAssetLocator[] {
+  return assetsOrPaths.map((assetOrPath) => {
+    if (typeof assetOrPath === "string") {
+      return {
+        storage_path: assetOrPath,
+        storage_provider: "supabase",
+        storage_bucket: CUSTOMER_MEDIA_BUCKET,
+      };
+    }
+
+    return {
+      storage_path: assetOrPath.storage_path,
+      storage_provider: assetOrPath.storage_provider,
+      storage_bucket: assetOrPath.storage_bucket,
+    };
+  });
+}
+
 export async function signLeadMediaAssetPaths(
   supabase: AdminClient,
-  paths: string[]
+  assetsOrPaths: Array<
+    string | Pick<LeadMediaAssetRow, "storage_path" | "storage_provider" | "storage_bucket">
+  >
 ): Promise<Record<string, string>> {
-  const results: Record<string, string> = {};
+  const assets = normalizeLeadMediaAssetInputs(assetsOrPaths);
 
-  await Promise.all(
-    paths.map(async (path) => {
-      const { data, error } = await supabase.storage
-        .from(CUSTOMER_MEDIA_BUCKET)
-        .createSignedUrl(path, SIGNED_CUSTOMER_MEDIA_URL_TTL_SECONDS);
-
-      if (!error && data?.signedUrl) {
-        results[path] = data.signedUrl;
-      }
-    })
-  );
-
-  return results;
+  return signCustomerMediaAssetLocators({
+    supabase,
+    assets,
+    expiresIn: SIGNED_CUSTOMER_MEDIA_URL_TTL_SECONDS,
+  });
 }
