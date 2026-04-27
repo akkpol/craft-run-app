@@ -1,14 +1,20 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getRuntimeAppConfig } from "@/lib/app-settings";
+import { resolveProductCatalogLabel } from "@/lib/product-catalog";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  BILLING_BRANCH_TYPE_LABELS,
+  DOCUMENT_REQUEST_TYPE_LABELS,
   PAYMENT_STATUS_LABELS,
   PAYMENT_TERM_LABELS,
-  PRODUCT_TYPES,
+  type BillingBranchType,
+  type DocumentRequestType,
   type PaymentStatus,
   type PaymentTerm,
 } from "@/lib/types";
+import { getPaymentDisplayState } from "@/lib/payment-display";
+import { resolvePaymentProfileFromConfig } from "@/lib/payment-routing";
 import PrintToolbar from "./print-toolbar";
 
 export const dynamic = "force-dynamic";
@@ -75,10 +81,12 @@ export default async function QuoteDownloadPage(props: {
   const lead = quote.leads;
   const customer = lead?.customers;
   const items = (quote.quote_items || []) as QuoteItem[];
-  const productLabel =
-    PRODUCT_TYPES.find((product) => product.value === lead?.product_type)?.label ||
-    lead?.product_type ||
-    "ไม่ระบุ";
+  const productLabel = resolveProductCatalogLabel({
+    productType: lead?.product_type,
+    productLabelSnapshot: lead?.product_label_snapshot,
+  });
+  const requestedDocumentType =
+    (lead?.requested_document_type as DocumentRequestType | undefined) || "quote";
   const paymentTerms = quote.payment_terms as PaymentTerm;
   const paymentStatus = quote.payment_status as PaymentStatus;
   const quoteNumber = `QT-${token.slice(0, 8).toUpperCase()}`;
@@ -88,19 +96,39 @@ export default async function QuoteDownloadPage(props: {
     lead?.height_mm
   )} / ${lead?.qty || 0} ชิ้น`;
   const displayRows = items.length > 0 ? items : [null];
-  const paymentDetails = [
-    { label: "ธนาคาร", value: config.paymentBankName },
-    { label: "ชื่อบัญชี", value: config.paymentAccountName },
-    { label: "เลขบัญชี", value: config.paymentAccountNumber },
-    { label: "พร้อมเพย์ / PromptPay", value: config.paymentPromptPayId },
-  ].filter(
-    (detail): detail is { label: string; value: string } => Boolean(detail.value)
-  );
+  const paymentRouting =
+    quote.payment_profile_snapshot && typeof quote.payment_profile_snapshot === "object" && "profile" in quote.payment_profile_snapshot
+      ? (quote.payment_profile_snapshot as ReturnType<typeof resolvePaymentProfileFromConfig>)
+      : resolvePaymentProfileFromConfig(config, {
+          total: quote.total,
+          billingEntityType: lead?.billing_entity_type || null,
+          paymentTerms,
+        });
+  const paymentDisplay = getPaymentDisplayState({
+    paymentDisplayMode: paymentRouting.profile.displayMode,
+    paymentBankName: paymentRouting.profile.bankName,
+    paymentAccountName: paymentRouting.profile.accountName,
+    paymentAccountNumber: paymentRouting.profile.accountNumber,
+    paymentPromptPayId: paymentRouting.profile.promptPayId,
+    paymentQrCodeUrl: paymentRouting.profile.qrCodeUrl,
+    paymentQrCodeLabel: paymentRouting.profile.qrCodeLabel,
+  });
   const paymentHelpText =
     paymentTerms === "credit"
       ? "รายการนี้เป็นเครดิต ทีมงานจะยืนยันรอบวางบิลหรือกำหนดชำระกับคุณโดยตรง"
-      : config.paymentInstructions ||
+      : paymentRouting.profile.instructions ||
+        config.paymentInstructions ||
         "หลังโอนเงินแล้ว กรุณาส่งสลิปกลับใน LINE แชตนี้เพื่อให้ทีมงานยืนยันการชำระ";
+  const paymentRoutingNote =
+    paymentRouting.sourceProfile === "secondary"
+      ? paymentRouting.reason === "secondary_total_threshold"
+        ? "ระบบเลือกบัญชีรองอัตโนมัติตามยอดใบเสนอราคา"
+        : paymentRouting.reason === "secondary_payment_terms"
+          ? "ระบบเลือกบัญชีรองอัตโนมัติตามประเภทการจ่ายจาก intake"
+          : paymentRouting.reason === "secondary_customer_scope"
+            ? "ระบบเลือกบัญชีรองอัตโนมัติตามประเภทลูกค้า"
+            : "ระบบสลับไปใช้บัญชีรองอัตโนมัติเพราะบัญชีหลักไม่ครบ"
+      : null;
   const paymentContact = joinContact([
     config.businessPhone ? `โทรศัพท์ / Phone: ${config.businessPhone}` : null,
     config.businessEmail ? `อีเมล / Email: ${config.businessEmail}` : null,
@@ -109,6 +137,19 @@ export default async function QuoteDownloadPage(props: {
     paymentTerms === "credit"
       ? "เครดิตเทอมหรือรอบวางบิลจะมีทีมงานยืนยันให้ต่อใน LINE แชตนี้"
       : "แจ้งชำระเงิน / Payment Confirmation: หลังโอนแล้วส่งสลิปกลับมาใน LINE แชตนี้เพื่อให้ทีมงานยืนยันยอดได้เร็วขึ้น";
+  const billingName =
+    lead?.billing_name || customer?.display_name || "ไม่ระบุชื่อลูกค้า";
+  const billingAddress = lead?.billing_address || "-";
+  const billingBranchType =
+    (lead?.billing_branch_type as BillingBranchType | undefined) || null;
+  const billingBranchCode = lead?.billing_branch_code || null;
+  const billingBranchLabel = billingBranchType
+    ? billingBranchType === "branch"
+      ? `${BILLING_BRANCH_TYPE_LABELS.branch}${billingBranchCode ? ` (${billingBranchCode})` : ""}`
+      : BILLING_BRANCH_TYPE_LABELS[billingBranchType]
+    : null;
+  const requestedDocumentLabel =
+    DOCUMENT_REQUEST_TYPE_LABELS[requestedDocumentType] || requestedDocumentType;
 
   return (
     <div className="min-h-screen bg-[#eef3f8] px-3 py-4 text-slate-950 sm:px-4 sm:py-6 print:bg-white print:p-0">
@@ -137,7 +178,7 @@ export default async function QuoteDownloadPage(props: {
                 <span className="block">ใบเสนอราคา</span>
                 <span className="block">/ Quotation</span>
               </h1>
-              <p className="mt-3 break-words text-sm text-slate-600">
+              <p className="mt-3 wrap-break-word text-sm text-slate-600">
                 เอกสารสำหรับตรวจสอบรายละเอียดราคา อนุมัติงาน และอ้างอิงก่อนเริ่มผลิต
               </p>
             </div>
@@ -184,13 +225,17 @@ export default async function QuoteDownloadPage(props: {
             <InfoBox
               title="ลูกค้า / Bill To"
               rows={[
-                customer?.display_name || "ไม่ระบุชื่อลูกค้า",
-                "ชื่อบริษัทลูกค้า / Customer Company: -",
-                "ผู้ติดต่อ / Contact Person: -",
+                billingName,
+                `เอกสารที่ร้องขอ / Requested Document: ${requestedDocumentLabel}`,
+                `ประเภทการวางบิล / Billing Entity: ${lead?.billing_entity_type === "company" ? "บริษัท / นิติบุคคล" : lead?.billing_entity_type === "person" ? "บุคคลธรรมดา" : "-"}`,
+                ...(billingBranchLabel
+                  ? [`สำนักงานใหญ่ / สาขา: ${billingBranchLabel}`]
+                  : []),
                 joinContact([
                   customer?.phone && `โทรศัพท์ / Phone: ${customer.phone}`,
                 ]),
-                "ที่อยู่ลูกค้า / Customer Address: -",
+                `เลขผู้เสียภาษี / Tax ID: ${lead?.tax_id || "-"}`,
+                `ที่อยู่ลูกค้า / Customer Address: ${billingAddress}`,
               ]}
             />
           </section>
@@ -221,7 +266,7 @@ export default async function QuoteDownloadPage(props: {
                     <span>ลำดับ / No. {item ? index + 1 : "-"}</span>
                     <span>จำนวน / Qty {item?.qty ?? lead?.qty ?? "-"}</span>
                   </div>
-                  <p className="mt-3 break-words text-sm font-semibold text-slate-950">
+                  <p className="mt-3 wrap-break-word text-sm font-semibold text-slate-950">
                     {item?.label || productLabel}
                   </p>
                   <div className="mt-4 space-y-2 text-sm text-slate-700">
@@ -245,7 +290,7 @@ export default async function QuoteDownloadPage(props: {
                   <div className="border-r border-slate-200 px-3 py-3 text-right">
                     {item ? index + 1 : "-"}
                   </div>
-                  <div className="min-w-0 border-r border-slate-200 px-3 py-3 break-words">
+                  <div className="min-w-0 border-r border-slate-200 px-3 py-3 wrap-break-word">
                     {item?.label || productLabel}
                   </div>
                   <div className="border-r border-slate-200 px-3 py-3 text-right">
@@ -308,6 +353,9 @@ export default async function QuoteDownloadPage(props: {
                     ช่องทางชำระเงิน / Payment Instructions
                   </p>
                   <p className="mt-1 text-sm leading-relaxed text-slate-700">{paymentHelpText}</p>
+                  {paymentRoutingNote ? (
+                    <p className="mt-2 text-xs font-semibold text-sky-700">{paymentRoutingNote}</p>
+                  ) : null}
                 </div>
               </div>
 
@@ -316,18 +364,38 @@ export default async function QuoteDownloadPage(props: {
                   รายการนี้ไม่ต้องโอนทันที กรุณาติดต่อทีมงานเพื่อยืนยันรอบวางบิลหรือเครดิตเทอม
                   {paymentContact !== "-" ? ` ที่ ${paymentContact}` : " ผ่าน LINE แชตนี้"}
                 </div>
-              ) : paymentDetails.length > 0 ? (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {paymentDetails.map((detail) => (
+              ) : paymentDisplay.showDetails || paymentDisplay.showQr ? (
+                <div className={`mt-4 grid gap-3 ${paymentDisplay.showDetails && paymentDisplay.showQr ? "sm:grid-cols-[minmax(0,1fr)_58mm]" : "sm:grid-cols-2"}`}>
+                  {paymentDisplay.showDetails ? paymentDisplay.paymentDetails.map((detail) => (
                     <div key={detail.label} className="rounded-xl bg-white px-4 py-3 ring-1 ring-slate-200/70">
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
                         {detail.label}
                       </p>
-                      <p className="mt-2 break-words text-sm font-semibold text-slate-950">
+                      <p className="mt-2 wrap-break-word text-sm font-semibold text-slate-950">
                         {detail.value}
                       </p>
                     </div>
-                  ))}
+                  )) : null}
+                  {paymentDisplay.showQr ? (
+                    <div className="rounded-xl bg-white px-4 py-3 ring-1 ring-slate-200/70">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        QR Code
+                      </p>
+                      <div className="mt-3 flex justify-center">
+                        <Image
+                          src={paymentDisplay.qrCodeUrl}
+                          alt="Payment QR Code"
+                          width={180}
+                          height={180}
+                          unoptimized
+                          className="h-45 w-45 rounded-2xl object-contain"
+                        />
+                      </div>
+                      <p className="mt-3 text-center text-xs font-medium text-slate-600">
+                        {paymentDisplay.qrCodeLabel}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div className="mt-4 rounded-xl bg-white px-4 py-3 text-sm leading-relaxed text-slate-700 ring-1 ring-slate-200/70">
@@ -358,7 +426,7 @@ function DocumentField({ label, value }: { label: string; value: string }) {
       <p className="border-b border-slate-300 pb-1 text-xs font-bold text-slate-600 sm:text-sm">
         {label}
       </p>
-      <p className="break-words pt-1.5 text-sm text-slate-950 sm:pt-2">{value}</p>
+      <p className="wrap-break-word pt-1.5 text-sm text-slate-950 sm:pt-2">{value}</p>
     </div>
   );
 }
@@ -369,7 +437,7 @@ function InfoBox({ title, rows }: { title: string; rows: string[] }) {
       <p className="mb-3 text-base font-black text-[#123B63] sm:mb-4 sm:text-lg">{title}</p>
       <div className="space-y-1.5 text-sm leading-6 text-slate-950">
         {rows.map((row, index) => (
-          <p key={`${title}-${index}`} className="break-words">
+          <p key={`${title}-${index}`} className="wrap-break-word">
             {row}
           </p>
         ))}
@@ -387,7 +455,7 @@ function TotalRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-4 px-3 text-slate-700">
-      <span className="min-w-0 break-words">{label}</span>
+      <span className="min-w-0 wrap-break-word">{label}</span>
       <span className="shrink-0 font-semibold text-slate-950">{formatMoney(value)}</span>
     </div>
   );

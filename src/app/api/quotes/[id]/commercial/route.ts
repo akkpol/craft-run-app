@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getRuntimeAppConfig } from "@/lib/app-settings";
+import { resolvePaymentProfileFromConfig } from "@/lib/payment-routing";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   createJobForApprovedQuote,
@@ -50,7 +52,7 @@ export async function POST(
   const supabase = createAdminClient();
   const { data: quote, error } = await supabase
     .from("quotes")
-    .select("*, leads(conversation_id)")
+    .select("*, leads(conversation_id, billing_entity_type)")
     .eq("id", id)
     .single();
 
@@ -69,9 +71,20 @@ export async function POST(
     paymentStatus = "unpaid";
   }
 
+  const appConfig = await getRuntimeAppConfig();
+  const paymentProfileSnapshot = resolvePaymentProfileFromConfig(appConfig, {
+    total: quote.total,
+    billingEntityType: quote.leads?.billing_entity_type || null,
+    paymentTerms,
+  });
+
   await supabase
     .from("quotes")
-    .update({ payment_terms: paymentTerms, payment_status: paymentStatus })
+    .update({
+      payment_terms: paymentTerms,
+      payment_status: paymentStatus,
+      payment_profile_snapshot: paymentProfileSnapshot,
+    })
     .eq("id", id);
 
   let jobCreated = false;
