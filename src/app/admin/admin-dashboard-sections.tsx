@@ -29,6 +29,10 @@ import type {
   AdminOverviewRow,
   OverviewFilterKey,
 } from "@/lib/admin-overview";
+import {
+  getLeadAiDisplayPrompt,
+  hasLeadAiSeedPrompt,
+} from "@/lib/lead-ai-prompt";
 import type {
   BackofficeSnapshot,
   SnapshotConversation,
@@ -286,7 +290,11 @@ function getLeadAssetSummary(lead: SnapshotLead) {
     return `AI preview ${aiPreviewCount}`;
   }
 
-  return lead.ai_image_prompt ? "มี AI prompt" : "manual design";
+  return hasLeadAiSeedPrompt(lead) ? "มี AI prompt" : "manual design";
+}
+
+function getLeadAiPrompt(lead: SnapshotLead) {
+  return getLeadAiDisplayPrompt(lead);
 }
 
 function getLeadPreviewImageUrl(lead: SnapshotLead) {
@@ -902,7 +910,7 @@ export function AdminMustDoNowQueueContent({ items }: { items: SnapshotLead[] })
             <div className="flex flex-wrap items-center gap-2">
               <LeadAiPreviewActions
                 leadId={lead.id}
-                prompt={lead.ai_image_prompt || ""}
+                prompt={getLeadAiPrompt(lead)}
                 status={lead.ai_image_status || "not_requested"}
               />
               <AdminLeadDesignActions leadId={lead.id} designStatus={lead.design_status || "not_started"} />
@@ -910,7 +918,7 @@ export function AdminMustDoNowQueueContent({ items }: { items: SnapshotLead[] })
           }
         >
           <p className="text-xs text-slate-500">
-            {lead.ai_image_prompt ? "มี AI prompt พร้อมใช้งาน" : "คิวนี้ขยับต่อด้วยทีมออกแบบได้ทันที"}
+            {hasLeadAiSeedPrompt(lead) ? "มี AI prompt พร้อมใช้งาน" : "คิวนี้ขยับต่อด้วยทีมออกแบบได้ทันที"}
           </p>
         </QueueCard>
       ))}
@@ -949,7 +957,7 @@ export function AdminWaitingCustomerQueueContent({
                 <div className="flex flex-wrap items-center gap-2">
                   <LeadAiPreviewActions
                     leadId={item.lead.id}
-                    prompt={item.lead.ai_image_prompt || ""}
+                    prompt={getLeadAiPrompt(item.lead)}
                     status={item.lead.ai_image_status || "not_requested"}
                   />
                   <AdminLeadDesignActions
@@ -1394,7 +1402,7 @@ export function DesignQueueTable({ leads }: { leads: SnapshotLead[] }) {
                   </TableCell>
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="flex min-w-48 flex-wrap items-center justify-end gap-2">
-                      <LeadAiPreviewActions leadId={lead.id} prompt={lead.ai_image_prompt || ""} status={lead.ai_image_status || "not_requested"} />
+                      <LeadAiPreviewActions leadId={lead.id} prompt={getLeadAiPrompt(lead)} status={lead.ai_image_status || "not_requested"} />
                       <AdminLeadDesignActions leadId={lead.id} designStatus={lead.design_status || "not_started"} />
                     </div>
                   </TableCell>
@@ -1458,7 +1466,7 @@ export function WaitingCustomerDesignTable({ leads }: { leads: SnapshotLead[] })
                   </TableCell>
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="flex min-w-48 flex-wrap items-center justify-end gap-2">
-                      <LeadAiPreviewActions leadId={lead.id} prompt={lead.ai_image_prompt || ""} status={lead.ai_image_status || "not_requested"} />
+                      <LeadAiPreviewActions leadId={lead.id} prompt={getLeadAiPrompt(lead)} status={lead.ai_image_status || "not_requested"} />
                       <AdminLeadDesignActions leadId={lead.id} designStatus={lead.design_status || "not_started"} />
                     </div>
                   </TableCell>
@@ -1704,7 +1712,7 @@ export function SalesLeadsTable({ leads }: { leads: SnapshotLead[] }) {
                   </TableCell>
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="flex min-w-48 flex-wrap items-center justify-end gap-2">
-                      <LeadAiPreviewActions leadId={lead.id} prompt={lead.ai_image_prompt || ""} status={lead.ai_image_status || "not_requested"} />
+                      <LeadAiPreviewActions leadId={lead.id} prompt={getLeadAiPrompt(lead)} status={lead.ai_image_status || "not_requested"} />
                       <AdminLeadDesignActions leadId={lead.id} designStatus={lead.design_status || "not_started"} />
                     </div>
                   </TableCell>
@@ -1800,7 +1808,7 @@ export function OverviewDesignSnapshotTable({ leads }: { leads: SnapshotLead[] }
                 </TableCell>
                 <TableCell className="px-4 py-4 align-top whitespace-normal">
                   <div className="flex min-w-44 flex-wrap items-center justify-end gap-2">
-                    <LeadAiPreviewActions leadId={lead.id} prompt={lead.ai_image_prompt || ""} status={lead.ai_image_status || "not_requested"} />
+                    <LeadAiPreviewActions leadId={lead.id} prompt={getLeadAiPrompt(lead)} status={lead.ai_image_status || "not_requested"} />
                     <AdminLeadDesignActions leadId={lead.id} designStatus={lead.design_status || "not_started"} />
                   </div>
                 </TableCell>

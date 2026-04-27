@@ -7,13 +7,45 @@ type LeadPromptContext = {
   reference_info?: string | null;
   design_brief?: string | null;
   ai_image_prompt?: string | null;
+  ai_prompt_snapshot?: string | null;
 };
 
-export function composeLeadAiPrompt(lead: LeadPromptContext): string {
-  const explicitPrompt = lead.ai_image_prompt?.trim() || "";
-  const designBrief = lead.design_brief?.trim() || "";
-  const noteFromForm = lead.note_from_form?.trim() || "";
-  const referenceInfo = lead.reference_info?.trim() || "";
+type PreparedLeadAiPrompt = {
+  prompt: string;
+  seed: "snapshot" | "explicit_prompt" | "design_brief";
+};
+
+function normalizePromptValue(value: string | null | undefined): string {
+  return value?.trim() || "";
+}
+
+export function hasLeadAiSeedPrompt(lead: LeadPromptContext): boolean {
+  return Boolean(
+    normalizePromptValue(lead.ai_prompt_snapshot) ||
+      normalizePromptValue(lead.ai_image_prompt) ||
+      normalizePromptValue(lead.design_brief)
+  );
+}
+
+export function prepareLeadAiPrompt(
+  lead: LeadPromptContext
+): PreparedLeadAiPrompt | null {
+  const promptSnapshot = normalizePromptValue(lead.ai_prompt_snapshot);
+  if (promptSnapshot) {
+    return {
+      prompt: promptSnapshot,
+      seed: "snapshot",
+    };
+  }
+
+  const explicitPrompt = normalizePromptValue(lead.ai_image_prompt);
+  const designBrief = normalizePromptValue(lead.design_brief);
+  if (!explicitPrompt && !designBrief) {
+    return null;
+  }
+
+  const noteFromForm = normalizePromptValue(lead.note_from_form);
+  const referenceInfo = normalizePromptValue(lead.reference_info);
 
   const parts = [
     explicitPrompt || designBrief,
@@ -28,15 +60,27 @@ export function composeLeadAiPrompt(lead: LeadPromptContext): string {
     "Create a polished Thai signage or print concept mockup, front-facing, realistic materials, readable layout, production-friendly composition.",
   ];
 
-  return parts.filter(Boolean).join("\n");
+  return {
+    prompt: parts.filter(Boolean).join("\n"),
+    seed: explicitPrompt ? "explicit_prompt" : "design_brief",
+  };
+}
+
+export function getLeadAiDisplayPrompt(lead: LeadPromptContext): string {
+  return prepareLeadAiPrompt(lead)?.prompt || "";
+}
+
+export function composeLeadAiPrompt(lead: LeadPromptContext): string {
+  return getLeadAiDisplayPrompt(lead);
 }
 
 export function hasLeadAiPromptContext(lead: LeadPromptContext): boolean {
   return Boolean(
-    lead.ai_image_prompt?.trim() ||
-      lead.design_brief?.trim() ||
-      lead.note_from_form?.trim() ||
-      lead.reference_info?.trim() ||
-      lead.product_type?.trim()
+    hasLeadAiSeedPrompt(lead) ||
+      normalizePromptValue(lead.note_from_form) ||
+      normalizePromptValue(lead.reference_info) ||
+      normalizePromptValue(lead.product_type)
   );
 }
+
+export type { LeadPromptContext, PreparedLeadAiPrompt };

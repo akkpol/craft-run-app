@@ -1,17 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAiImageRuntimeConfig, type AppSettingsRow } from "@/lib/app-settings";
-import { composeLeadAiPrompt } from "@/lib/lead-ai-prompt";
 
-type LeadAiInput = {
-  id: string;
-  product_type: string | null;
-  width_mm: number | null;
-  height_mm: number | null;
-  qty: number | null;
-  note_from_form: string | null;
-  reference_info: string | null;
-  design_brief: string | null;
-  ai_image_prompt: string | null;
+type LeadAiGenerationInput = {
+  leadId: string;
+  prompt: string;
 };
 
 type OpenAiImageResponse = {
@@ -45,7 +37,9 @@ async function uploadGeneratedImage(leadId: string, fileBytes: Uint8Array): Prom
   return data.publicUrl;
 }
 
-export async function generateLeadAiPreview(lead: LeadAiInput): Promise<string[]> {
+export async function generateLeadAiPreview(
+  input: LeadAiGenerationInput
+): Promise<string[]> {
   const aiConfig = await getAiImageRuntimeConfig();
 
   if (!aiConfig.enabled || !aiConfig.apiKey) {
@@ -56,7 +50,7 @@ export async function generateLeadAiPreview(lead: LeadAiInput): Promise<string[]
     throw new Error("Unsupported AI image provider");
   }
 
-  const prompt = composeLeadAiPrompt(lead);
+  const prompt = input.prompt.trim();
   if (!prompt) {
     throw new Error("Lead does not have an AI prompt");
   }
@@ -95,7 +89,7 @@ export async function generateLeadAiPreview(lead: LeadAiInput): Promise<string[]
       }
 
       const fileBytes = Buffer.from(image.b64_json, "base64");
-      return uploadGeneratedImage(lead.id, fileBytes);
+      return uploadGeneratedImage(input.leadId, fileBytes);
     })
   );
 
@@ -106,4 +100,4 @@ export function getAppAssetsBucketName(): string {
   return APP_ASSETS_BUCKET;
 }
 
-export type { LeadAiInput, AppSettingsRow };
+export type { LeadAiGenerationInput, AppSettingsRow };

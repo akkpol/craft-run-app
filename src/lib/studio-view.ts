@@ -9,6 +9,7 @@ import {
   isWorkflowState,
   type WorkflowState,
 } from "@/lib/types";
+import { hasLeadAiSeedPrompt } from "@/lib/lead-ai-prompt";
 import { getQuoteApprovalState } from "@/lib/quote-workflow";
 import type {
   BackofficeSnapshot,
@@ -439,7 +440,7 @@ function getAvailableActions(
   if (lead) {
     actions.add("design_status");
 
-    if (lead.ai_image_prompt) {
+    if (hasLeadAiSeedPrompt(lead)) {
       actions.add("ai_preview");
     }
   }

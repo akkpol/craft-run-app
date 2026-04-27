@@ -17,6 +17,7 @@ import AdminJobActions from "@/app/admin/job-actions";
 import LeadAiPreviewActions from "@/app/admin/lead-ai-preview-actions";
 import AdminLeadDesignActions from "@/app/admin/lead-design-actions";
 import AdminQuoteActions from "@/app/admin/quote-actions";
+import { getLeadAiDisplayPrompt } from "@/lib/lead-ai-prompt";
 import {
   STUDIO_FILTERS,
   getStudioTokenMeta,
@@ -756,7 +757,7 @@ function StudioDrawer({
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <LeadAiPreviewActions
                           leadId={token.lead.id}
-                          prompt={token.lead.ai_image_prompt || ""}
+                          prompt={getLeadAiDisplayPrompt(token.lead)}
                           status={token.lead.ai_image_status || "not_requested"}
                         />
                         <AdminLeadDesignActions

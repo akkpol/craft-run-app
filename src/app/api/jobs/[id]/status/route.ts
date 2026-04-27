@@ -78,7 +78,7 @@ export async function POST(
   const { data: currentJob, error: currentJobError } = await supabase
     .from("jobs")
     .select(
-      "id, lead_id, status, quotes(public_token, payment_terms, payment_status, leads(conversation_id, design_status, fulfillment_mode, ai_image_prompt))"
+      "id, lead_id, status, quotes(public_token, payment_terms, payment_status, leads(conversation_id, design_status, fulfillment_mode, ai_image_prompt, ai_prompt_snapshot))"
     )
     .eq("id", id)
     .single();
@@ -99,7 +99,9 @@ export async function POST(
       paymentTerms && paymentStatus
         ? paymentUnlocksProduction(paymentTerms, paymentStatus)
         : false;
-    const designReady = lead?.design_status === "approved" || !lead?.ai_image_prompt;
+    const designReady =
+      lead?.design_status === "approved" ||
+      !(lead?.ai_image_prompt || lead?.ai_prompt_snapshot);
 
     if (!paymentReady) {
       return NextResponse.json(
