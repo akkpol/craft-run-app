@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAiImageRuntimeConfig, type AppSettingsRow } from "@/lib/app-settings";
+import { composeLeadAiPrompt } from "@/lib/lead-ai-prompt";
 
 type LeadAiInput = {
   id: string;
@@ -9,6 +10,7 @@ type LeadAiInput = {
   qty: number | null;
   note_from_form: string | null;
   reference_info: string | null;
+  design_brief: string | null;
   ai_image_prompt: string | null;
 };
 
@@ -24,22 +26,6 @@ type OpenAiImageResponse = {
 };
 
 const APP_ASSETS_BUCKET = "app-assets";
-
-function buildPrompt(lead: LeadAiInput): string {
-  const parts = [
-    lead.ai_image_prompt?.trim(),
-    lead.product_type ? `ประเภทงาน: ${lead.product_type}` : "",
-    lead.width_mm && lead.height_mm
-      ? `ขนาดงานประมาณ ${(lead.width_mm / 10).toFixed(1)} x ${(lead.height_mm / 10).toFixed(1)} ซม.`
-      : "",
-    lead.qty ? `จำนวน ${lead.qty} ชิ้น` : "",
-    lead.note_from_form?.trim() ? `รายละเอียดจากลูกค้า: ${lead.note_from_form.trim()}` : "",
-    lead.reference_info?.trim() ? `ข้อมูลอ้างอิง: ${lead.reference_info.trim()}` : "",
-    "Create a polished Thai signage or print concept mockup, front-facing, realistic materials, readable layout, production-friendly composition.",
-  ];
-
-  return parts.filter(Boolean).join("\n");
-}
 
 async function uploadGeneratedImage(leadId: string, fileBytes: Uint8Array): Promise<string> {
   const supabase = createAdminClient();
@@ -70,7 +56,7 @@ export async function generateLeadAiPreview(lead: LeadAiInput): Promise<string[]
     throw new Error("Unsupported AI image provider");
   }
 
-  const prompt = buildPrompt(lead);
+  const prompt = composeLeadAiPrompt(lead);
   if (!prompt) {
     throw new Error("Lead does not have an AI prompt");
   }
