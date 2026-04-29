@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAiImageRuntimeConfig, type AppSettingsRow } from "@/lib/app-settings";
+import { buildLeadAiPreviewStoragePath } from "@/lib/asset-storage-paths";
 
 type LeadAiGenerationInput = {
   leadId: string;
@@ -19,13 +20,40 @@ type OpenAiImageResponse = {
 
 const APP_ASSETS_BUCKET = "app-assets";
 
-async function uploadGeneratedImage(leadId: string, fileBytes: Uint8Array): Promise<string> {
+function getImageExtensionFromContentType(contentType: string | null | undefined) {
+  if (!contentType) {
+    return "png";
+  }
+
+  if (contentType.includes("png")) {
+    return "png";
+  }
+
+  if (contentType.includes("jpeg") || contentType.includes("jpg")) {
+    return "jpg";
+  }
+
+  if (contentType.includes("webp")) {
+    return "webp";
+  }
+
+  return "png";
+}
+
+async function uploadGeneratedImage(
+  leadId: string,
+  fileBytes: Uint8Array,
+  contentType = "image/png"
+): Promise<string> {
   const supabase = createAdminClient();
-  const filePath = `ai-previews/${leadId}/${Date.now()}.png`;
+  const filePath = buildLeadAiPreviewStoragePath(
+    leadId,
+    getImageExtensionFromContentType(contentType)
+  );
   const { error } = await supabase.storage
     .from(APP_ASSETS_BUCKET)
     .upload(filePath, fileBytes, {
-      contentType: "image/png",
+      contentType,
       upsert: false,
     });
 
@@ -35,6 +63,19 @@ async function uploadGeneratedImage(leadId: string, fileBytes: Uint8Array): Prom
 
   const { data } = supabase.storage.from(APP_ASSETS_BUCKET).getPublicUrl(filePath);
   return data.publicUrl;
+}
+
+async function downloadRemoteGeneratedImage(url: string) {
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error("AI image provider returned an unusable image URL");
+  }
+
+  return {
+    bytes: new Uint8Array(await response.arrayBuffer()),
+    contentType: response.headers.get("content-type") || "image/png",
+  };
 }
 
 export async function generateLeadAiPreview(
@@ -81,7 +122,12 @@ export async function generateLeadAiPreview(
   const uploadedUrls = await Promise.all(
     images.slice(0, 1).map(async (image) => {
       if (image.url) {
-        return image.url;
+        const downloadedImage = await downloadRemoteGeneratedImage(image.url);
+        return uploadGeneratedImage(
+          input.leadId,
+          downloadedImage.bytes,
+          downloadedImage.contentType
+        );
       }
 
       if (!image.b64_json) {

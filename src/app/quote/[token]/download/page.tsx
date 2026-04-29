@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getRuntimeAppConfig } from "@/lib/app-settings";
+import { formatBangkokDate } from "@/lib/bangkok-date-time";
 import { resolveProductCatalogLabel } from "@/lib/product-catalog";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -35,15 +36,21 @@ const QUOTE_STATUS_LABELS: Record<string, string> = {
   expired: "หมดอายุ",
 };
 
+const THAI_MONEY_FORMATTER = new Intl.NumberFormat("th-TH-u-nu-latn", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const THAI_DIMENSION_FORMATTER = new Intl.NumberFormat("th-TH-u-nu-latn", {
+  maximumFractionDigits: 1,
+});
+
 function formatDate(value: string | null | undefined) {
-  return value ? new Date(value).toLocaleDateString("th-TH") : "-";
+  return formatBangkokDate(value);
 }
 
 function formatMoney(value: number | string | null | undefined) {
-  return Number(value || 0).toLocaleString("th-TH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return THAI_MONEY_FORMATTER.format(Number(value || 0));
 }
 
 function formatDimension(widthMm?: number | null, heightMm?: number | null) {
@@ -51,11 +58,7 @@ function formatDimension(widthMm?: number | null, heightMm?: number | null) {
     return "-";
   }
 
-  return `${(widthMm / 10).toLocaleString("th-TH", {
-    maximumFractionDigits: 1,
-  })} x ${(heightMm / 10).toLocaleString("th-TH", {
-    maximumFractionDigits: 1,
-  })} ซม.`;
+  return `${THAI_DIMENSION_FORMATTER.format(widthMm / 10)} x ${THAI_DIMENSION_FORMATTER.format(heightMm / 10)} ซม.`;
 }
 
 function joinContact(parts: Array<string | null | undefined>) {

@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { formatBangkokDateTime } from "@/lib/bangkok-date-time";
 import { resolveProductCatalogLabel } from "@/lib/product-catalog";
 import {
   DESIGN_STATUS_LABELS,
@@ -10,6 +11,7 @@ import {
   type DesignStatus,
 } from "@/lib/types";
 import CustomerStatusActions from "./customer-status-actions";
+import CopyTrackingCodeButton from "./copy-tracking-code-button";
 
 const STATUS_DISPLAY: Record<string, { label: string; color: string; icon: string }> = {
   IN_DESIGN: { label: "กำลังออกแบบ", color: "bg-violet-100 text-violet-700", icon: "🎨" },
@@ -20,6 +22,8 @@ const STATUS_DISPLAY: Record<string, { label: string; color: string; icon: strin
   COMPLETED: { label: "เสร็จสมบูรณ์", color: "bg-green-100 text-green-700", icon: "✅" },
   CANCELLED: { label: "ยกเลิก", color: "bg-red-100 text-red-700", icon: "❌" },
 };
+
+const THAI_NUMBER_FORMATTER = new Intl.NumberFormat("th-TH-u-nu-latn");
 
 export default async function StatusPage(props: { params: Promise<{ token: string }> }) {
   const { token } = await props.params;
@@ -71,13 +75,7 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
         <div className="bg-white px-6 py-6 border-b border-gray-100 text-center">
           <div className="flex items-center justify-center gap-2 mb-2">
             <div className="text-4xl">{statusInfo.icon}</div>
-            <button
-              onClick={() => navigator.clipboard.writeText(token)}
-              className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-              title="Copy tracking code"
-            >
-              📋
-            </button>
+            <CopyTrackingCodeButton token={token} />
           </div>
           <div className={`inline-block px-4 py-1.5 rounded-full text-sm font-medium ${statusInfo.color}`}>
             {statusInfo.label}
@@ -87,6 +85,7 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
               <p className="text-sm font-medium text-amber-700">งานนี้รอลูกค้าอนุมัติใบเสนอราคา</p>
               <Link
                 href={`/quote/${token}`}
+                prefetch={false}
                 className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800"
               >
                 ไปอนุมัติใบเสนอราคา
@@ -100,7 +99,7 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
           <p className="mt-1 break-all font-mono text-sm font-semibold text-sky-900">{token}</p>
           <p className="mt-1 text-xs text-sky-800">ใช้โค้ดนี้เปิดหน้านี้หรือหน้าใบเสนอราคาได้ตลอดเวลา</p>
           <div className="mt-3">
-            <Link href="/status" className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+            <Link href="/status" prefetch={false} className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
               ค้นหาด้วยเลขติดตาม
             </Link>
           </div>
@@ -114,7 +113,7 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
             <p><span className="text-gray-500">ประเภท:</span> {productLabel}</p>
             {lead && <p><span className="text-gray-500">ขนาด:</span> {(lead.width_mm / 10).toFixed(1)} × {(lead.height_mm / 10).toFixed(1)} ซม.</p>}
             {lead?.qty && <p><span className="text-gray-500">จำนวน:</span> {lead.qty} ชิ้น</p>}
-            <p><span className="text-gray-500">ราคารวม:</span> <span className="font-medium">฿{Number(quote.total).toLocaleString()}</span></p>
+            <p><span className="text-gray-500">ราคารวม:</span> <span className="font-medium">฿{THAI_NUMBER_FORMATTER.format(Number(quote.total))}</span></p>
           </div>
         </div>
 
@@ -195,7 +194,7 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
                       </p>
                       {entry.note && <p className="text-xs text-gray-400 mt-0.5">{entry.note}</p>}
                       <p className="text-xs text-gray-300 mt-0.5">
-                        {new Date(entry.created_at).toLocaleString("th-TH")}
+                        {formatBangkokDateTime(entry.created_at)}
                       </p>
                     </div>
                   </div>

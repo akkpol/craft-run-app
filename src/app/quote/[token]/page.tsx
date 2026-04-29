@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatBangkokDate } from "@/lib/bangkok-date-time";
 import { resolveProductCatalogLabel } from "@/lib/product-catalog";
 import {
   BILLING_BRANCH_TYPE_LABELS,
@@ -44,12 +45,14 @@ type QuoteStatusMeta = {
   iconWrapClassName: string;
 };
 
+const THAI_NUMBER_FORMATTER = new Intl.NumberFormat("th-TH-u-nu-latn");
+
 function formatMoney(value: number | string | null | undefined) {
-  return `฿${Number(value || 0).toLocaleString("th-TH")}`;
+  return `฿${THAI_NUMBER_FORMATTER.format(Number(value || 0))}`;
 }
 
 function formatDate(value: string | null | undefined) {
-  return value ? new Date(value).toLocaleDateString("th-TH") : "-";
+  return formatBangkokDate(value);
 }
 
 function getQuoteStatusMeta({
@@ -273,10 +276,10 @@ export default async function QuotePage(props: { params: Promise<{ token: string
           <p className="mt-1 font-mono text-sm font-semibold text-sky-900 break-all">{token}</p>
           <p className="mt-1 text-xs text-sky-800">ใช้โค้ดนี้เพื่อเปิดหน้าใบเสนอราคา/สถานะงานจากหน้าค้นหา</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Link href={`/status/${token}`} className="inline-flex rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700">
+            <Link href={`/status/${token}`} prefetch={false} className="inline-flex rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700">
               ดูสถานะงาน
             </Link>
-            <Link href="/status" className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+            <Link href="/status" prefetch={false} className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
               ค้นหาด้วยเลขติดตาม
             </Link>
           </div>
@@ -329,7 +332,7 @@ export default async function QuotePage(props: { params: Promise<{ token: string
             <p><span className="text-gray-500">ประเภท:</span> <span className="font-medium">{productLabel}</span></p>
             {lead && <p><span className="text-gray-500">ขนาด:</span> {(lead.width_mm / 10).toFixed(1)} × {(lead.height_mm / 10).toFixed(1)} ซม.</p>}
             {lead?.qty && <p><span className="text-gray-500">จำนวน:</span> {lead.qty} ชิ้น</p>}
-            {lead?.due_date && <p><span className="text-gray-500">กำหนดส่ง:</span> {new Date(lead.due_date).toLocaleDateString("th-TH")}</p>}
+            {lead?.due_date && <p><span className="text-gray-500">กำหนดส่ง:</span> {formatDate(lead.due_date)}</p>}
             {lead?.note_from_form && <p><span className="text-gray-500">หมายเหตุ:</span> {lead.note_from_form}</p>}
           </div>
         </div>

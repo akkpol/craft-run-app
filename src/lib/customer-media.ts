@@ -9,6 +9,7 @@ import {
   type CustomerMediaStorageProvider,
   uploadCustomerMediaObject,
 } from "./customer-media-storage";
+import { buildLeadCustomerReferenceStoragePath } from "./asset-storage-paths";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -38,17 +39,6 @@ export type LeadMediaAssetRow = {
   created_at: string;
   signed_url?: string | null;
 };
-
-function sanitizeFileName(fileName: string) {
-  return (fileName || "upload.bin")
-    .replace(/[/\\?%*:|"<>]/g, "-")
-    .replace(/\s+/g, "-")
-    .slice(0, 120);
-}
-
-function buildLeadMediaStoragePath(leadId: string, fileName: string) {
-  return `leads/${leadId}/${Date.now()}-${randomUUID()}-${sanitizeFileName(fileName)}`;
-}
 
 export function validateCustomerMediaFiles(files: File[]) {
   if (files.length > MAX_CUSTOMER_MEDIA_FILES) {
@@ -94,7 +84,7 @@ export async function uploadLeadMediaFiles({
     const assetRows: LeadMediaAssetRow[] = [];
 
     for (const file of files) {
-      const storagePath = buildLeadMediaStoragePath(leadId, file.name);
+      const storagePath = buildLeadCustomerReferenceStoragePath(leadId, file.name);
       const bytes = new Uint8Array(await file.arrayBuffer());
       const uploadedAsset = await uploadCustomerMediaObject({
         supabase,

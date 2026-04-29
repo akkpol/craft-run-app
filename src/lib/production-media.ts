@@ -14,6 +14,7 @@ import {
   type ProductionEventType,
   type ProductionReviewStatus,
 } from "@/lib/production-review";
+import { buildJobMediaStoragePath } from "@/lib/asset-storage-paths";
 import { pushProductionEvidenceUpdate } from "@/lib/line";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -117,12 +118,6 @@ function requireProductionTokenSecret(): string {
   }
 
   return secret;
-}
-
-function buildAssetStoragePath(jobId: string, eventId: string, fileName: string): string {
-  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-+/g, "-");
-  const ext = safeName.includes(".") ? safeName.split(".").pop() : "bin";
-  return `${jobId}/${eventId}/${Date.now()}-${randomUUID()}.${ext}`;
 }
 
 function isValidEventType(value: string): value is ProductionEventType {
@@ -323,7 +318,7 @@ export async function createProductionSubmission(input: {
     const assetRows: Array<Record<string, string | number | null>> = [];
 
     for (const file of input.files) {
-      const storagePath = buildAssetStoragePath(
+      const storagePath = buildJobMediaStoragePath(
         resolvedLink.link.job_id,
         eventId,
         file.name || "upload.bin"

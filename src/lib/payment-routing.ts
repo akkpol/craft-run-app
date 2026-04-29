@@ -1,7 +1,7 @@
 import {
   DEFAULT_PAYMENT_DISPLAY_MODE,
   type PaymentDisplayMode,
-} from "./payment-display";
+} from "./payment-display.ts";
 
 export const PAYMENT_ROUTING_CUSTOMER_SCOPES = [
   "none",
