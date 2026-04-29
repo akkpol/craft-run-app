@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,9 +16,13 @@ import {
 export default function AdminJobActions({
   jobId,
   currentStatus,
+  buttonVariant = "outline",
+  buttonLabel = "อัปเดตงาน",
 }: {
   jobId: string;
   currentStatus: JobStatus;
+  buttonVariant?: ComponentProps<typeof Button>["variant"];
+  buttonLabel?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<JobStatus | null>(null);
@@ -97,7 +101,8 @@ export default function AdminJobActions({
         onSelect={(key) => openStatusAction(key as JobStatus)}
         disabled={loading}
         compact
-        label="จัดการ"
+        label={buttonLabel}
+        buttonVariant={buttonVariant}
       />
 
       <AdminActionSheet

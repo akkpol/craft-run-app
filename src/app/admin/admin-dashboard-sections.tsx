@@ -30,9 +30,15 @@ import type {
   OverviewFilterKey,
 } from "@/lib/admin-overview";
 import {
+  getLeadDesignRoutingSummary,
   getLeadAiDisplayPrompt,
   hasLeadAiSeedPrompt,
 } from "@/lib/lead-ai-prompt";
+import {
+  getConversationActionLabel,
+  getJobActionLabel,
+  getQuoteActionLabel,
+} from "@/lib/admin-action-labels";
 import type {
   BackofficeSnapshot,
   SnapshotConversation,
@@ -55,12 +61,15 @@ import {
   type BillingEntityType,
   type DocumentRequestType,
 } from "@/lib/types";
+import { formatBangkokDate, formatBangkokDateTime } from "@/lib/bangkok-date-time";
 import { cn, firstRow } from "@/lib/utils";
 
 import AdminConversationActions from "./conversation-actions";
 import AdminJobActions from "./job-actions";
 import LeadAiPreviewActions from "./lead-ai-preview-actions";
 import AdminLeadDesignActions from "./lead-design-actions";
+import LeadPromptActions from "./lead-prompt-actions";
+import LeadSendPreviewActions from "./lead-send-preview-actions";
 import ProductionLinkCopy from "./production-link-copy";
 import ProductionReviewActions from "./production-review-actions";
 import AdminQuoteActions from "./quote-actions";
@@ -90,6 +99,12 @@ const REVIEW_STATUS_LABELS: Record<string, string> = {
   sent: "ส่งให้ลูกค้าแล้ว",
 };
 
+const THAI_NUMBER_FORMATTER = new Intl.NumberFormat("th-TH-u-nu-latn");
+const OVERVIEW_ACTION_LINK_CLASS =
+  "inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 shadow-[0_1px_0_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50";
+
+type OverviewAccentTone = "neutral" | "info" | "warning" | "danger" | "success" | "accent";
+
 function formatLeadDimensions(
   lead: Pick<SnapshotLead, "width_mm" | "height_mm" | "qty">
 ) {
@@ -106,6 +121,102 @@ function truncateText(value: string | null | undefined, maxLength = 120) {
   }
 
   return `${value.slice(0, maxLength - 1)}...`;
+}
+
+function OverviewInlinePill({
+  children,
+  tone = "neutral",
+}: {
+  children: ReactNode;
+  tone?: "neutral" | "accent";
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none",
+        tone === "accent"
+          ? "border-cyan-200 bg-cyan-50 text-cyan-700"
+          : "border-slate-200 bg-slate-50 text-slate-600"
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function OverviewCellFrame({
+  children,
+  tone = "neutral",
+  className,
+}: {
+  children: ReactNode;
+  tone?: OverviewAccentTone;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-[20px] border px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]",
+        tone === "danger" && "border-rose-100 bg-white/88",
+        tone === "warning" && "border-amber-100 bg-white/88",
+        tone === "info" && "border-sky-100 bg-white/88",
+        tone === "success" && "border-emerald-100 bg-white/88",
+        tone === "accent" && "border-violet-100 bg-white/88",
+        tone === "neutral" && "border-slate-200/80 bg-white/82",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function OverviewMobileLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 xl:hidden">
+      {children}
+    </p>
+  );
+}
+
+function getOverviewCellClassName(className?: string) {
+  return cn(
+    "block px-4 py-3 align-top whitespace-normal xl:table-cell xl:px-4 xl:py-4",
+    className
+  );
+}
+
+function getOverviewActionCellClassName(className?: string) {
+  return cn(
+    "block border-t border-slate-200/70 px-4 pt-3 pb-4 align-top whitespace-normal xl:table-cell xl:border-0 xl:px-4 xl:py-4",
+    className
+  );
+}
+
+function getOverviewRowClassName(className?: string) {
+  return cn(
+    "group block overflow-hidden rounded-[24px] border shadow-[0_16px_34px_rgba(15,23,42,0.06)] transition-colors xl:table-row xl:rounded-none xl:border-x-0 xl:border-t-0 xl:shadow-none",
+    className
+  );
+}
+
+function OverviewActionRail({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col items-stretch gap-1.5 sm:flex-row sm:flex-wrap sm:justify-start sm:gap-2 xl:justify-end",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 function getProductLabel(productType: string | null | undefined) {
@@ -186,19 +297,11 @@ function customerName(value: { display_name: string | null } | null | undefined)
 }
 
 function formatDateTime(value: string | null | undefined) {
-  if (!value) {
-    return "-";
-  }
-
-  return new Date(value).toLocaleString("th-TH");
+  return formatBangkokDateTime(value);
 }
 
 function formatDate(value: string | null | undefined) {
-  if (!value) {
-    return "-";
-  }
-
-  return new Date(value).toLocaleDateString("th-TH");
+  return formatBangkokDate(value);
 }
 
 function formatTrackingCode(token: string | null | undefined) {
@@ -214,7 +317,7 @@ function formatTrackingCode(token: string | null | undefined) {
 }
 
 function formatCurrency(value: number | string) {
-  return `฿${Number(value).toLocaleString()}`;
+  return `฿${THAI_NUMBER_FORMATTER.format(Number(value))}`;
 }
 
 function getOverviewMetaChips(
@@ -466,12 +569,11 @@ export function AdminSummaryStripBlock({ items }: { items: AdminSummaryStripItem
         <div
           key={item.label}
           className={cn(
-            "rounded-[24px] border p-4 shadow-sm",
-            item.tone === "success" && "border-emerald-200 bg-emerald-50/60",
-            item.tone === "warning" && "border-amber-200 bg-amber-50/60",
-            item.tone === "danger" && "border-rose-200 bg-rose-50/60",
-            item.tone === "info" && "border-sky-200 bg-sky-50/60",
-            (!item.tone || item.tone === "neutral") && "border-cyan-100 bg-white"
+            "relative overflow-hidden rounded-[24px] border p-5 shadow-[0_16px_34px_rgba(15,23,42,0.05)]",
+            item.tone === "success" && "border-emerald-200 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.12),transparent_34%),linear-gradient(180deg,rgba(236,253,245,0.92),rgba(255,255,255,0.96))]",
+            item.tone === "warning" && "border-amber-200 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.14),transparent_34%),linear-gradient(180deg,rgba(255,251,235,0.95),rgba(255,255,255,0.98))]",
+            item.tone === "danger" && "border-rose-200 bg-[radial-gradient(circle_at_top_left,rgba(244,63,94,0.12),transparent_34%),linear-gradient(180deg,rgba(255,241,242,0.95),rgba(255,255,255,0.98))]",
+            (!item.tone || item.tone === "neutral") && "border-cyan-100 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.10),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))]"
           )}
         >
           <div className="flex items-center gap-1.5 text-slate-500">
@@ -489,20 +591,55 @@ export function AdminSummaryStripBlock({ items }: { items: AdminSummaryStripItem
           >
             {item.value}
           </p>
+          {item.hint ? (
+            <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-500">{item.hint}</p>
+          ) : null}
         </div>
       ))}
     </div>
   );
 }
 
-const OVERVIEW_QUEUE_FILTERS: Array<{ key: OverviewFilterKey; label: string }> = [
-  { key: "all", label: "ทั้งหมด" },
-  { key: "escalation", label: "Escalation" },
-  { key: "blocked", label: "Workflow ติดค้าง" },
-  { key: "waiting-customer", label: "รอลูกค้า" },
-  { key: "quote", label: "Quote" },
-  { key: "production-review", label: "Review" },
-  { key: "running-job", label: "งานรันอยู่" },
+const OVERVIEW_QUEUE_FILTERS: Array<{
+  key: OverviewFilterKey;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "all",
+    label: "ทั้งหมด",
+    description: "มองทุกคิวในมุมเดียวเพื่อจัดลำดับว่าสิ่งไหนต้องขยับก่อนในรอบนี้",
+  },
+  {
+    key: "escalation",
+    label: "Escalation",
+    description: "เคสที่ลูกค้าหรือระบบส่งกลับมาให้ทีมตอบทันทีและไม่ควรปล่อยค้าง",
+  },
+  {
+    key: "blocked",
+    label: "Workflow ติดค้าง",
+    description: "งานที่ flow เดินต่อไม่ได้จนกว่าจะมีคนปลดล็อกหรือเลือกทางไปต่อ",
+  },
+  {
+    key: "waiting-customer",
+    label: "รอลูกค้า",
+    description: "คิวที่ฝั่งทีมส่งคำถามหรือแบบกลับไปแล้วและกำลังรอข้อมูลเพิ่มจากลูกค้า",
+  },
+  {
+    key: "quote",
+    label: "Quote",
+    description: "ใบเสนอราคาที่ต้องตามการอนุมัติ การจ่ายเงิน หรือการเปิดงานต่อจากเอกสาร",
+  },
+  {
+    key: "production-review",
+    label: "Review",
+    description: "หลักฐานจากหน้างานที่ยังรอตรวจ ตีกลับ หรือยังต้องส่งต่อให้ลูกค้าเห็น",
+  },
+  {
+    key: "running-job",
+    label: "งานรันอยู่",
+    description: "งาน active ที่มี owner ต้องตาม prompt, preview, production link และสถานะหน้างาน",
+  },
 ];
 
 export function OverviewCombinedQueueTable({
@@ -512,6 +649,8 @@ export function OverviewCombinedQueueTable({
   overview: AdminOverviewPage;
   baseUrl: string;
 }) {
+  const activeFilter =
+    OVERVIEW_QUEUE_FILTERS.find((item) => item.key === overview.filter) || OVERVIEW_QUEUE_FILTERS[0];
   const paginationStart = overview.totalCount === 0
     ? 0
     : (overview.page - 1) * overview.pageSize + 1;
@@ -536,36 +675,63 @@ export function OverviewCombinedQueueTable({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        {OVERVIEW_QUEUE_FILTERS.map((item) => {
-          const count = overview.counts[item.key];
+    <div className="space-y-4">
+      <div className="rounded-[24px] border border-cyan-100/80 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.95))] p-3.5 shadow-[0_16px_36px_rgba(0,62,93,0.08)]">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Queue focus</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-base font-semibold text-slate-950">{activeFilter.label}</h3>
+              <Badge variant="outline" className="border-cyan-200 bg-white text-cyan-700">
+                {overview.counts[activeFilter.key]} รายการ
+              </Badge>
+            </div>
+            <p className="max-w-3xl text-sm leading-6 text-slate-500">{activeFilter.description}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:min-w-70">
+            <div className="rounded-[18px] border border-slate-200 bg-white/85 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">ตอนนี้แสดง</p>
+              <p className="mt-1 text-lg font-semibold text-slate-950">{overview.rows.length}</p>
+            </div>
+            <div className="rounded-[18px] border border-slate-200 bg-white/85 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">หน้า</p>
+              <p className="mt-1 text-lg font-semibold text-slate-950">{overview.page}/{overview.totalPages}</p>
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 overflow-x-auto pb-1">
+          <div className="flex min-w-max gap-2 lg:min-w-0 lg:flex-wrap">
+            {OVERVIEW_QUEUE_FILTERS.map((item) => {
+              const count = overview.counts[item.key];
 
-          return (
-            <Link
-              key={item.key}
-              href={buildOverviewHref(item.key, 1)}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition",
-                overview.filter === item.key
-                  ? "border-cyan-200 bg-cyan-500 text-white shadow-[0_10px_24px_rgba(0,132,190,0.18)]"
-                  : "border-cyan-100 bg-cyan-50/70 text-slate-600 hover:bg-cyan-100"
-              )}
-            >
-              <span>{item.label}</span>
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-                  overview.filter === item.key ? "bg-white/15 text-white" : "bg-white text-cyan-700"
-                )}
-              >
-                {count}
-              </span>
-            </Link>
-          );
-        })}
+              return (
+                <Link
+                  key={item.key}
+                  href={buildOverviewHref(item.key, 1)}
+                  prefetch={false}
+                  aria-current={overview.filter === item.key ? "page" : undefined}
+                  className={cn(
+                    "inline-flex min-w-fit items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold whitespace-nowrap transition",
+                    overview.filter === item.key
+                      ? "border-cyan-200 bg-[linear-gradient(135deg,#00AEEF_0%,#0098d0_100%)] text-white shadow-[0_14px_30px_rgba(0,94,140,0.2)]"
+                      : "border-cyan-100 bg-white text-slate-600 hover:border-cyan-200 hover:bg-cyan-50/80"
+                  )}
+                >
+                  <span>{item.label}</span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                      overview.filter === item.key ? "bg-white/15 text-white" : "border border-cyan-100 bg-cyan-50 text-cyan-700"
+                    )}
+                  >
+                    {count}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       </div>
-
       <AdminOperationalTable
         columns={["คิว", "ลูกค้า", "บริบท", "สถานะ", "Actions"]}
         emptyTitle="ตอนนี้ยังไม่มีรายการในตารางหลัก"
@@ -574,22 +740,30 @@ export function OverviewCombinedQueueTable({
             ? overview.rows.map((row: AdminOverviewRow, index) => {
                 if (row.kind === "escalation") {
                   return (
-                    <TableRow key={`overview-escalation-${row.id}-${index}`} className="bg-rose-50/30 align-top">
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-36 space-y-1">
-                          <p className="text-sm font-semibold text-rose-900">Escalation</p>
-                          <p className="text-xs text-slate-500">{formatDateTime(row.createdAt)}</p>
-                        </div>
+                    <TableRow
+                      key={`overview-escalation-${row.id}-${index}`}
+                      className={getOverviewRowClassName(
+                        "border-rose-100 bg-rose-50/60 hover:bg-rose-50/80 xl:border-slate-100 xl:bg-rose-50/30 xl:hover:bg-rose-50/45"
+                      )}
+                    >
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>คิว</OverviewMobileLabel>
+                        <OverviewCellFrame tone="danger" className="min-w-36 space-y-2">
+                          <Badge className="border border-rose-200 bg-rose-100 text-rose-800">Escalation</Badge>
+                          <p className="text-xs font-medium text-rose-700">{formatDateTime(row.createdAt)}</p>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-44">
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>ลูกค้า</OverviewMobileLabel>
+                        <OverviewCellFrame className="min-w-44">
                           <p className="text-sm font-semibold text-slate-950">{row.customerLabel}</p>
                           <p className="mt-1 text-xs text-slate-500">{getProductLabel(row.productLabel)}</p>
                           <OverviewMetaChips row={row} />
-                        </div>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-64 space-y-1">
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>บริบท</OverviewMobileLabel>
+                        <OverviewCellFrame tone="danger" className="min-w-64 space-y-1.5">
                           <p className="text-sm text-rose-900">{row.reason}</p>
                           <p className="text-xs text-slate-500">
                             {row.quoteStatus && row.paymentStatus
@@ -599,19 +773,27 @@ export function OverviewCombinedQueueTable({
                           {row.billingName ? (
                             <p className="text-xs text-slate-500">ออกเอกสาร: {truncateText(row.billingName, 48)}</p>
                           ) : null}
-                        </div>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="space-y-2">
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>สถานะ</OverviewMobileLabel>
+                        <OverviewCellFrame tone="danger" className="space-y-2">
                           <Badge className="border border-rose-200 bg-rose-50 text-rose-700">ต้องตอบตอนนี้</Badge>
                           {row.conversationState ? <p className="text-xs text-slate-500">{WORKFLOW_STATE_LABELS[row.conversationState]}</p> : null}
-                        </div>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
+                      <TableCell className={getOverviewActionCellClassName()}>
+                        <OverviewMobileLabel>Actions</OverviewMobileLabel>
                         {row.conversationId && row.conversationState ? (
-                          <div className="flex justify-end">
-                            <AdminConversationActions conversationId={row.conversationId} currentState={row.conversationState} compact />
-                          </div>
+                          <OverviewActionRail>
+                            <AdminConversationActions
+                              conversationId={row.conversationId}
+                              currentState={row.conversationState}
+                              compact
+                              buttonVariant="default"
+                              buttonLabel={getConversationActionLabel(row.conversationState, "escalation")}
+                            />
+                          </OverviewActionRail>
                         ) : null}
                       </TableCell>
                     </TableRow>
@@ -624,30 +806,42 @@ export function OverviewCombinedQueueTable({
                   return (
                     <TableRow
                       key={`overview-conversation-${row.filterKey}-${row.id}-${index}`}
-                      className={cn(
-                        "align-top",
-                        row.filterKey === "blocked" && "bg-amber-50/20",
-                        row.filterKey === "waiting-customer" && "bg-sky-50/20"
+                      className={getOverviewRowClassName(
+                        cn(
+                          row.filterKey === "blocked"
+                            ? "border-amber-100 bg-amber-50/60 hover:bg-amber-50/80 xl:border-slate-100 xl:bg-amber-50/20 xl:hover:bg-amber-50/40"
+                            : "border-sky-100 bg-sky-50/60 hover:bg-sky-50/80 xl:border-slate-100 xl:bg-sky-50/20 xl:hover:bg-sky-50/40"
+                        )
                       )}
                     >
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-36 space-y-1">
-                          <p className="text-sm font-semibold text-slate-900">
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>คิว</OverviewMobileLabel>
+                        <OverviewCellFrame tone={row.filterKey === "blocked" ? "warning" : "info"} className="min-w-36 space-y-2">
+                          <Badge
+                            className={cn(
+                              "border",
+                              row.filterKey === "blocked"
+                                ? "border-amber-200 bg-amber-100 text-amber-800"
+                                : "border-sky-200 bg-sky-100 text-sky-800"
+                            )}
+                          >
                             {row.filterKey === "blocked" ? "Workflow ติดค้าง" : "รอลูกค้าตอบ"}
-                          </p>
-                          <p className="text-xs text-slate-500">{formatDateTime(row.messageAt)}</p>
-                        </div>
+                          </Badge>
+                          <p className="text-xs font-medium text-slate-600">{formatDateTime(row.messageAt)}</p>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-44">
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>ลูกค้า</OverviewMobileLabel>
+                        <OverviewCellFrame className="min-w-44">
                           <p className="text-sm font-semibold text-slate-950">{row.customerLabel}</p>
                           <p className="mt-1 text-xs text-slate-500">{getProductLabel(row.productLabel)}</p>
                           <OverviewMetaChips row={row} />
-                        </div>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-64 space-y-1">
-                          <p className="text-sm text-slate-700">
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>บริบท</OverviewMobileLabel>
+                        <OverviewCellFrame tone={row.filterKey === "blocked" ? "warning" : "info"} className="min-w-64 space-y-1.5">
+                          <p className="line-clamp-2 text-sm text-slate-700">
                             {note || (row.filterKey === "blocked" ? "ยังต้องมีคนปลดล็อก workflow นี้" : "กำลังรอข้อมูลหรือ feedback เพิ่มจากลูกค้า")}
                           </p>
                           <p className="text-xs text-slate-500">
@@ -658,20 +852,28 @@ export function OverviewCombinedQueueTable({
                           {row.billingName ? (
                             <p className="text-xs text-slate-500">ออกเอกสาร: {truncateText(row.billingName, 48)}</p>
                           ) : null}
-                        </div>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="space-y-2">
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>สถานะ</OverviewMobileLabel>
+                        <OverviewCellFrame tone={row.filterKey === "blocked" ? "warning" : "info"} className="space-y-2">
                           <Badge className={cn("border", statusToneClass(row.conversationState))}>{WORKFLOW_STATE_LABELS[row.conversationState]}</Badge>
                           <p className="text-xs text-slate-500">
                             {row.jobStatus ? JOB_STATUS_LABELS[row.jobStatus] || row.jobStatus : "ยังไม่มี job"}
                           </p>
-                        </div>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="flex justify-end">
-                          <AdminConversationActions conversationId={row.conversationId} currentState={row.conversationState} compact />
-                        </div>
+                      <TableCell className={getOverviewActionCellClassName()}>
+                        <OverviewMobileLabel>Actions</OverviewMobileLabel>
+                        <OverviewActionRail>
+                          <AdminConversationActions
+                            conversationId={row.conversationId}
+                            currentState={row.conversationState}
+                            compact
+                            buttonVariant="default"
+                            buttonLabel={getConversationActionLabel(row.conversationState, row.filterKey)}
+                          />
+                        </OverviewActionRail>
                       </TableCell>
                     </TableRow>
                   );
@@ -679,40 +881,47 @@ export function OverviewCombinedQueueTable({
 
                 if (row.kind === "quote") {
                   return (
-                    <TableRow key={`overview-quote-${row.quoteId}-${index}`} className="bg-violet-50/20 align-top">
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-36 space-y-1">
-                          <p className="text-sm font-semibold text-slate-900">Quote ติดค้าง</p>
-                          <p className="text-xs text-slate-500">{formatDateTime(row.createdAt)}</p>
-                        </div>
+                    <TableRow
+                      key={`overview-quote-${row.quoteId}-${index}`}
+                      className={getOverviewRowClassName(
+                        "border-violet-100 bg-violet-50/60 hover:bg-violet-50/80 xl:border-slate-100 xl:bg-violet-50/20 xl:hover:bg-violet-50/35"
+                      )}
+                    >
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>คิว</OverviewMobileLabel>
+                        <OverviewCellFrame tone="accent" className="min-w-36 space-y-2">
+                          <Badge className="border border-violet-200 bg-violet-100 text-violet-800">Quote ติดค้าง</Badge>
+                          <p className="text-xs font-medium text-violet-700">{formatDateTime(row.createdAt)}</p>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-44">
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>ลูกค้า</OverviewMobileLabel>
+                        <OverviewCellFrame className="min-w-44">
                           <p className="text-sm font-semibold text-slate-950">{row.customerLabel}</p>
                           <p className="mt-1 text-xs text-slate-500">{getProductLabel(row.productLabel)}</p>
                           <OverviewMetaChips row={row} />
-                        </div>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-64 space-y-1">
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>บริบท</OverviewMobileLabel>
+                        <OverviewCellFrame tone="accent" className="min-w-64 space-y-1.5">
                           <p className="text-sm text-slate-700">ยอด {formatCurrency(row.total)} · {PAYMENT_TERM_LABELS[row.paymentTerms]}</p>
                           <p className="text-xs text-slate-500">Track {formatTrackingCode(row.publicToken)}</p>
                           {row.billingName ? (
                             <p className="text-xs text-slate-500">ออกเอกสาร: {truncateText(row.billingName, 48)}</p>
                           ) : null}
-                        </div>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="space-y-2">
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>สถานะ</OverviewMobileLabel>
+                        <OverviewCellFrame tone="accent" className="space-y-2">
                           <Badge className={cn("border", statusToneClass(row.quoteStatus))}>{getQuoteStatusLabel(row.quoteStatus)}</Badge>
                           <p className="text-xs text-slate-500">{PAYMENT_STATUS_LABELS[row.paymentStatus]} · {row.hasJob ? "มี job แล้ว" : "ยังไม่สร้าง job"}</p>
-                        </div>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="flex min-w-52 flex-wrap items-center justify-end gap-2">
-                          <a href={`${baseUrl}/quote/${row.publicToken}`} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-600 underline underline-offset-4">
-                            เปิด quote
-                          </a>
+                      <TableCell className={getOverviewActionCellClassName()}>
+                        <OverviewMobileLabel>Actions</OverviewMobileLabel>
+                        <OverviewActionRail className="xl:min-w-52">
                           <AdminQuoteActions
                             quoteId={row.quoteId}
                             publicToken={row.publicToken}
@@ -720,8 +929,18 @@ export function OverviewCombinedQueueTable({
                             paymentTerms={row.paymentTerms}
                             paymentStatus={row.paymentStatus}
                             hasJob={row.hasJob}
+                            buttonVariant="default"
+                            buttonLabel={getQuoteActionLabel(
+                              row.quoteStatus,
+                              row.paymentTerms,
+                              row.paymentStatus,
+                              row.hasJob
+                            )}
                           />
-                        </div>
+                          <a href={`${baseUrl}/quote/${row.publicToken}`} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>
+                            เปิด quote
+                          </a>
+                        </OverviewActionRail>
                       </TableCell>
                     </TableRow>
                   );
@@ -729,95 +948,192 @@ export function OverviewCombinedQueueTable({
 
                 if (row.kind === "production-review") {
                   return (
-                    <TableRow key={`overview-review-${row.eventId}-${index}`} className="bg-cyan-50/25 align-top">
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-36 space-y-1">
-                          <p className="text-sm font-semibold text-slate-900">Production Review</p>
-                          <p className="text-xs text-slate-500">{formatDateTime(row.createdAt)}</p>
-                        </div>
+                    <TableRow
+                      key={`overview-review-${row.eventId}-${index}`}
+                      className={getOverviewRowClassName(
+                        "border-cyan-100 bg-cyan-50/55 hover:bg-cyan-50/75 xl:border-slate-100 xl:bg-cyan-50/25 xl:hover:bg-cyan-50/38"
+                      )}
+                    >
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>คิว</OverviewMobileLabel>
+                        <OverviewCellFrame tone="info" className="min-w-36 space-y-2">
+                          <Badge className="border border-cyan-200 bg-cyan-100 text-cyan-800">Production Review</Badge>
+                          <p className="text-xs font-medium text-cyan-700">{formatDateTime(row.createdAt)}</p>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-44">
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>ลูกค้า</OverviewMobileLabel>
+                        <OverviewCellFrame className="min-w-44">
                           <p className="text-sm font-semibold text-slate-950">{row.customerLabel}</p>
                           <p className="mt-1 text-xs text-slate-500">{getProductLabel(row.productLabel)}</p>
                           <OverviewMetaChips row={row} />
-                        </div>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-64 space-y-1">
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>บริบท</OverviewMobileLabel>
+                        <OverviewCellFrame tone="info" className="min-w-64 space-y-1.5">
                           <p className="text-sm text-slate-700">{PRODUCTION_EVENT_TYPE_LABELS[row.eventType]} · ไฟล์ {row.assetCount} ชิ้น</p>
-                          <p className="text-xs text-slate-500">{row.note || (row.submittedByLabel ? `ส่งโดย ${row.submittedByLabel}` : "ยังไม่มี note เพิ่มเติม")}</p>
+                          <p className="line-clamp-2 text-xs text-slate-500">{row.note || (row.submittedByLabel ? `ส่งโดย ${row.submittedByLabel}` : "ยังไม่มี note เพิ่มเติม")}</p>
                           {row.billingName ? (
                             <p className="text-xs text-slate-500">ออกเอกสาร: {truncateText(row.billingName, 48)}</p>
                           ) : null}
-                        </div>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="space-y-2">
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>สถานะ</OverviewMobileLabel>
+                        <OverviewCellFrame tone="info" className="space-y-2">
                           <Badge className={cn("border", statusToneClass(row.reviewStatus))}>{getReviewStatusLabel(row.reviewStatus)}</Badge>
                           {row.sentToCustomerAt ? <p className="text-xs text-slate-500">ส่งลูกค้า {formatDate(row.sentToCustomerAt)}</p> : null}
-                        </div>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="flex min-w-56 flex-wrap items-center justify-end gap-2">
-                          <ProductionReviewActions eventId={row.eventId} reviewStatus={row.reviewStatus} />
-                          {row.productionLinkUrl ? <ProductionLinkCopy url={row.productionLinkUrl} compact /> : null}
+                      <TableCell className={getOverviewActionCellClassName()}>
+                        <OverviewMobileLabel>Actions</OverviewMobileLabel>
+                        <OverviewActionRail className="xl:min-w-56">
+                          <ProductionReviewActions
+                            eventId={row.eventId}
+                            reviewStatus={row.reviewStatus}
+                            buttonVariant="default"
+                            buttonLabel="ตรวจหลักฐาน"
+                          />
                           {row.statusToken ? (
-                            <a href={`${baseUrl}/status/${row.statusToken}`} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-600 underline underline-offset-4">
+                            <a href={`${baseUrl}/status/${row.statusToken}`} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>
                               เปิดหน้า status
                             </a>
                           ) : null}
-                        </div>
+                          {row.productionLinkUrl ? <ProductionLinkCopy url={row.productionLinkUrl} compact buttonVariant="secondary" /> : null}
+                        </OverviewActionRail>
                       </TableCell>
                     </TableRow>
                   );
                 }
 
                 if (row.kind === "running-job") {
+                  const promptPreview = truncateText(
+                    row.promptText?.replace(/\s*\n+\s*/g, " · "),
+                    96
+                  );
+
                   return (
-                    <TableRow key={`overview-running-job-${row.jobId}-${index}`} className="bg-emerald-50/20 align-top">
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-36 space-y-1">
-                          <p className="text-sm font-semibold text-slate-900">งานที่กำลังรันอยู่</p>
-                          <p className="text-xs text-slate-500">เริ่ม {formatDate(row.createdAt)}</p>
-                        </div>
+                    <TableRow
+                      key={`overview-running-job-${row.jobId}-${index}`}
+                      className={getOverviewRowClassName(
+                        "border-emerald-100 bg-emerald-50/55 hover:bg-emerald-50/75 xl:border-slate-100 xl:bg-emerald-50/20 xl:hover:bg-emerald-50/34"
+                      )}
+                    >
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>คิว</OverviewMobileLabel>
+                        <OverviewCellFrame tone="success" className="min-w-36 space-y-2">
+                          <Badge className="border border-emerald-200 bg-emerald-100 text-emerald-800">งานที่กำลังรันอยู่</Badge>
+                          <p className="text-xs font-medium text-emerald-700">เริ่ม {formatDate(row.createdAt)}</p>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-44">
-                          <p className="text-sm font-semibold text-slate-950">{row.customerLabel}</p>
-                          <p className="mt-1 text-xs text-slate-500">{getProductLabel(row.productLabel)}</p>
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>ลูกค้า</OverviewMobileLabel>
+                        <OverviewCellFrame className="min-w-44 space-y-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">{row.customerLabel}</p>
+                            <p className="mt-1 text-xs text-slate-500">{getProductLabel(row.productLabel)}</p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {row.previewImageUrl ? (
+                              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pr-3 pl-1 text-xs font-medium text-slate-700">
+                                <Image src={row.previewImageUrl} alt="Running job preview" width={32} height={32} unoptimized className="h-8 w-8 rounded-full object-cover" />
+                                <span>มี preview ล่าสุด</span>
+                              </div>
+                            ) : null}
+                            <OverviewInlinePill>
+                              {row.uploadedReferenceCount > 0
+                                ? `ไฟล์ลูกค้า ${row.uploadedReferenceCount}`
+                                : "ยังไม่มีไฟล์ลูกค้า"}
+                            </OverviewInlinePill>
+                            {row.previewImageCount > 0 ? (
+                              <OverviewInlinePill tone="accent">AI preview {row.previewImageCount}</OverviewInlinePill>
+                            ) : null}
+                          </div>
                           <OverviewMetaChips row={row} />
-                        </div>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="min-w-64 space-y-1">
-                          <p className="text-sm text-slate-700">Track {formatTrackingCode(row.publicToken)}</p>
-                          <p className="text-xs text-slate-500">
-                            {row.pendingReviewCount > 0 ? `รอตรวจ ${row.pendingReviewCount}` : "ไม่มี review ค้าง"}
-                            {row.assignedTo ? ` · owner ${row.assignedTo}` : " · ยังไม่ assign owner"}
-                          </p>
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>บริบท</OverviewMobileLabel>
+                        <OverviewCellFrame tone="success" className="min-w-64 space-y-2">
+                          <div className="flex flex-wrap gap-2">
+                            <OverviewInlinePill tone="accent">Track {formatTrackingCode(row.publicToken)}</OverviewInlinePill>
+                            <OverviewInlinePill>
+                              {row.pendingReviewCount > 0 ? `รอตรวจ ${row.pendingReviewCount}` : "ไม่มี review ค้าง"}
+                            </OverviewInlinePill>
+                            <OverviewInlinePill>
+                              {row.assignedTo ? `owner ${row.assignedTo}` : "ยังไม่ assign owner"}
+                            </OverviewInlinePill>
+                            {row.aiImageStatus && row.aiImageStatus !== "not_requested" ? (
+                              <OverviewInlinePill>AI {row.aiImageStatus}</OverviewInlinePill>
+                            ) : null}
+                          </div>
+                          {row.promptRoutingLabel ? (
+                            <p className="text-xs font-medium text-slate-600">{row.promptRoutingLabel}</p>
+                          ) : null}
                           {row.billingName ? (
                             <p className="text-xs text-slate-500">ออกเอกสาร: {truncateText(row.billingName, 48)}</p>
                           ) : null}
-                        </div>
+                          {promptPreview ? (
+                            <p className="line-clamp-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-3 py-2 text-xs leading-5 text-slate-500">
+                              Prompt: {promptPreview}
+                            </p>
+                          ) : null}
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="space-y-2">
+                      <TableCell className={getOverviewCellClassName()}>
+                        <OverviewMobileLabel>สถานะ</OverviewMobileLabel>
+                        <OverviewCellFrame tone="success" className="space-y-2">
                           <Badge className={cn("border", statusToneClass(row.jobStatus))}>{JOB_STATUS_LABELS[row.jobStatus] || row.jobStatus}</Badge>
                           <p className="text-xs text-slate-500">
                             {row.productionStatus ? `production ${row.productionStatus}` : "ยังไม่ตั้ง production state"}
                           </p>
-                        </div>
+                        </OverviewCellFrame>
                       </TableCell>
-                      <TableCell className="px-4 py-4 align-top whitespace-normal">
-                        <div className="flex min-w-56 flex-wrap items-center justify-end gap-2">
-                          {row.productionLinkUrl ? <ProductionLinkCopy url={row.productionLinkUrl} compact /> : null}
-                          {row.publicToken ? (
-                            <a href={`${baseUrl}/status/${row.publicToken}`} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-600 underline underline-offset-4">
-                              เปิดหน้า status
-                            </a>
-                          ) : null}
-                          <AdminJobActions jobId={row.jobId} currentStatus={row.jobStatus} />
+                      <TableCell className={getOverviewActionCellClassName()}>
+                        <OverviewMobileLabel>Actions</OverviewMobileLabel>
+                        <div className="min-w-0 space-y-1.5 sm:space-y-2 xl:min-w-60">
+                          <OverviewActionRail>
+                            <LeadSendPreviewActions
+                              leadId={row.leadId}
+                              previewCount={row.previewImageCount}
+                              buttonVariant={row.previewImageCount > 0 ? "default" : "outline"}
+                            />
+                            <AdminJobActions
+                              jobId={row.jobId}
+                              currentStatus={row.jobStatus}
+                              buttonVariant={row.previewImageCount > 0 ? "secondary" : "default"}
+                              buttonLabel={getJobActionLabel(row.jobStatus)}
+                            />
+                          </OverviewActionRail>
+                          <OverviewActionRail>
+                            <LeadAiPreviewActions
+                              leadId={row.leadId}
+                              prompt={row.promptText}
+                              status={row.aiImageStatus || "not_requested"}
+                              buttonVariant="secondary"
+                            />
+                            <LeadPromptActions
+                              leadId={row.leadId}
+                              prompt={row.promptText}
+                              promptRoutingLabel={row.promptRoutingLabel}
+                              buttonVariant="outline"
+                              buttonLabel="ดู/แก้ prompt"
+                            />
+                          </OverviewActionRail>
+                          <OverviewActionRail>
+                            {row.productionLinkUrl ? <ProductionLinkCopy url={row.productionLinkUrl} compact buttonVariant="secondary" /> : null}
+                            {row.previewImageUrl ? (
+                              <a href={row.previewImageUrl} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>
+                                เปิด preview
+                              </a>
+                            ) : null}
+                            {row.publicToken ? (
+                              <a href={`${baseUrl}/status/${row.publicToken}`} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>
+                                เปิดหน้า status
+                              </a>
+                            ) : null}
+                          </OverviewActionRail>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -838,6 +1154,7 @@ export function OverviewCombinedQueueTable({
           {overview.page > 1 ? (
             <Link
               href={buildOverviewHref(overview.filter, overview.page - 1)}
+              prefetch={false}
               className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               หน้าก่อน
@@ -853,6 +1170,7 @@ export function OverviewCombinedQueueTable({
           {overview.page < overview.totalPages ? (
             <Link
               href={buildOverviewHref(overview.filter, overview.page + 1)}
+              prefetch={false}
               className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 transition hover:bg-cyan-100"
             >
               หน้าถัดไป
@@ -913,12 +1231,16 @@ export function AdminMustDoNowQueueContent({ items }: { items: SnapshotLead[] })
                 prompt={getLeadAiPrompt(lead)}
                 status={lead.ai_image_status || "not_requested"}
               />
+              <LeadSendPreviewActions
+                leadId={lead.id}
+                previewCount={lead.ai_generated_images?.length || 0}
+              />
               <AdminLeadDesignActions leadId={lead.id} designStatus={lead.design_status || "not_started"} />
             </div>
           }
         >
           <p className="text-xs text-slate-500">
-            {hasLeadAiSeedPrompt(lead) ? "มี AI prompt พร้อมใช้งาน" : "คิวนี้ขยับต่อด้วยทีมออกแบบได้ทันที"}
+            {getLeadDesignRoutingSummary(lead)}
           </p>
         </QueueCard>
       ))}
@@ -1025,11 +1347,11 @@ export function AdminStuckQueueContent({
               <QueueCard
                 key={quote.id}
                 title={customerName(quote.leads?.customers)}
-                meta={`${getProductLabel(quote.leads?.product_type)} · ฿${Number(quote.total).toLocaleString()} · Track ${formatTrackingCode(quote.public_token)}`}
+                meta={`${getProductLabel(quote.leads?.product_type)} · ${formatCurrency(quote.total)} · Track ${formatTrackingCode(quote.public_token)}`}
                 badge={<Badge className={cn("border", statusToneClass(quote.status))}>{getQuoteStatusLabel(quote.status)}</Badge>}
                 footer={
                   <div className="flex items-center justify-between gap-2">
-                    <a href={`${baseUrl}/quote/${quote.public_token}`} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-600 underline underline-offset-4">
+                    <a href={`${baseUrl}/quote/${quote.public_token}`} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>
                       เปิด quote
                     </a>
                     <AdminQuoteActions
@@ -1099,7 +1421,7 @@ export function AdminStuckQueueContent({
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
-                          <a href={`${baseUrl}/quote/${quote.public_token}`} target="_blank" rel="noreferrer" className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100">
+                          <a href={`${baseUrl}/quote/${quote.public_token}`} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>
                             เปิด quote
                           </a>
                           <AdminQuoteActions
@@ -1311,27 +1633,29 @@ function AdminOperationalTable({
   emptyTitle: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white">
-      <Table>
-        <TableHeader className="bg-slate-50/90">
-          <TableRow className="hover:bg-slate-50/90">
-            {columns.map((column) => (
-              <TableHead key={column} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                {column}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows || (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="px-4 py-8 text-center text-sm text-slate-500">
-                {emptyTitle}
-              </TableCell>
+    <div className="rounded-[26px] border border-slate-200/90 bg-white/70 p-3 shadow-[0_1px_0_rgba(15,23,42,0.02)] xl:overflow-hidden xl:bg-white xl:p-0">
+      <div className="overflow-visible xl:overflow-x-auto">
+        <Table className="border-separate [border-spacing:0_0.75rem] xl:border-collapse xl:[border-spacing:0] [&_td]:align-top [&_tr]:border-slate-100">
+          <TableHeader className="hidden bg-slate-50/85 xl:table-header-group">
+            <TableRow className="hover:bg-slate-50/85">
+              {columns.map((column) => (
+                <TableHead key={column} className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  {column}
+                </TableHead>
+              ))}
             </TableRow>
-          )}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody className="block space-y-3 xl:table-row-group xl:space-y-0 [&_tr:last-child]:border-0">
+            {rows || (
+              <TableRow className="block rounded-[22px] border border-dashed border-cyan-200 bg-cyan-50/40 xl:table-row xl:rounded-none xl:border-0 xl:bg-transparent">
+                <TableCell colSpan={columns.length} className="block px-4 py-8 text-center text-sm text-slate-500 xl:table-cell">
+                  {emptyTitle}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
@@ -1403,6 +1727,10 @@ export function DesignQueueTable({ leads }: { leads: SnapshotLead[] }) {
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="flex min-w-48 flex-wrap items-center justify-end gap-2">
                       <LeadAiPreviewActions leadId={lead.id} prompt={getLeadAiPrompt(lead)} status={lead.ai_image_status || "not_requested"} />
+                      <LeadSendPreviewActions
+                        leadId={lead.id}
+                        previewCount={lead.ai_generated_images?.length || 0}
+                      />
                       <AdminLeadDesignActions leadId={lead.id} designStatus={lead.design_status || "not_started"} />
                     </div>
                   </TableCell>
@@ -1467,6 +1795,10 @@ export function WaitingCustomerDesignTable({ leads }: { leads: SnapshotLead[] })
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="flex min-w-48 flex-wrap items-center justify-end gap-2">
                       <LeadAiPreviewActions leadId={lead.id} prompt={getLeadAiPrompt(lead)} status={lead.ai_image_status || "not_requested"} />
+                      <LeadSendPreviewActions
+                        leadId={lead.id}
+                        previewCount={lead.ai_generated_images?.length || 0}
+                      />
                       <AdminLeadDesignActions leadId={lead.id} designStatus={lead.design_status || "not_started"} />
                     </div>
                   </TableCell>
@@ -1528,7 +1860,7 @@ export function ProductionReviewTable({ items, baseUrl }: { items: SnapshotProdu
                     <div className="flex min-w-56 flex-wrap items-center justify-end gap-2">
                       <ProductionReviewActions eventId={event.id} reviewStatus={event.review_status} />
                       {event.production_link_url ? <ProductionLinkCopy url={event.production_link_url} compact /> : null}
-                      {quote?.public_token ? <a href={`${baseUrl}/status/${quote.public_token}`} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-600 underline underline-offset-4">เปิดหน้า status</a> : null}
+                      {quote?.public_token ? <a href={`${baseUrl}/status/${quote.public_token}`} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>เปิดหน้า status</a> : null}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1582,7 +1914,7 @@ export function ProductionJobsTable({ jobs, baseUrl }: { jobs: SnapshotJob[]; ba
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="flex min-w-56 flex-wrap items-center justify-end gap-2">
                       {job.production_link_url ? <ProductionLinkCopy url={job.production_link_url} compact /> : null}
-                      {job.quotes?.public_token ? <a href={`${baseUrl}/status/${job.quotes.public_token}`} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-600 underline underline-offset-4">เปิดหน้า status</a> : null}
+                      {job.quotes?.public_token ? <a href={`${baseUrl}/status/${job.quotes.public_token}`} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>เปิดหน้า status</a> : null}
                       <AdminJobActions jobId={job.id} currentStatus={job.status} />
                     </div>
                   </TableCell>
@@ -1644,7 +1976,7 @@ export function SalesQuotesTable({ quotes, baseUrl }: { quotes: SnapshotQuote[];
                   </TableCell>
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="flex min-w-52 flex-wrap items-center justify-end gap-2">
-                      <a href={`${baseUrl}/quote/${quote.public_token}`} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-600 underline underline-offset-4">เปิด quote</a>
+                      <a href={`${baseUrl}/quote/${quote.public_token}`} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>เปิด quote</a>
                       <AdminQuoteActions
                         quoteId={quote.id}
                         publicToken={quote.public_token}
@@ -1713,6 +2045,10 @@ export function SalesLeadsTable({ leads }: { leads: SnapshotLead[] }) {
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="flex min-w-48 flex-wrap items-center justify-end gap-2">
                       <LeadAiPreviewActions leadId={lead.id} prompt={getLeadAiPrompt(lead)} status={lead.ai_image_status || "not_requested"} />
+                      <LeadSendPreviewActions
+                        leadId={lead.id}
+                        previewCount={lead.ai_generated_images?.length || 0}
+                      />
                       <AdminLeadDesignActions leadId={lead.id} designStatus={lead.design_status || "not_started"} />
                     </div>
                   </TableCell>
@@ -1760,7 +2096,7 @@ export function OverviewSalesSnapshotTable({
                   </TableCell>
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="flex min-w-44 flex-wrap items-center justify-end gap-2">
-                      <a href={`${baseUrl}/quote/${quote.public_token}`} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-600 underline underline-offset-4">เปิด quote</a>
+                      <a href={`${baseUrl}/quote/${quote.public_token}`} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>เปิด quote</a>
                       <AdminQuoteActions
                         quoteId={quote.id}
                         publicToken={quote.public_token}
@@ -1809,6 +2145,10 @@ export function OverviewDesignSnapshotTable({ leads }: { leads: SnapshotLead[] }
                 <TableCell className="px-4 py-4 align-top whitespace-normal">
                   <div className="flex min-w-44 flex-wrap items-center justify-end gap-2">
                     <LeadAiPreviewActions leadId={lead.id} prompt={getLeadAiPrompt(lead)} status={lead.ai_image_status || "not_requested"} />
+                    <LeadSendPreviewActions
+                      leadId={lead.id}
+                      previewCount={lead.ai_generated_images?.length || 0}
+                    />
                     <AdminLeadDesignActions leadId={lead.id} designStatus={lead.design_status || "not_started"} />
                   </div>
                 </TableCell>
@@ -1857,7 +2197,7 @@ export function OverviewProductionSnapshotTable({
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="flex min-w-44 flex-wrap items-center justify-end gap-2">
                       {job.production_link_url ? <ProductionLinkCopy url={job.production_link_url} compact /> : null}
-                      {job.quotes?.public_token ? <a href={`${baseUrl}/status/${job.quotes.public_token}`} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-600 underline underline-offset-4">เปิดหน้า status</a> : null}
+                      {job.quotes?.public_token ? <a href={`${baseUrl}/status/${job.quotes.public_token}`} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>เปิดหน้า status</a> : null}
                       <AdminJobActions jobId={job.id} currentStatus={job.status} />
                     </div>
                   </TableCell>

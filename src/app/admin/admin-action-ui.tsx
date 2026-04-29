@@ -29,6 +29,7 @@ type AdminActionMenuProps = {
   disabled?: boolean;
   compact?: boolean;
   label?: string;
+  buttonVariant?: React.ComponentProps<typeof Button>["variant"];
 };
 
 export function AdminActionToast({
@@ -95,6 +96,7 @@ export function AdminActionMenu({
   disabled = false,
   compact = false,
   label = "จัดการ",
+  buttonVariant = "outline",
 }: AdminActionMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -133,11 +135,15 @@ export function AdminActionMenu({
     <div ref={rootRef} className="relative inline-flex">
       <Button
         type="button"
-        variant="outline"
+        variant={buttonVariant}
         size={compact ? "xs" : "sm"}
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
-        className="border-slate-200 bg-white text-slate-700"
+        className={cn(
+          buttonVariant === "outline" && "border-slate-200 bg-white text-slate-700",
+          buttonVariant === "secondary" && "border-slate-200 bg-slate-100/90 text-slate-800 hover:bg-slate-200/80",
+          buttonVariant === "default" && "shadow-[0_12px_24px_rgba(0,94,140,0.18)] hover:shadow-[0_16px_30px_rgba(0,94,140,0.22)]"
+        )}
       >
         {compact ? <MoreHorizontal className="size-3.5" /> : null}
         <span>{label}</span>

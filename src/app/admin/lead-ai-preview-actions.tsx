@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   AdminActionSheet,
   AdminActionToast,
@@ -15,7 +16,14 @@ type Props = {
   status: string;
 };
 
-export default function LeadAiPreviewActions({ leadId, prompt, status }: Props) {
+export default function LeadAiPreviewActions({
+  leadId,
+  prompt,
+  status,
+  buttonVariant = "outline",
+}: Props & {
+  buttonVariant?: ComponentProps<typeof Button>["variant"];
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -54,7 +62,7 @@ export default function LeadAiPreviewActions({ leadId, prompt, status }: Props) 
       setToast({
         tone: "success",
         title: "สร้างภาพ AI แล้ว",
-        description: "ระบบอัปเดต lead และส่งงานเข้าสู่ขั้นตอนให้ลูกค้าตรวจแบบแล้ว",
+        description: "ระบบสร้าง preview แล้ว ตอนนี้กดส่งให้ลูกค้าตรวจจาก admin ได้ทันที",
       });
       router.refresh();
       setOpen(false);
@@ -73,20 +81,24 @@ export default function LeadAiPreviewActions({ leadId, prompt, status }: Props) 
     <>
       <Button
         type="button"
-        variant="outline"
+        variant={buttonVariant}
         size="xs"
         disabled={loading || status === "pending"}
         onClick={() => setOpen(true)}
-        className="border-slate-200 text-slate-700"
+        className={cn(
+          buttonVariant === "outline" && "border-slate-200 text-slate-700",
+          buttonVariant === "secondary" && "border-slate-200 bg-slate-100/90 text-slate-800 hover:bg-slate-200/80",
+          buttonVariant === "default" && "shadow-[0_12px_24px_rgba(0,94,140,0.18)] hover:shadow-[0_16px_30px_rgba(0,94,140,0.22)]"
+        )}
       >
-        {loading || status === "pending" ? "กำลังสร้างภาพ..." : "สร้างภาพ AI"}
+        {loading || status === "pending" ? "กำลังสร้างภาพ..." : "สร้างภาพตัวอย่าง"}
       </Button>
 
       <AdminActionSheet
         open={open}
         onClose={() => setOpen(false)}
         title="สร้างภาพตัวอย่างด้วย AI"
-        description="ระบบจะใช้ final prompt snapshot ของ lead เพื่อ generate preview และเลื่อนสถานะไปยังขั้นตอนให้ลูกค้าตรวจแบบ"
+        description="ระบบจะใช้ final prompt snapshot ของ lead เพื่อ generate preview และเตรียมไฟล์ไว้ให้แอดมินส่งให้ลูกค้าตรวจ"
         badge="Design"
         footer={
           <div className="flex items-center justify-end gap-2">
@@ -94,7 +106,7 @@ export default function LeadAiPreviewActions({ leadId, prompt, status }: Props) 
               ยกเลิก
             </Button>
             <Button type="button" onClick={generatePreview} disabled={loading || status === "pending"}>
-              {loading || status === "pending" ? "กำลังสร้างภาพ..." : "ยืนยันสร้างภาพ AI"}
+              {loading || status === "pending" ? "กำลังสร้างภาพ..." : "ยืนยันสร้างภาพตัวอย่าง"}
             </Button>
           </div>
         }

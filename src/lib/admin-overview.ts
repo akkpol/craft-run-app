@@ -1,4 +1,6 @@
 import { createAdminClient } from "./supabase/admin";
+import { signLeadMediaAssetPaths } from "./customer-media";
+import { getLeadAiDisplayPrompt, getLeadDesignRoutingSummary } from "./lead-ai-prompt";
 import { buildProductionLinkUrl } from "./production-links";
 import { getShareableProductionToken, isExpired } from "./production-media";
 import {
@@ -120,9 +122,16 @@ export type AdminOverviewRow =
       filterKey: "running-job";
       createdAt: string;
       jobId: string;
+      leadId: string;
       publicToken: string | null;
       pendingReviewCount: number;
       assignedTo: string | null;
+      uploadedReferenceCount: number;
+      previewImageCount: number;
+      previewImageUrl: string | null;
+      promptText: string;
+      promptRoutingLabel: string | null;
+      aiImageStatus: string | null;
       jobStatus: JobStatus;
       productionStatus: string | null;
       productionLinkUrl: string | null;
@@ -204,6 +213,12 @@ function buildLinkedProductionLinkUrl(
   }
 
   return buildProductionLinkUrl(baseUrl, getShareableProductionToken(link.id));
+}
+
+function getLeadPreviewImageUrl(lead: SnapshotLead | null | undefined) {
+  return Array.isArray(lead?.ai_generated_images)
+    ? lead.ai_generated_images[0] || null
+    : null;
 }
 
 export function isOverviewFilterKey(value: string): value is OverviewFilterKey {
@@ -393,13 +408,42 @@ async function fetchRunningJobs(
   const { data } = await supabase
     .from("jobs")
     .select(
-      "id, lead_id, status, assigned_to, production_status, created_at, quotes(public_token, leads(product_type, requested_document_type, billing_entity_type, billing_name, customers(display_name, line_friendship_status, last_liff_context))), job_production_links(id, job_id, status, expires_at, last_used_at, created_at, updated_at), job_media_events(id, review_status)"
+      "id, lead_id, status, assigned_to, production_status, created_at, quotes(public_token, leads(id, product_type, width_mm, height_mm, qty, note_from_form, reference_info, requested_document_type, billing_entity_type, billing_name, design_brief, ai_image_prompt, ai_prompt_snapshot, ai_image_status, ai_generated_images, lead_media_assets(id, lead_id, storage_path, storage_provider, storage_bucket, original_file_name, mime_type, file_size_bytes, created_at), customers(display_name, line_friendship_status, last_liff_context))), job_production_links(id, job_id, status, expires_at, last_used_at, created_at, updated_at), job_media_events(id, review_status)"
     )
     .in("status", ACTIVE_JOB_STATUSES)
     .order("created_at", { ascending: false })
     .range(offset, rangeEnd(offset, limit));
 
-  return (data || []) as unknown as SnapshotJob[];
+  const jobs = (data || []) as unknown as SnapshotJob[];
+  const leadAssets = jobs.flatMap(
+    (job) => job.quotes?.leads?.lead_media_assets || []
+  );
+  const signedLeadAssetUrls =
+    leadAssets.length > 0
+      ? await signLeadMediaAssetPaths(supabase, leadAssets)
+      : {};
+
+  return jobs.map((job) => {
+    const lead = job.quotes?.leads || null;
+
+    if (!lead || !job.quotes) {
+      return job;
+    }
+
+    return {
+      ...job,
+      quotes: {
+        ...job.quotes,
+        leads: {
+          ...lead,
+          lead_media_assets: (lead.lead_media_assets || []).map((asset) => ({
+            ...asset,
+            signed_url: signedLeadAssetUrls[asset.storage_path] || null,
+          })),
+        },
+      },
+    };
+  });
 }
 
 async function fetchOverviewCounts(): Promise<OverviewCounts> {
@@ -588,28 +632,46 @@ function buildRunningJobRows(
   jobs: SnapshotJob[],
   baseUrl: string
 ): AdminOverviewRow[] {
-  return jobs.map((job) => ({
-    ...buildLeadContextMeta(job.quotes?.leads),
-    kind: "running-job",
-    id: job.id,
-    jobId: job.id,
-    filterKey: "running-job",
-    sortAt: job.created_at,
-    createdAt: job.created_at,
-    customerLabel: customerLabel(job.quotes?.leads?.customers),
-    productLabel: productLabel(job.quotes?.leads?.product_type),
-    publicToken: job.quotes?.public_token || null,
-    pendingReviewCount:
-      job.job_media_events?.filter((event) => event.review_status === "pending")
-        .length || 0,
-    assignedTo: job.assigned_to,
-    jobStatus: job.status,
-    productionStatus: job.production_status || null,
-    productionLinkUrl: buildActiveProductionLinkUrl(
-      baseUrl,
-      job.job_production_links
-    ),
-  }));
+  return jobs.map((job) => {
+    const lead = job.quotes?.leads || null;
+    const uploadedReferenceCount = lead?.lead_media_assets?.length || 0;
+    const previewImageCount = Array.isArray(lead?.ai_generated_images)
+      ? lead.ai_generated_images.length
+      : 0;
+
+    return {
+      ...buildLeadContextMeta(lead),
+      kind: "running-job",
+      id: job.id,
+      jobId: job.id,
+      leadId: lead?.id || job.lead_id,
+      filterKey: "running-job",
+      sortAt: job.created_at,
+      createdAt: job.created_at,
+      customerLabel: customerLabel(lead?.customers),
+      productLabel: productLabel(lead?.product_type),
+      publicToken: job.quotes?.public_token || null,
+      pendingReviewCount:
+        job.job_media_events?.filter((event) => event.review_status === "pending")
+          .length || 0,
+      assignedTo: job.assigned_to,
+      uploadedReferenceCount,
+      previewImageCount,
+      previewImageUrl: getLeadPreviewImageUrl(lead),
+      promptText: lead ? getLeadAiDisplayPrompt(lead) : "",
+      promptRoutingLabel:
+        job.status === "IN_DESIGN" && lead
+          ? getLeadDesignRoutingSummary(lead)
+          : null,
+      aiImageStatus: lead?.ai_image_status || null,
+      jobStatus: job.status,
+      productionStatus: job.production_status || null,
+      productionLinkUrl: buildActiveProductionLinkUrl(
+        baseUrl,
+        job.job_production_links
+      ),
+    };
+  });
 }
 
 async function fetchRowsForFilter(

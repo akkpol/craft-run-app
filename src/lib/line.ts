@@ -644,6 +644,40 @@ export async function pushProductionEvidenceUpdate(input: {
   });
 }
 
+export async function pushLeadDesignPreviewUpdate(input: {
+  userId: string;
+  statusToken: string;
+  note?: string | null;
+  assetUrls: string[];
+}) {
+  const config = await getRuntimeAppConfig();
+  const lineClient = await getLineClient();
+  const statusUrl = `${config.baseUrl}/status/${input.statusToken}`;
+  const assetLines = input.assetUrls
+    .slice(0, 3)
+    .map((url, index) => `${index + 1}. ${url}`)
+    .join("\n");
+
+  const text = [
+    "🎨 ทีมงานส่งแบบให้ตรวจแล้ว",
+    input.note ? `หมายเหตุ: ${input.note}` : null,
+    assetLines ? `ไฟล์ตัวอย่าง:\n${assetLines}` : null,
+    `ดูสถานะงานและตอบกลับทีมงาน: ${statusUrl}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  await lineClient.pushMessage({
+    to: input.userId,
+    messages: [
+      {
+        type: "text",
+        text,
+      },
+    ],
+  });
+}
+
 export async function pushFollowUpMessage(
   userId: string,
   conversationState: string,
