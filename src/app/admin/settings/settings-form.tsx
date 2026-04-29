@@ -13,6 +13,7 @@ import {
   PAYMENT_ROUTING_TERM_SCOPE_LABELS,
   PAYMENT_ROUTING_TERM_SCOPES,
 } from "@/lib/payment-routing";
+import { formatBangkokDateTime } from "@/lib/bangkok-date-time";
 
 type ProductCatalogImportResult = {
   importedCount: number;
@@ -772,7 +773,7 @@ export default function SettingsForm() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-slate-500">
-          {form.updatedAt ? `อัปเดตล่าสุด ${new Date(form.updatedAt).toLocaleString("th-TH")}` : "ยังไม่มีการบันทึกค่าจากหน้า settings"}
+          {form.updatedAt ? `อัปเดตล่าสุด ${formatBangkokDateTime(form.updatedAt)}` : "ยังไม่มีการบันทึกค่าจากหน้า settings"}
         </p>
         <button type="submit" disabled={saving} className="rounded-full bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#16213e] disabled:opacity-50">
           {saving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}

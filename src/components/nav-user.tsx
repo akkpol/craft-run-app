@@ -90,14 +90,14 @@ export function NavUser({
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
-                <Link href="/admin/profile">
+                <Link href="/admin/profile" prefetch={false}>
                   <CircleUserRoundIcon
                   />
                   Account
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/admin/settings">
+                <Link href="/admin/settings" prefetch={false}>
                 <CreditCardIcon
                 />
                 Settings

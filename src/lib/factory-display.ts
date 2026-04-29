@@ -17,6 +17,8 @@ import {
 } from "@/lib/types";
 import { PRODUCTION_EVENT_TYPE_LABELS } from "@/lib/production-review";
 
+const FACTORY_AMOUNT_FORMATTER = new Intl.NumberFormat("en-US");
+
 type FactoryMaterialPreset = {
   code: string;
   label: string;
@@ -556,7 +558,9 @@ function buildFactoryJobView(
     designerLabel: lead?.assigned_designer || null,
     statusTone: getStatusTone(queueLaneId),
     quoteTotalLabel:
-      quote?.total != null ? `฿${Number(quote.total).toLocaleString("en-US")}` : null,
+      quote?.total != null
+        ? `฿${FACTORY_AMOUNT_FORMATTER.format(Number(quote.total))}`
+        : null,
     paymentSummary: quote
       ? `${PAYMENT_TERM_LABELS[quote.payment_terms]} · ${PAYMENT_STATUS_LABELS[quote.payment_status]}`
       : null,
@@ -615,7 +619,7 @@ function buildBlockers(snapshot: BackofficeSnapshot): FactoryBlocker[] {
       id: `quote:${quote.id}`,
       type: "quote" as const,
       label: quote.leads?.customers?.display_name || "Quote waiting approval",
-      detail: `Awaiting quote approval · ฿${Number(quote.total).toLocaleString("en-US")}`,
+      detail: `Awaiting quote approval · ฿${FACTORY_AMOUNT_FORMATTER.format(Number(quote.total))}`,
       ageHours: getAgeHours(quote.created_at),
     }));
 

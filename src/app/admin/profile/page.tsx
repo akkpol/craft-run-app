@@ -9,6 +9,7 @@ import {
   hasConfiguredAdminAllowlist,
   isAdminEmailAllowed,
 } from "@/lib/admin-access";
+import { formatBangkokDateTime } from "@/lib/bangkok-date-time";
 import { createClient } from "@/lib/supabase/server";
 
 import ProfileEditor from "./profile-editor";
@@ -53,14 +54,7 @@ function getInitials(displayName: string, email: string | null) {
 }
 
 function formatDateTime(value: string | null | undefined) {
-  if (!value) {
-    return "-";
-  }
-
-  return new Date(value).toLocaleString("th-TH", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  return formatBangkokDateTime(value);
 }
 
 function formatProviderList(user: User) {
@@ -117,6 +111,7 @@ function QuickLink({
   return (
     <Link
       href={href}
+      prefetch={false}
       className="block rounded-[20px] border border-slate-200 bg-white px-4 py-3 transition hover:border-slate-300 hover:bg-slate-50"
     >
       <p className="text-sm font-semibold text-slate-950">{label}</p>
@@ -161,12 +156,14 @@ export default async function AdminProfilePage() {
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href="/admin"
+                prefetch={false}
                 className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/15"
               >
                 Dashboard
               </Link>
               <Link
                 href="/admin/settings"
+                prefetch={false}
                 className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/15"
               >
                 Settings

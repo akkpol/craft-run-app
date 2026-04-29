@@ -16,6 +16,7 @@ import AdminConversationActions from "@/app/admin/conversation-actions";
 import AdminJobActions from "@/app/admin/job-actions";
 import LeadAiPreviewActions from "@/app/admin/lead-ai-preview-actions";
 import AdminLeadDesignActions from "@/app/admin/lead-design-actions";
+import LeadPromptActions from "@/app/admin/lead-prompt-actions";
 import AdminQuoteActions from "@/app/admin/quote-actions";
 import { getLeadAiDisplayPrompt } from "@/lib/lead-ai-prompt";
 import {
@@ -256,6 +257,16 @@ function getDrawerViewKey(token: StudioToken | null, stationId: StudioStationId 
   }
 
   return "empty";
+}
+
+function getLeadCustomerReferenceAssets(token: StudioToken | null) {
+  return (token?.lead?.lead_media_assets || []).filter((asset) => Boolean(asset.signed_url));
+}
+
+function getLeadCustomerReferenceImages(token: StudioToken | null) {
+  return getLeadCustomerReferenceAssets(token).filter((asset) =>
+    asset.mime_type?.startsWith("image/")
+  );
 }
 
 function StudioStationPreview({ stationId }: { stationId: StudioStationId }) {
@@ -537,6 +548,9 @@ function StudioDrawer({
   const drawerKey = getDrawerViewKey(token, stationId);
   const stationSceneMeta = station ? STATION_SCENE_META[station.id] : null;
   const stationArt = station ? getStationArtConfig(station.id) : null;
+  const customerReferenceAssets = getLeadCustomerReferenceAssets(token);
+  const customerReferenceImages = getLeadCustomerReferenceImages(token);
+  const leadPrompt = token?.lead ? getLeadAiDisplayPrompt(token.lead) : "";
 
   return (
     <aside className="studio-drawer studio-reveal-panel flex min-h-105 flex-col overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/96 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur">
@@ -660,6 +674,47 @@ function StudioDrawer({
                 </section>
               ) : null}
 
+              {customerReferenceAssets.length > 0 ? (
+                <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Customer References
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        ลูกค้าอัปโหลดไว้ {customerReferenceAssets.length} ไฟล์
+                      </p>
+                    </div>
+                  </div>
+                  {customerReferenceImages.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {customerReferenceImages.map((asset) => (
+                        <a
+                          key={asset.id}
+                          href={asset.signed_url || undefined}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+                        >
+                          <Image
+                            src={asset.signed_url || ""}
+                            alt={asset.original_file_name || "Customer reference"}
+                            width={80}
+                            height={80}
+                            unoptimized
+                            className="h-20 w-20 object-cover"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                      มีไฟล์อ้างอิงแล้ว แต่ไฟล์ชุดนี้ไม่ใช่รูป previewable ใน drawer
+                    </div>
+                  )}
+                </section>
+              ) : null}
+
               {Array.isArray(token.lead?.ai_generated_images) &&
               token.lead.ai_generated_images.length > 0 ? (
                 <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
@@ -723,6 +778,7 @@ function StudioDrawer({
                   ) : null}
                   <Link
                     href="/admin"
+                    prefetch={false}
                     className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
                   >
                     Open admin fallback
@@ -755,9 +811,14 @@ function StudioDrawer({
                         Design / AI Preview
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <LeadPromptActions
+                          leadId={token.lead.id}
+                          prompt={leadPrompt}
+                          promptRoutingLabel={tokenMeta?.designStatusLabel || null}
+                        />
                         <LeadAiPreviewActions
                           leadId={token.lead.id}
-                          prompt={getLeadAiDisplayPrompt(token.lead)}
+                          prompt={leadPrompt}
                           status={token.lead.ai_image_status || "not_requested"}
                         />
                         <AdminLeadDesignActions
@@ -1111,24 +1172,28 @@ export default function StudioSurface({
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href="/admin"
+                prefetch={false}
                 className="rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
               >
                 Admin Fallback
               </Link>
               <Link
                 href="/admin/profile"
+                prefetch={false}
                 className="rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
               >
                 Profile
               </Link>
               <Link
                 href="/admin/settings"
+                prefetch={false}
                 className="rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
               >
                 Settings
               </Link>
               <Link
                 href="/flow"
+                prefetch={false}
                 target="_blank"
                 className="rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
               >

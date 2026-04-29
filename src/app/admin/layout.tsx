@@ -49,7 +49,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         className="admin-shell text-slate-900"
         style={
           {
-            "--sidebar-width": "calc(var(--spacing) * 74)",
+            "--sidebar-width": "clamp(15rem, 22vw, calc(var(--spacing) * 74))",
             "--header-height": "calc(var(--spacing) * 13)",
           } as CSSProperties
         }
@@ -61,7 +61,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             avatar: getAvatarUrl(user.user_metadata ?? null),
           }}
         />
-        <SidebarInset className="min-w-0 w-0 overflow-x-hidden bg-transparent md:peer-data-[variant=inset]:bg-transparent md:peer-data-[variant=inset]:shadow-none">
+        <SidebarInset className="min-w-0 w-0 overflow-x-hidden bg-transparent md:peer-data-[variant=inset]:m-1.5 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-[20px] md:peer-data-[variant=inset]:bg-transparent md:peer-data-[variant=inset]:shadow-none lg:peer-data-[variant=inset]:m-2 lg:peer-data-[variant=inset]:ml-0 lg:peer-data-[variant=inset]:rounded-2xl">
           <AdminTopbar userName={displayName} />
           <div className="flex flex-1 flex-col">{children}</div>
         </SidebarInset>

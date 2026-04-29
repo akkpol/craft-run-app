@@ -20,6 +20,8 @@ import type {
   SnapshotQuote,
 } from "@/lib/backoffice-snapshot";
 
+const STUDIO_AMOUNT_FORMATTER = new Intl.NumberFormat("en-US");
+
 type StudioFilter = {
   id: "all" | "design" | "production" | "blocked" | "assigned";
   label: string;
@@ -493,7 +495,9 @@ export function buildStudioView(snapshot: BackofficeSnapshot): StudioViewModel {
       paymentSummary,
       designStatus: lead?.design_status || null,
       note,
-      amountLabel: quote ? `฿${Number(quote.total).toLocaleString("en-US")}` : null,
+      amountLabel: quote
+        ? `฿${STUDIO_AMOUNT_FORMATTER.format(Number(quote.total))}`
+        : null,
       createdAt: conversation.created_at,
       lastUpdatedAt: conversation.last_message_at || conversation.created_at,
       lastUpdatedLabel: formatStudioTimestamp(

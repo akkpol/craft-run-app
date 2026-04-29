@@ -7,10 +7,10 @@ type AdminTopbarProps = {
 
 export default function AdminTopbar({ userName }: AdminTopbarProps) {
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/78 backdrop-blur">
-      <div className="flex min-h-(--header-height) items-center justify-between gap-3 px-4 lg:px-6">
-        <div className="flex min-w-0 items-center gap-2">
-          <SidebarTrigger className="-ml-1" />
+    <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/84 backdrop-blur">
+      <div className="flex min-h-(--header-height) items-center justify-between gap-3 px-3 md:px-4 xl:px-6">
+        <div className="flex min-w-0 items-center gap-2.5 md:gap-3">
+          <SidebarTrigger className="-ml-1 shrink-0" />
           <Separator
             orientation="vertical"
             className="mx-1 hidden data-[orientation=vertical]:h-4 sm:block"
@@ -23,7 +23,7 @@ export default function AdminTopbar({ userName }: AdminTopbarProps) {
           </div>
         </div>
 
-        <p className="hidden text-xs text-slate-500 lg:block">
+        <p className="hidden rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs text-slate-500 xl:block">
           Sidebar นี้ครอบทุกหน้าใน `/admin` แล้ว
         </p>
       </div>
