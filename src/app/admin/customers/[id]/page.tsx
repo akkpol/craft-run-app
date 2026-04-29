@@ -33,7 +33,7 @@ export default async function Customer360Page(
       supabase
         .from("leads")
         .select(
-          "id, product_type, width_mm, height_mm, qty, status, due_date, note_from_form, requested_document_type, billing_entity_type, billing_name, tax_id, billing_address, liff_profile_snapshot, liff_context_snapshot, created_at"
+          "id, product_type, width_mm, height_mm, qty, status, due_date, design_brief, ai_image_prompt, ai_prompt_snapshot, note_from_form, requested_document_type, billing_entity_type, billing_name, tax_id, billing_address, liff_profile_snapshot, liff_context_snapshot, created_at"
         )
         .eq("customer_id", id)
         .order("created_at", { ascending: false })

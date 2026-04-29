@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { formatBangkokDate } from "@/lib/bangkok-date-time";
 import {
   BILLING_ENTITY_TYPE_LABELS,
   DOCUMENT_REQUEST_TYPE_LABELS,
@@ -51,12 +52,7 @@ const QUOTE_STATUS_COLORS: Record<string, string> = {
 };
 
 function formatDate(iso: string | null) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("th-TH", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return iso ? formatBangkokDate(iso) : "—";
 }
 
 function formatBaht(value: number) {
@@ -140,6 +136,9 @@ type Lead = {
   qty: number | null;
   status: string;
   due_date: string | null;
+  design_brief?: string | null;
+  ai_image_prompt?: string | null;
+  ai_prompt_snapshot?: string | null;
   note_from_form: string | null;
   requested_document_type?: string | null;
   billing_entity_type?: string | null;
@@ -192,6 +191,9 @@ export default function Customer360Client({
   const latestDocumentType = asString(
     latestLead?.requested_document_type
   ) as DocumentRequestType | null;
+  const latestDesignBrief = asString(latestLead?.design_brief);
+  const latestAiImagePrompt = asString(latestLead?.ai_image_prompt);
+  const latestAiPromptSnapshot = asString(latestLead?.ai_prompt_snapshot);
 
   return (
     <div className="admin-shell min-h-screen bg-slate-50">
@@ -318,6 +320,42 @@ export default function Customer360Client({
               </div>
             ) : (
               <p className="mt-4 text-sm text-slate-400">ยังไม่มี lead ในระบบ</p>
+            )}
+          </section>
+
+          <section className="admin-panel lg:col-span-1">
+            <h2 className="text-sm font-semibold text-slate-700">แหล่งข้อมูลพรอมพ์ AI ล่าสุด</h2>
+            {latestLead ? (
+              <div className="mt-4 space-y-3 text-sm text-slate-600">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    Design brief (ข้อมูลจากลูกค้า)
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-slate-700">
+                    {latestDesignBrief || "ยังไม่มี design brief จากลูกค้า"}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    AI image prompt (พรอมพ์ดิบ)
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-slate-700">
+                    {latestAiImagePrompt || "ยังไม่มี ai_image_prompt ที่ระบุโดยตรง"}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    AI prompt snapshot (พรอมพ์สุดท้ายที่เตรียมแล้ว)
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-slate-700">
+                    {latestAiPromptSnapshot || "ยังไม่มี ai_prompt_snapshot ที่ระบบเตรียมไว้"}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-slate-400">ยังไม่มี lead สำหรับตรวจสอบ prompt source</p>
             )}
           </section>
         </div>
