@@ -87,6 +87,153 @@ const MAX_REFERENCE_FILE_SIZE = 10 * 1024 * 1024;
 const AUTO_RESIZE_IMAGE_MAX_DIMENSION = 1800;
 const AUTO_RESIZE_TARGET_FILE_SIZE = 2 * 1024 * 1024;
 
+type LiffConsoleLevel = "info" | "warn" | "error";
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function compactLineUserIdForDebug(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.length <= 12) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`;
+}
+
+function createLiffDebugFingerprint() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID().split("-")[0];
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getStatusFromLiffConsoleDetails(details?: Record<string, unknown>) {
+  const status = details?.status;
+  return typeof status === "number" ? status : null;
+}
+
+function resolveLiffConsoleLevel(
+  stage: string,
+  details?: Record<string, unknown>,
+  explicitLevel?: LiffConsoleLevel
+): LiffConsoleLevel {
+  if (explicitLevel) {
+    return explicitLevel;
+  }
+
+  switch (stage) {
+    case "prefill_http_error":
+    case "submit_http_error": {
+      const status = getStatusFromLiffConsoleDetails(details);
+      return status !== null && status >= 500 ? "error" : "warn";
+    }
+    case "sdk_load_timeout":
+    case "init_failed":
+    case "prefill_failed":
+    case "submit_network_failed":
+      return "error";
+    case "submit_missing_identity":
+      return "warn";
+    default:
+      return "info";
+  }
+}
+
+function shouldLogLiffConsole(level: LiffConsoleLevel) {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  if (level === "warn" || level === "error") {
+    return true;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return true;
+  }
+
+  return new URLSearchParams(window.location.search).get("debugLiff") === "1";
+}
+
+function logLiffConsole(
+  stage: string,
+  details?: Record<string, unknown>,
+  level?: LiffConsoleLevel
+) {
+  const resolvedLevel = resolveLiffConsoleLevel(stage, details, level);
+
+  if (!shouldLogLiffConsole(resolvedLevel)) {
+    return;
+  }
+
+  const prefix = `[LIFF][${resolvedLevel.toUpperCase()}][${stage}]`;
+  if (resolvedLevel === "error") {
+    console.error(prefix, details || {});
+    return;
+  }
+
+  if (resolvedLevel === "warn") {
+    console.warn(prefix, details || {});
+    return;
+  }
+
+  console.info(prefix, details || {});
+}
+
+function getSearchParamKeys(search: string) {
+  try {
+    return Array.from(new URLSearchParams(search).keys()).slice(0, 20);
+  } catch {
+    return [] as string[];
+  }
+}
+
+function sendLiffIncident(payload: {
+  fingerprint: string;
+  stage: string;
+  message?: string;
+  pathname: string;
+  searchParamKeys: string[];
+  intakeMode: "resume" | "fresh";
+  userAgent: string;
+  sdkPresent: boolean;
+  liffIdConfigured: boolean;
+  lineUserId?: string;
+  liffContextSnapshot?: string;
+}) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const body = JSON.stringify({
+    ...payload,
+    lineUserId: payload.lineUserId || null,
+    liffContextSnapshot: payload.liffContextSnapshot || null,
+  });
+
+  if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+    const blob = new Blob([body], { type: "application/json" });
+    navigator.sendBeacon("/api/liff/incidents", blob);
+    return;
+  }
+
+  void fetch("/api/liff/incidents", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body,
+    keepalive: true,
+  }).catch(() => undefined);
+}
+
 type ReferenceFilePreview = {
   id: string;
   file: File;
@@ -458,6 +605,7 @@ export default function IntakeForm({
   const [fulfillmentLongitude, setFulfillmentLongitude] = useState("");
   const [capturingLocation, setCapturingLocation] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
+  const [designBrief, setDesignBrief] = useState("");
   const [note, setNote] = useState("");
   const [referenceInfo, setReferenceInfo] = useState("");
   const [suggestedProductTypes, setSuggestedProductTypes] = useState<string[]>([]);
@@ -466,7 +614,67 @@ export default function IntakeForm({
   const [showOptionalDetails, setShowOptionalDetails] = useState(false);
   const [showDocumentDetails, setShowDocumentDetails] = useState(false);
   const previewUrlsRef = useRef<string[]>([]);
+  const reportedLiffIncidentKeysRef = useRef<Set<string>>(new Set());
+  const liffConsoleFingerprintRef = useRef(createLiffDebugFingerprint());
   const earliestDueDate = getBangkokTodayDateString();
+
+  const reportLiffIncident = useCallback(
+    (input: { stage: string; message?: string }) => {
+      const dedupeKey = `${input.stage}:${input.message || ""}`;
+      if (reportedLiffIncidentKeysRef.current.has(dedupeKey)) {
+        return;
+      }
+
+      reportedLiffIncidentKeysRef.current.add(dedupeKey);
+
+      sendLiffIncident({
+        fingerprint: liffConsoleFingerprintRef.current,
+        stage: input.stage,
+        message: input.message,
+        pathname:
+          typeof window !== "undefined" ? window.location.pathname : "/liff/intake",
+        searchParamKeys:
+          typeof window !== "undefined" ? getSearchParamKeys(window.location.search) : [],
+        intakeMode,
+        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
+        sdkPresent: typeof window !== "undefined" && Boolean(window.liff),
+        liffIdConfigured: Boolean(liffId),
+        lineUserId,
+        liffContextSnapshot,
+      });
+    },
+    [intakeMode, liffContextSnapshot, liffId, lineUserId]
+  );
+
+  const logIntakeLiffConsole = useCallback(
+    (
+      stage: string,
+      details?: Record<string, unknown>,
+      level?: LiffConsoleLevel
+    ) => {
+      const runtimeEnv = process.env.NODE_ENV || "development";
+
+      logLiffConsole(
+        stage,
+        {
+          source: "liff-intake",
+          runtimeEnv,
+          prod: runtimeEnv === "production",
+          fingerprint: liffConsoleFingerprintRef.current,
+          intakeMode,
+          pathname:
+            typeof window !== "undefined" ? window.location.pathname : "/liff/intake",
+          searchParamKeys:
+            typeof window !== "undefined" ? getSearchParamKeys(window.location.search) : [],
+          liffIdConfigured: Boolean(liffId),
+          lineUserIdHint: compactLineUserIdForDebug(lineUserId),
+          ...details,
+        },
+        level
+      );
+    },
+    [intakeMode, liffId, lineUserId]
+  );
 
   const selectedUnitLabel = UNITS.find((item) => item.value === unit)?.label || unit;
   const billingBranchSummary =
@@ -558,14 +766,34 @@ export default function IntakeForm({
   useEffect(() => {
     async function initLiff() {
       try {
+        logIntakeLiffConsole("init_start", {
+          intakeMode,
+          liffIdConfigured: Boolean(liffId),
+          searchParamKeys:
+            typeof window !== "undefined" ? getSearchParamKeys(window.location.search) : [],
+        });
+
         if (!liffId) {
+          logIntakeLiffConsole("init_skipped_no_liff_id", { intakeMode });
           setReady(true);
           return;
         }
 
         await window.liff.init({ liffId });
 
+        logIntakeLiffConsole("init_ok", {
+          intakeMode,
+          isLoggedIn: window.liff.isLoggedIn(),
+          isInClient: window.liff.isInClient(),
+          liffSdkVersion: window.liff.getVersion?.() || null,
+        });
+
         if (!window.liff.isLoggedIn()) {
+          logIntakeLiffConsole("login_redirect", {
+            intakeMode,
+            redirectPath:
+              typeof window !== "undefined" ? window.location.pathname : "/liff/intake",
+          });
           window.liff.login({ redirectUri: window.location.href });
           return;
         }
@@ -594,6 +822,16 @@ export default function IntakeForm({
         setDisplayName(profile.displayName);
         setLiffIdToken(idToken || "");
         setLiffAccessToken(accessToken || "");
+
+        logIntakeLiffConsole("session_captured", {
+          lineUserId: compactLineUserIdForDebug(profile.userId),
+          displayName: profile.displayName,
+          contextType: context?.type || null,
+          viewType: context?.viewType || null,
+          lineVersion,
+          liffSdkVersion,
+          grantedScopesCount: grantedScopes.length,
+        });
 
         if (window.liff.isInClient()) {
           try {
@@ -653,9 +891,28 @@ export default function IntakeForm({
             const prefillQuery = idToken
               ? `liffIdToken=${encodeURIComponent(idToken)}`
               : `lineUserId=${encodeURIComponent(devLineUserId || "")}`;
+            logIntakeLiffConsole("prefill_start", {
+              hasIdToken: Boolean(idToken),
+              hasDevLineUserId: Boolean(devLineUserId),
+            });
             const prefillRes = await fetch(
-              `/api/customers/prefill?${prefillQuery}`
+              `/api/customers/prefill?${prefillQuery}`,
+              {
+                headers: {
+                  "x-liff-debug-fingerprint": liffConsoleFingerprintRef.current,
+                },
+              }
             );
+            if (!prefillRes.ok) {
+              logIntakeLiffConsole(
+                "prefill_http_error",
+                { status: prefillRes.status }
+              );
+              reportLiffIncident({
+                stage: "prefill_http_error",
+                message: `status ${prefillRes.status}`,
+              });
+            }
             if (prefillRes.ok) {
               const prefill = await prefillRes.json();
               const summary: string[] = [];
@@ -797,34 +1054,70 @@ export default function IntakeForm({
               }
 
               setPrefillSummary(Array.from(new Set(summary)).slice(0, 5));
+
+              logIntakeLiffConsole("prefill_ok", {
+                suggestedProductTypes: prefill.recentProductTypes?.length || 0,
+                summaryCount: Array.from(new Set(summary)).slice(0, 5).length,
+              });
             }
-          } catch {
+          } catch (error) {
+            logIntakeLiffConsole(
+              "prefill_failed",
+              { message: getErrorMessage(error) }
+            );
+            reportLiffIncident({
+              stage: "prefill_failed",
+              message: getErrorMessage(error),
+            });
             // non-critical — form still works without prefill
           }
         }
 
         setReady(true);
       } catch (err) {
-        console.error("LIFF init error:", err);
+        logIntakeLiffConsole(
+          "init_failed",
+          {
+            message: getErrorMessage(err),
+            errorName: err instanceof Error ? err.name : null,
+          }
+        );
+        reportLiffIncident({
+          stage: "init_failed",
+          message: getErrorMessage(err),
+        });
         setReady(true);
       }
     }
 
     if (typeof window !== "undefined" && window.liff) {
+      logIntakeLiffConsole("sdk_present", { intakeMode });
       initLiff();
     } else {
+      logIntakeLiffConsole("sdk_wait_start", { intakeMode });
       const check = setInterval(() => {
         if (typeof window !== "undefined" && window.liff) {
           clearInterval(check);
+          logIntakeLiffConsole("sdk_present_after_wait", { intakeMode });
           initLiff();
         }
       }, 200);
       setTimeout(() => {
         clearInterval(check);
+        if (typeof window !== "undefined" && !window.liff && liffId) {
+          logIntakeLiffConsole(
+            "sdk_load_timeout",
+            { timeoutMs: 5000, intakeMode }
+          );
+          reportLiffIncident({
+            stage: "sdk_load_timeout",
+            message: "LIFF SDK was not available within 5000ms",
+          });
+        }
         setReady(true);
       }, 5000);
     }
-  }, [intakeMode, liffId]);
+  }, [intakeMode, liffId, logIntakeLiffConsole, reportLiffIncident]);
 
   const handleReferenceFileSelect = useCallback(async (files: FileList | null) => {
     if (!files?.length) return;
@@ -902,6 +1195,13 @@ export default function IntakeForm({
       setError("");
       setSubmitWarning("");
 
+      logIntakeLiffConsole("submit_start", {
+        productType,
+        referenceFileCount: referenceFiles.length,
+        hasLiffIdToken: Boolean(liffIdToken),
+        hasLiffContextSnapshot: Boolean(liffContextSnapshot),
+      });
+
       if (!productType) {
         setError("กรุณาเลือกประเภทงาน");
         setLoading(false);
@@ -974,6 +1274,14 @@ export default function IntakeForm({
         return;
       }
       if (liffId && !liffIdToken) {
+        logIntakeLiffConsole(
+          "submit_missing_identity",
+          { intakeMode, liffIdConfigured: Boolean(liffId) }
+        );
+        reportLiffIncident({
+          stage: "submit_missing_identity",
+          message: "LIFF ID token is missing before intake submit",
+        });
         setError("ไม่สามารถยืนยันตัวตนจาก LINE ได้ กรุณาเปิดฟอร์มนี้จาก LINE แล้วลองใหม่");
         setLoading(false);
         return;
@@ -1015,6 +1323,7 @@ export default function IntakeForm({
         formData.append("billingName", billingName);
         formData.append("taxId", taxId);
         formData.append("billingAddress", billingAddress);
+        formData.append("designBrief", designBrief);
         formData.append("note", note);
         formData.append("referenceInfo", referenceInfo);
         formData.append("intakeMode", intakeMode);
@@ -1026,15 +1335,31 @@ export default function IntakeForm({
 
         const res = await fetch("/api/intake", {
           method: "POST",
+          headers: {
+            "x-liff-debug-fingerprint": liffConsoleFingerprintRef.current,
+          },
           body: formData,
         });
 
         const result = await res.json();
         if (!res.ok) {
+          logIntakeLiffConsole(
+            "submit_http_error",
+            {
+              status: res.status,
+              message:
+                typeof result.error === "string" ? result.error.slice(0, 180) : "unknown",
+            }
+          );
           setError(result.error || "เกิดข้อผิดพลาด");
           setLoading(false);
           return;
         }
+
+        logIntakeLiffConsole("submit_ok", {
+          outcome: result.needsReview ? "review" : "quote",
+          hasReferenceUploadWarning: typeof result.referenceUploadWarning === "string",
+        });
 
         setSubmitOutcome(result.needsReview ? "review" : "quote");
         setSubmitMessage(
@@ -1047,7 +1372,11 @@ export default function IntakeForm({
           const closeDelayMs = typeof result.referenceUploadWarning === "string" ? 5500 : 3000;
           setTimeout(() => window.liff.closeWindow(), closeDelayMs);
         }
-      } catch {
+      } catch (error) {
+        logIntakeLiffConsole(
+          "submit_network_failed",
+          { message: getErrorMessage(error) }
+        );
         setError("ไม่สามารถส่งข้อมูลได้ กรุณาลองใหม่");
       } finally {
         setLoading(false);
@@ -1079,6 +1408,7 @@ export default function IntakeForm({
       billingName,
       taxId,
       billingAddress,
+      designBrief,
       note,
       referenceInfo,
       referenceFiles,
@@ -1089,6 +1419,8 @@ export default function IntakeForm({
       liffAccessToken,
       liffContextSnapshot,
       intakeMode,
+      logIntakeLiffConsole,
+      reportLiffIncident,
     ]
   );
 
@@ -1649,6 +1981,18 @@ export default function IntakeForm({
                       <span className="rounded-full border border-stone-200 bg-white px-3 py-1">ใช้ลิงก์สำรองได้</span>
                     </div>
                   ) : null}
+
+                  <div>
+                    <FieldLabel htmlFor="designBrief" label="แนวคิดงานที่อยากได้" />
+                    <textarea
+                      id="designBrief"
+                      placeholder="เช่น โทนสี สไตล์ อารมณ์งาน หรือข้อความสำคัญที่อยากให้มีในงาน"
+                      value={designBrief}
+                      onChange={(e) => setDesignBrief(e.target.value)}
+                      rows={4}
+                      className={textareaClassName}
+                    />
+                  </div>
 
                   <div>
                     <FieldLabel htmlFor="note" label="โน้ตงาน" />

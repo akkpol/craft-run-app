@@ -43,6 +43,13 @@ import {
   type FreshRestartLeadCandidate,
 } from "@/lib/customer-restart";
 import { logSystemAction } from "@/lib/action-log";
+import {
+  buildLeadPromptFields,
+  parseMultipartIntakeFormData,
+  parseOptionalNumber,
+} from "@/lib/intake-payload";
+
+const THAI_SUMMARY_NUMBER_FORMATTER = new Intl.NumberFormat("th-TH-u-nu-latn");
 
 function getBangkokTodayDateString() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -57,74 +64,12 @@ export async function POST(request: NextRequest) {
   let data: IntakeFormData;
   let customerMediaFiles: File[] = [];
 
-  const parseOptionalNumber = (value: unknown) => {
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : Number.NaN;
-    }
-
-    if (typeof value === "string") {
-      const trimmed = value.trim();
-      if (!trimmed) {
-        return null;
-      }
-
-      const parsed = Number(trimmed);
-      return Number.isFinite(parsed) ? parsed : Number.NaN;
-    }
-
-    return null;
-  };
-
   try {
     const contentType = request.headers.get("content-type") || "";
     if (contentType.includes("multipart/form-data")) {
-      const formData = await request.formData();
-      const getString = (name: string) => String(formData.get(name) || "");
-      const getOptionalString = (name: string) => {
-        const value = getString(name);
-        return value || undefined;
-      };
-      customerMediaFiles = formData
-        .getAll("referenceFiles")
-        .filter((value): value is File => value instanceof File && value.size > 0);
-      data = {
-        lineUserId: getOptionalString("lineUserId"),
-        displayName: getOptionalString("displayName"),
-        liffIdToken: getOptionalString("liffIdToken"),
-        liffAccessToken: getOptionalString("liffAccessToken"),
-        liffContextSnapshot: getOptionalString("liffContextSnapshot"),
-        productType: getString("productType"),
-        width: Number(getString("width")),
-        height: Number(getString("height")),
-        unit: getString("unit") as IntakeFormData["unit"],
-        qty: Number(getString("qty")) || 1,
-        dueDate: getString("dueDate"),
-        phone: getString("phone"),
-        requestedDocumentType:
-          getOptionalString("requestedDocumentType") as IntakeFormData["requestedDocumentType"],
-        note: getString("note"),
-        referenceInfo: getString("referenceInfo"),
-        billingEntityType:
-          getOptionalString("billingEntityType") as IntakeFormData["billingEntityType"],
-        billingBranchType:
-          getOptionalString("billingBranchType") as IntakeFormData["billingBranchType"],
-        billingBranchCode: getOptionalString("billingBranchCode"),
-        billingName: getOptionalString("billingName"),
-        taxId: getOptionalString("taxId"),
-        billingAddress: getOptionalString("billingAddress"),
-        fulfillmentMode:
-          getOptionalString("fulfillmentMode") as IntakeFormData["fulfillmentMode"],
-        fulfillmentAddressLine1: getOptionalString("fulfillmentAddressLine1"),
-        fulfillmentAddressLine2: getOptionalString("fulfillmentAddressLine2"),
-        fulfillmentSubdistrict: getOptionalString("fulfillmentSubdistrict"),
-        fulfillmentDistrict: getOptionalString("fulfillmentDistrict"),
-        fulfillmentProvince: getOptionalString("fulfillmentProvince"),
-        fulfillmentPostalCode: getOptionalString("fulfillmentPostalCode"),
-        fulfillmentLatitude: parseOptionalNumber(getString("fulfillmentLatitude")) ?? undefined,
-        fulfillmentLongitude: parseOptionalNumber(getString("fulfillmentLongitude")) ?? undefined,
-        aiImagePrompt: getOptionalString("aiImagePrompt"),
-        intakeMode: getOptionalString("intakeMode") as IntakeFormData["intakeMode"],
-      };
+      ({ data, customerMediaFiles } = parseMultipartIntakeFormData(
+        await request.formData()
+      ));
     } else {
       data = await request.json();
     }
@@ -135,6 +80,8 @@ export async function POST(request: NextRequest) {
   const providedLineUserId = data.lineUserId?.trim() || "";
   const providedDisplayName = data.displayName?.trim() || "";
   const providedLiffIdToken = data.liffIdToken?.trim() || "";
+  const liffDebugFingerprint =
+    request.headers.get("x-liff-debug-fingerprint")?.trim() || null;
   const earliestDueDate = getBangkokTodayDateString();
 
   // Simple required-field validation
@@ -184,6 +131,22 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to verify LIFF identity";
+      await logSystemAction(createAdminClient(), {
+        entityType: "system",
+        actionType: "liff.intake_issue",
+        serviceName: "intake",
+        note: "LIFF intake identity verification failed",
+        payload: {
+          fingerprint: liffDebugFingerprint,
+          stage: "intake_verify_token_failed",
+          message,
+          intakeMode: data.intakeMode || null,
+          hasLiffIdToken: true,
+          hasLiffContextSnapshot: Boolean(data.liffContextSnapshot),
+          lineUserIdHint: data.lineUserId?.trim() || null,
+          userAgent: request.headers.get("user-agent"),
+        },
+      });
       return NextResponse.json(
         { error: `Unable to verify LINE identity: ${message}` },
         { status: 400 }
@@ -326,6 +289,19 @@ export async function POST(request: NextRequest) {
       );
     } catch (error) {
       console.warn("Unable to enrich LIFF access profile:", error);
+      await logSystemAction(createAdminClient(), {
+        entityType: "system",
+        actionType: "liff.intake_issue",
+        serviceName: "intake",
+        note: "LIFF access profile enrichment failed",
+        payload: {
+          fingerprint: liffDebugFingerprint,
+          stage: "intake_access_profile_failed",
+          message: error instanceof Error ? error.message : String(error),
+          intakeMode: data.intakeMode || null,
+          lineUserId: resolvedLineUserId,
+        },
+      });
     }
   }
 
@@ -592,10 +568,7 @@ export async function POST(request: NextRequest) {
       height_mm: heightMm,
       qty,
       due_date: data.dueDate || null,
-      note_from_form: data.note || null,
-      reference_info: data.referenceInfo || null,
-      ai_image_prompt: data.aiImagePrompt || null,
-      ai_image_status: data.aiImagePrompt ? "pending" : "not_requested",
+      ...buildLeadPromptFields(data),
       requested_document_type: requestedDocumentType,
       billing_entity_type: billingEntityType,
       billing_branch_type: billingBranchType,
@@ -822,7 +795,7 @@ export async function POST(request: NextRequest) {
 
   // 9. Send quote link to customer via LINE push
   try {
-    const summary = `${productLabel} ${(widthMm / 10).toFixed(0)}×${(heightMm / 10).toFixed(0)} ซม. จำนวน ${qty} ชิ้น\nราคารวม VAT: ฿${total.toLocaleString()}`;
+    const summary = `${productLabel} ${(widthMm / 10).toFixed(0)}×${(heightMm / 10).toFixed(0)} ซม. จำนวน ${qty} ชิ้น\nราคารวม VAT: ฿${THAI_SUMMARY_NUMBER_FORMATTER.format(total)}`;
     await pushQuoteLink(resolvedLineUserId, quote.public_token, summary);
   } catch (error) {
     console.error("Failed to push quote link:", error);

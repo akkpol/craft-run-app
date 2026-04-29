@@ -9,6 +9,7 @@ import {
   CommandIcon,
   LayoutDashboardIcon,
   Settings2Icon,
+  SmartphoneIcon,
 } from "lucide-react";
 
 import { NavUser } from "@/components/nav-user";
@@ -46,6 +47,13 @@ const primaryItems = [
     href: "/admin/follow-up",
     icon: ClipboardCheckIcon,
     isActive: (pathname: string) => pathname.startsWith("/admin/follow-up"),
+  },
+
+  {
+    title: "LIFF Monitor",
+    href: "/admin/liff-monitor",
+    icon: SmartphoneIcon,
+    isActive: (pathname: string) => pathname.startsWith("/admin/liff-monitor"),
   },
   {
     title: "Profile",
@@ -85,7 +93,7 @@ export default function AdminSidebar({ user }: AdminSidebarProps) {
               size="lg"
               className="bg-[linear-gradient(135deg,rgba(0,174,239,0.18),rgba(15,118,110,0.08))] text-sidebar-foreground"
             >
-              <Link href="/admin">
+              <Link href="/admin" prefetch={false}>
                 <span className="flex size-8 items-center justify-center rounded-2xl bg-slate-950 text-white">
                   <CommandIcon className="size-4" />
                 </span>
@@ -110,7 +118,7 @@ export default function AdminSidebar({ user }: AdminSidebarProps) {
                 return (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton asChild isActive={item.isActive(pathname)} tooltip={item.title}>
-                      <Link href={item.href}>
+                      <Link href={item.href} prefetch={false}>
                         <Icon />
                         <span>{item.title}</span>
                       </Link>
@@ -140,7 +148,7 @@ export default function AdminSidebar({ user }: AdminSidebarProps) {
                           <span>{item.title}</span>
                         </a>
                       ) : (
-                        <Link href={item.href}>
+                        <Link href={item.href} prefetch={false}>
                           <Icon />
                           <span>{item.title}</span>
                         </Link>

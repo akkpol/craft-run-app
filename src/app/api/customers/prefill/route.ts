@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logSystemAction } from "@/lib/action-log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyLiffIdToken } from "@/lib/line";
 
@@ -6,6 +7,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const liffIdToken = searchParams.get("liffIdToken")?.trim() || "";
   const devLineUserId = searchParams.get("lineUserId")?.trim() || "";
+  const liffDebugFingerprint =
+    request.headers.get("x-liff-debug-fingerprint")?.trim() || null;
 
   let lineUserId: string;
 
@@ -13,7 +16,22 @@ export async function GET(request: NextRequest) {
     try {
       const identity = await verifyLiffIdToken(liffIdToken);
       lineUserId = identity.userId;
-    } catch {
+    } catch (error) {
+      const supabase = createAdminClient();
+      await logSystemAction(supabase, {
+        entityType: "system",
+        actionType: "liff.prefill_issue",
+        serviceName: "customer-prefill",
+        note: "LIFF prefill token verification failed",
+        payload: {
+          fingerprint: liffDebugFingerprint,
+          stage: "prefill_verify_token_failed",
+          message: error instanceof Error ? error.message : String(error),
+          hasLiffToken: true,
+          searchParamKeys: ["liffIdToken"],
+          userAgent: request.headers.get("user-agent"),
+        },
+      });
       return NextResponse.json(
         { error: "Invalid LIFF token" },
         { status: 401 }
