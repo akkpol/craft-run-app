@@ -168,5 +168,5 @@ To rollback: Vercel dashboard → Deployments → previous successful deployment
 | Check | Result | Detail |
 |-------|--------|--------|
 | `npm run build` | ✅ Pass | Exit 0. Compiled successfully in 60s. 22 static pages generated. |
-| `npm run lint` | ✅ Pass | 0 ESLint errors. 1 non-blocking Node.js MODULE_TYPELESS_PACKAGE_JSON advisory (add `"type":"module"` to package.json to silence). |
+| `npm run lint` | ✅ Pass | 0 ESLint errors. Node.js MODULE_TYPELESS_PACKAGE_JSON advisory was removed on 2026-04-30 after adding `"type": "module"` to `package.json`. |
 | `npm run check:workflow-policy` | ✅ Pass | `workflow-policy smoke checks passed` |

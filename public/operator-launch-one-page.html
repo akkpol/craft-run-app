@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FOGUS Operator Launch One Page</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --ink: #1e1c1a;
+      --muted: #6d655d;
+      --panel: rgba(255, 252, 247, 0.92);
+      --line: rgba(30, 28, 26, 0.12);
+      --accent: #bc4a2f;
+      --accent-2: #1f6c63;
+      --warn: #9d6b00;
+      --shadow: 0 24px 60px rgba(74, 52, 33, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Noto Sans Thai", Tahoma, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(188, 74, 47, 0.16), transparent 24%),
+        radial-gradient(circle at top right, rgba(31, 108, 99, 0.14), transparent 22%),
+        linear-gradient(180deg, #f8f2e8 0%, var(--bg) 45%, #efe5d8 100%);
+      line-height: 1.6;
+    }
+
+    .page {
+      width: min(1100px, calc(100% - 32px));
+      margin: 32px auto 56px;
+    }
+
+    .hero,
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    .hero {
+      padding: 28px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(188, 74, 47, 0.1);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3 { margin: 0; line-height: 1.2; }
+    h1 { font-size: clamp(32px, 5vw, 52px); }
+    h2 { font-size: 24px; }
+    h3 { font-size: 18px; }
+
+    p { margin: 0; }
+
+    .subtle { color: var(--muted); }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .two-col {
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+
+    .three-col {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .card {
+      padding: 22px;
+    }
+
+    .list {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .list li + li {
+      margin-top: 10px;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(31, 108, 99, 0.1);
+      color: var(--accent-2);
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .stop {
+      border-left: 4px solid var(--accent);
+      padding-left: 14px;
+    }
+
+    .warn {
+      color: var(--warn);
+      font-weight: 700;
+    }
+
+    .steps {
+      display: grid;
+      gap: 14px;
+    }
+
+    .step {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.62);
+    }
+
+    .step strong {
+      color: var(--accent);
+    }
+
+    .label {
+      display: inline-block;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    pre {
+      margin: 0;
+      padding: 18px;
+      overflow: auto;
+      border-radius: 18px;
+      background: #191714;
+      color: #f8f1e7;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .copy-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: var(--ink);
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button:hover { opacity: 0.92; }
+
+    .footer {
+      margin-top: 18px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    a {
+      color: var(--accent-2);
+      text-decoration-thickness: 2px;
+      text-underline-offset: 3px;
+    }
+
+    @media (max-width: 640px) {
+      .page { width: min(100% - 20px, 1100px); margin-top: 18px; }
+      .hero, .card { border-radius: 20px; }
+      .hero, .card { padding: 18px; }
+      .copy-row { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="eyebrow">FOGUS Launch Run</div>
+      <h1>Operator Launch One Page</h1>
+      <p>หน้านี้ทำไว้สำหรับคนที่ต้องตรวจ Vercel, LINE Developers, LIFF, Supabase และ live customer flow โดยไม่ต้องเปิดหลายเอกสารพร้อมกัน</p>
+      <div class="pill-row">
+        <span class="pill">Phase 2 ต้องผ่านก่อน</span>
+        <span class="pill">Phase 3 เริ่มหลังจากนั้น</span>
+        <span class="pill">ส่งผลกลับด้วย format เดียวทุกข้อ</span>
+      </div>
+    </section>
+
+    <section class="grid two-col">
+      <article class="card">
+        <h2>ค่าที่ต้องใช้</h2>
+        <ul class="list">
+          <li>Production alias: <strong>https://craft-run.vercel.app</strong></li>
+          <li>Webhook URL: <strong>https://craft-run.vercel.app/api/webhook</strong></li>
+          <li>LIFF endpoint: <strong>https://craft-run.vercel.app/liff</strong></li>
+          <li>Admin logged-out test: <strong>https://craft-run.vercel.app/admin</strong></li>
+          <li>ถ้า LIFF พังก่อน submit ให้เช็ก <strong>/admin/liff-monitor</strong> ก่อน</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>Stop Rules</h2>
+        <div class="stop">
+          <ul class="list">
+            <li>ถ้า <strong>P2-G03</strong> ไม่ผ่าน ให้หยุดทันที</li>
+            <li>ถ้า <strong>P2-G05</strong> หรือ <strong>P2-G06</strong> ไม่ผ่าน ห้ามเริ่ม live LIFF run</li>
+            <li>ถ้า gate ใดใน <strong>P3-G01</strong> ถึง <strong>P3-G05</strong> ไม่ผ่าน ให้ถือว่ายัง launch-blocked</li>
+          </ul>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid three-col">
+      <article class="card">
+        <h3>หลักฐานขั้นต่ำ</h3>
+        <ul class="list subtle">
+          <li>เวลาไทย</li>
+          <li>คนที่ตรวจหรือ role</li>
+          <li>PASS หรือ FAIL</li>
+          <li>screenshot หรือ log excerpt</li>
+          <li>URL, token, lead ID, deployment ID, หรือ masked identifier</li>
+          <li>exact error ถ้า fail</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h3>เริ่มจาก Phase 2</h3>
+        <ul class="list subtle">
+          <li>P2-G03 Vercel deploy ready</li>
+          <li>P2-G05 Messaging API webhook verify</li>
+          <li>P2-G06 LIFF endpoint verify</li>
+          <li>P2-G07 Admin user and allowlist</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h3>ค่อยไป Phase 3</h3>
+        <ul class="list subtle">
+          <li>P3-G01 Logged-out admin redirect</li>
+          <li>P3-G02 Allowlisted login success</li>
+          <li>P3-G03 Non-allowlisted login denied</li>
+          <li>P3-G04 LINE message creates conversation</li>
+          <li>P3-G05 LIFF intake creates customer, lead, and quote</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="card" style="margin-top: 18px;">
+      <h2>Run Order</h2>
+      <div class="steps" style="margin-top: 16px;">
+        <div class="step">
+          <strong>1. P2-G03</strong><br />
+          Where: Vercel dashboard &gt; craft-run &gt; Deployments<br />
+          Pass when: latest production deployment เป็น Ready และ alias เป็น https://craft-run.vercel.app<br />
+          Send back: deployment ID + screenshot ที่เห็น Ready
+        </div>
+        <div class="step">
+          <strong>2. P2-G05</strong><br />
+          Where: LINE Developers Console &gt; Messaging API &gt; webhook settings<br />
+          Pass when: webhook URL เป็น https://craft-run.vercel.app/api/webhook และ Verify สำเร็จ<br />
+          Send back: final webhook URL + verify screenshot
+        </div>
+        <div class="step">
+          <strong>3. P2-G06</strong><br />
+          Where: LINE Developers Console &gt; LINE MINI App / LIFF<br />
+          Pass when: endpoint เป็น https://craft-run.vercel.app/liff และ LIFF ID ตรงกับค่าที่ deploy ใช้งานจริง<br />
+          Send back: endpoint screenshot + masked LIFF ID
+        </div>
+        <div class="step">
+          <strong>4. P2-G07</strong><br />
+          Where: Supabase dashboard &gt; Authentication &gt; Users<br />
+          Pass when: มี admin user จริง และ email เดียวกันอยู่ใน production allowlist<br />
+          Send back: user screenshot แบบ masked + note ว่ามี redeploy หลังแก้ allowlist หรือไม่
+        </div>
+        <div class="step">
+          <strong>5. P3-G01 ถึง P3-G05</strong><br />
+          เริ่มหลังจาก Phase 2 ผ่านครบแล้วเท่านั้น<br />
+          Focus: admin redirect, allowlisted login, deny behavior, LINE conversation creation, LIFF submit success
+        </div>
+        <div class="step">
+          <strong>6. LIFF-VAL-006 ถึง LIFF-VAL-008</strong><br />
+          Focus: returning prefill, company tax-document validation, runtime catalog label rendering<br />
+          <span class="warn">ทำหลังจาก P3-G05 ผ่านแล้ว</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid two-col" style="margin-top: 18px;">
+      <article class="card">
+        <div class="copy-row">
+          <div>
+            <div class="label">Reply Format</div>
+            <h2>ส่งกลับแบบนี้</h2>
+          </div>
+          <button type="button" onclick="copyBlock()">Copy Format</button>
+        </div>
+        <pre id="reply-block">Item:
+Maps to gate:
+Result: PASS | FAIL
+Verified by / Date:
+Evidence:
+-
+Notes:
+-</pre>
+      </article>
+
+      <article class="card">
+        <div class="label">Item ที่ใช้ได้</div>
+        <ul class="list">
+          <li>P2-G03</li>
+          <li>P2-G05</li>
+          <li>P2-G06</li>
+          <li>P2-G07</li>
+          <li>P3-G01</li>
+          <li>P3-G02</li>
+          <li>P3-G03</li>
+          <li>P3-G04</li>
+          <li>P3-G05</li>
+          <li>LIFF-VAL-006</li>
+          <li>LIFF-VAL-007</li>
+          <li>LIFF-VAL-008</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="card" style="margin-top: 18px;">
+      <h2>เอกสารอ้างอิงลึก ถ้าจำเป็น</h2>
+      <ul class="list">
+        <li><a href="../docs/OPERATOR_LAUNCH_ONE_PAGE.md">docs/OPERATOR_LAUNCH_ONE_PAGE.md</a></li>
+        <li><a href="../docs/GO_NOGO_REVIEW.md">docs/GO_NOGO_REVIEW.md</a></li>
+        <li><a href="../docs/PHASE2_OPERATOR_GATE_CHECKLIST.md">docs/PHASE2_OPERATOR_GATE_CHECKLIST.md</a></li>
+        <li><a href="../docs/LIFF_LIVE_VALIDATION_RUNBOOK.md">docs/LIFF_LIVE_VALIDATION_RUNBOOK.md</a></li>
+        <li><a href="../docs/OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md">docs/OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md</a></li>
+      </ul>
+    </section>
+
+    <p class="footer">ถ้าคุณส่งกลับมาอย่างน้อยข้อ P2-G03, P2-G05, P2-G06, P2-G07 ตาม format นี้ ผมจะเอาไปอัปเดต go/no-go ให้ต่อได้ทันที</p>
+  </main>
+
+  <script>
+    function copyBlock() {
+      const text = document.getElementById('reply-block').innerText;
+      navigator.clipboard.writeText(text).then(function () {
+        alert('คัดลอก format แล้ว');
+      }).catch(function () {
+        alert('คัดลอกไม่สำเร็จ ลองเลือกข้อความในกล่องแทน');
+      });
+    }
+  </script>
+</body>
+</html>

@@ -12,3 +12,10 @@ When editing Studio surfaces:
 - Preserve workflow-policy behavior and do not invent new design states.
 - Keep `/admin` as fallback for operational actions.
 - Use the existing `LeadAiPreviewActions` handoff UI for prompt-copy and local command-copy behavior instead of calling local Codex tooling from server routes.
+
+Before starting any new implementation pass in this repository:
+- Inspect the current git worktree and classify `staged`, `unstaged`, and `untracked` changes.
+- If the worktree spans more than one packet or surface area, treat the repo as unstable and do not continue broad implementation.
+- In an unstable worktree, first choose one coherent slice to continue and explicitly defer, quarantine, or clean up the others.
+- Do not reopen a packet marked complete unless the user explicitly asks for follow-up on that packet.
+- Use `docs/START_HERE_CONTEXT_RECOVERY.md` and `plan/process-anti-loop-execution-1.md` as the recovery gate before resuming work after context drift.

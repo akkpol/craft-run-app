@@ -29,6 +29,12 @@ Use the related plan files with these roles:
 
 If multiple plan files are open at once and there is any question about execution order, use this file first and reconcile the other documents back to it.
 
+Execution aids for the current pending operator work:
+
+- [../docs/PHASE2_OPERATOR_GATE_CHECKLIST.md](../docs/PHASE2_OPERATOR_GATE_CHECKLIST.md) for `P2-G03`, `P2-G05`, `P2-G06`, `P2-G07`
+- [../docs/LIFF_LIVE_VALIDATION_RUNBOOK.md](../docs/LIFF_LIVE_VALIDATION_RUNBOOK.md) for `LIFF-VAL-005` through `LIFF-VAL-008`
+- [../docs/OPERATOR_HANDOFF_MESSAGE_TH.md](../docs/OPERATOR_HANDOFF_MESSAGE_TH.md) for a copy-paste operator handoff message in Thai
+
 ## Safe Path
 
 If the goal is to get through go-live with the least confusion, follow this path only:

@@ -26,6 +26,14 @@ If the goal is to get through launch readiness with the least confusion, execute
 
 This document is the live run sheet. Do not split the same verification run across multiple plan files while executing.
 
+Operator aids:
+
+- Use [OPERATOR_LAUNCH_ONE_PAGE.md](OPERATOR_LAUNCH_ONE_PAGE.md) when you want a single-file operator handoff and a single reply format.
+- Use [PHASE2_OPERATOR_GATE_CHECKLIST.md](PHASE2_OPERATOR_GATE_CHECKLIST.md) to close `P2-G03`, `P2-G05`, `P2-G06`, and `P2-G07`.
+- Use [LIFF_LIVE_VALIDATION_RUNBOOK.md](LIFF_LIVE_VALIDATION_RUNBOOK.md) to execute live LIFF checks after Phase 2 passes.
+- Use [OPERATOR_HANDOFF_MESSAGE_TH.md](OPERATOR_HANDOFF_MESSAGE_TH.md) when you need a copy-paste Thai handoff message for the operator.
+- Use [OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md](OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md) when the operator needs exact screenshot/log capture points per gate.
+
 ## Plan Linkback
 
 - Phase 2 and Phase 3 here are the live-environment execution layer for Wave 2, Wave 3, and TASK-024 in `plan/process-go-live-waves-1.md`.
@@ -39,7 +47,7 @@ This document is the live run sheet. Do not split the same verification run acro
 | Gate | Check | Result | Evidence | Date |
 |------|-------|--------|----------|------|
 | P1-G01 | `npm run build` — exits 0, no errors | ✅ **PASS** | Exit 0. Compiled in 60s. 22 static pages generated. | 2026-04-26 |
-| P1-G02 | `npm run lint` — 0 ESLint errors | ✅ **PASS** | 0 errors. 1 non-blocking Node MODULE_TYPELESS_PACKAGE_JSON advisory (non-blocking). | 2026-04-26 |
+| P1-G02 | `npm run lint` — 0 ESLint errors | ✅ **PASS** | 0 errors. No Node MODULE_TYPELESS_PACKAGE_JSON advisory after adding `"type": "module"` to `package.json`. | 2026-04-30 |
 | P1-G03 | `npm run check:workflow-policy` — smoke passes | ✅ **PASS** | `workflow-policy smoke checks passed` | 2026-04-26 |
 | P1-G04 | Auth middleware: unauthenticated → `/auth/login` redirect | ✅ **PASS** | Code-confirmed: `src/middleware.ts` — session check → redirect on missing session. | 2026-04-25 |
 | P1-G05 | Auth middleware: non-allowlisted email → deny | ✅ **PASS** | Code-confirmed: `ADMIN_ALLOWED_EMAILS` check in auth flow — fail-closed if env not set. | 2026-04-25 |
@@ -77,6 +85,86 @@ Stop rule: if `P2-G03`, `P2-G05`, or `P2-G06` fails, stop the run and fix deploy
 | P2-G05 | Register `<base-url>/api/webhook` in the LINE Messaging API console and run the Verify action. | LINE console verification success message and the final webhook URL. | ⬜ | |
 | P2-G06 | Register `<base-url>/liff` as the LIFF endpoint, confirm the LIFF ID, and verify `LIFF_ID` plus `NEXT_PUBLIC_LIFF_ID` match it. | LIFF console screenshot showing endpoint and LIFF ID alignment. | ⬜ | |
 | P2-G07 | Create or invite the admin user in Supabase Auth, add the same email to `ADMIN_ALLOWED_EMAILS`, and redeploy if the env changed. | Supabase Auth user record plus masked email confirmation in the allowlist workflow. | ⬜ | |
+
+### Phase 2 Pending Evidence Template
+
+Copy-paste and fill one block per pending gate while running the operator checklist.
+
+```md
+Gate: P2-G03
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P2-G05
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P2-G06
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P2-G07
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+```
+
+### Phase 2 Next-Run Starter Blocks
+
+Use these prefilled starter blocks for the next real operator pass.
+
+```md
+Gate: P2-G03
+Result: ⬜ PENDING
+Verified by / Date:
+Evidence:
+- Expected production alias: https://craft-run.vercel.app
+- Capture latest Vercel deployment ID and a screenshot showing `Ready`
+Notes:
+- If the latest production deploy is not `Ready`, stop here and do not continue to LINE/LIFF verification
+
+Gate: P2-G05
+Result: ⬜ PENDING
+Verified by / Date:
+Evidence:
+- Expected webhook URL: https://craft-run.vercel.app/api/webhook
+- Capture LINE Developers console screenshot after `Verify` succeeds
+Notes:
+- If verify fails, check channel secret alignment before retrying
+
+Gate: P2-G06
+Result: ⬜ PENDING
+Verified by / Date:
+Evidence:
+- Expected LIFF endpoint: https://craft-run.vercel.app/liff
+- Capture LIFF console screenshot showing endpoint and masked LIFF ID
+Notes:
+- Do not accept `/liff/intake` as the registered endpoint
+
+Gate: P2-G07
+Result: ⬜ PENDING
+Verified by / Date:
+Evidence:
+- Capture Supabase Auth user record with masked email
+- Record whether a redeploy was triggered after allowlist changes
+Notes:
+- User must exist in Supabase Auth and the same email must be in `ADMIN_ALLOWED_EMAILS`
+```
 
 ### Preliminary External Route Signals
 
@@ -125,6 +213,201 @@ Stop rule: if any of `P3-G01` through `P3-G05` fails, treat the system as launch
 | P3-G11 | Send a supported escalation keyword such as `admin` or `คุยกับแอดมิน`. | Conversation moves to `HUMAN_REVIEW_REQUIRED`. | LINE chat evidence plus resulting state evidence. | ⬜ | |
 | P3-G12 | Change a runtime setting in `/admin/settings` and save it. | Save succeeds and `settings.updated` appears in `action_log`. | Settings save screenshot plus `action_log` row evidence. | ⬜ | |
 | P3-G13 | Review the `action_log` rows created by the gates above. | Every recorded gate event has a non-empty `action_ref`. | Query output or screenshots showing `action_ref` present for sampled rows. | ⬜ | |
+
+### Phase 3 Pending Evidence Template
+
+Copy-paste and fill one block per live gate during the real execution run.
+
+```md
+Gate: P3-G01
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P3-G02
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P3-G03
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P3-G04
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P3-G05
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P3-G06
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P3-G07
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P3-G08
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P3-G09
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P3-G10
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P3-G11
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P3-G12
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+
+Gate: P3-G13
+Result:
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+```
+
+### Phase 3 First-Pass Starter Blocks
+
+Stop rule reminder: if any of `P3-G01` through `P3-G05` fails, stop the launch run and fix that failure before going deeper.
+
+```md
+Gate: P3-G01
+Result: ⬜ PENDING
+Verified by / Date:
+Evidence:
+- Open https://craft-run.vercel.app/admin in a logged-out browser
+- Capture the browser URL showing redirect to `/auth/login?next=%2Fadmin`
+Notes:
+- A preflight probe already saw the redirect behavior; this run still needs a real browser screenshot
+
+Gate: P3-G02
+Result: ⬜ PENDING
+Verified by / Date:
+Evidence:
+- Capture successful login landing on `/admin`
+- Include a masked staff identifier in the note
+Notes:
+- Use an allowlisted staff account only
+
+Gate: P3-G03
+Result: ⬜ PENDING
+Verified by / Date:
+Evidence:
+- Capture denied access or blocked admin surface for a non-allowlisted account
+- Include a masked account identifier in the note
+Notes:
+- This confirms fail-closed behavior, not just login success
+
+Gate: P3-G04
+Result: ⬜ PENDING
+Verified by / Date:
+Evidence:
+- Capture the LINE chat message that triggered the webhook
+- Capture admin or DB evidence that a new conversation row was created
+Notes:
+- If no conversation appears, inspect webhook logs before attempting LIFF
+
+Gate: P3-G05
+Result: ⬜ PENDING
+Verified by / Date:
+Evidence:
+- Capture LIFF submit confirmation
+- Capture admin or DB evidence of the linked lead and quote
+Notes:
+- If LIFF fails before submit completes, check `/admin/liff-monitor` first
+```
+
+For `P3-G06` through `P3-G13`, continue using the generic Phase 3 template above and the run order in the Phase 3 operator run sheet.
+
+### Operator Evidence Intake Queue
+
+Use this queue when the operator sends evidence back in chat, ticket, or email instead of editing this document directly. Paste the returned blocks here first, then update the matching gate row above once the evidence is confirmed.
+
+| Operator item | Update in this file | How to use it |
+|------|------|------|
+| `P2-G03` | Phase 2 / `P2-G03` | Flip the gate row directly after confirming deployment evidence. |
+| `P2-G05` | Phase 2 / `P2-G05` | Flip the gate row directly after confirming verify success. |
+| `P2-G06` | Phase 2 / `P2-G06` | Flip the gate row directly after confirming endpoint and LIFF ID alignment. |
+| `P2-G07` | Phase 2 / `P2-G07` | Flip the gate row directly after confirming admin user and allowlist evidence. |
+| `P3-G01` | Phase 3 / `P3-G01` | Flip the gate row directly after confirming redirect evidence. |
+| `P3-G02` | Phase 3 / `P3-G02` | Flip the gate row directly after confirming allowlisted login success. |
+| `P3-G03` | Phase 3 / `P3-G03` | Flip the gate row directly after confirming deny behavior for non-allowlisted access. |
+| `P3-G04` | Phase 3 / `P3-G04` | Flip the gate row directly after confirming LINE chat plus conversation evidence. |
+| `P3-G05` | Phase 3 / `P3-G05` | Flip the gate row directly after confirming LIFF submit plus linked records. |
+| `LIFF-VAL-006` | Phase 3 / `P3-G05` notes | Keep as supporting evidence for returning-customer prefill quality. |
+| `LIFF-VAL-007` | Phase 3 / `P3-G05` notes | Keep as supporting evidence for company tax-document validation. |
+| `LIFF-VAL-008` | Phase 3 / `P3-G05` and `P3-G08` notes | Keep as supporting evidence for runtime catalog and public document rendering. |
+
+Use the same field order as [OPERATOR_LAUNCH_ONE_PAGE.md](OPERATOR_LAUNCH_ONE_PAGE.md) so the intake blocks can be copied into the final gate notes without rewriting.
+
+```md
+Item:
+Maps to gate:
+Result: PASS | FAIL | PENDING
+Verified by / Date:
+Evidence:
+-
+Notes:
+-
+```
 
 ---
 
