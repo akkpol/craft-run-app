@@ -10,6 +10,7 @@ import {
   LayoutDashboardIcon,
   Settings2Icon,
   SmartphoneIcon,
+  ScrollTextIcon,
 } from "lucide-react";
 
 import { NavUser } from "@/components/nav-user";
@@ -54,6 +55,12 @@ const primaryItems = [
     href: "/admin/liff-monitor",
     icon: SmartphoneIcon,
     isActive: (pathname: string) => pathname.startsWith("/admin/liff-monitor"),
+  },
+  {
+    title: "Accounting",
+    href: "/admin/accounting",
+    icon: ScrollTextIcon,
+    isActive: (pathname: string) => pathname.startsWith("/admin/accounting"),
   },
   {
     title: "Profile",

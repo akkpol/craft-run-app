@@ -41,7 +41,7 @@ export async function POST(
   const { data: quote, error } = await supabase
     .from("quotes")
     .select(
-      "id, lead_id, status, public_token, payment_terms, payment_status, leads(id, conversation_id, design_status, hold_reason, human_review_reason, note_from_chat, ai_generated_images), jobs(id, status)"
+      "id, lead_id, status, public_token, total, payment_terms, payment_status, payment_profile_snapshot, leads(id, conversation_id, design_status, hold_reason, human_review_reason, note_from_chat, ai_generated_images), jobs(id, status)"
     )
     .eq("public_token", token)
     .single();

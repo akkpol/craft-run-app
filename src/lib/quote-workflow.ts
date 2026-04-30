@@ -1,4 +1,5 @@
 import { pushStatusUpdate } from "@/lib/line";
+import { syncQuotePaymentRecord } from "@/lib/quote-payment-records";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logSystemAction } from "@/lib/action-log";
 import type {
@@ -22,9 +23,11 @@ type QuoteWorkflowRecord = {
   id: string;
   lead_id: string;
   public_token: string;
+  total: number;
   status?: QuoteStatus;
   payment_terms: PaymentTerm;
   payment_status: PaymentStatus;
+  payment_profile_snapshot?: unknown;
   jobs?: Array<{ id: string }> | null;
   leads?: {
     conversation_id?: string | null;
@@ -229,6 +232,16 @@ export async function approveQuote(
       .update({ status: "approved" })
       .eq("id", quote.lead_id);
   }
+
+  await syncQuotePaymentRecord(supabase, {
+    quoteId: quote.id,
+    leadId: quote.lead_id,
+    quoteStatus: "approved",
+    total: quote.total,
+    paymentTerms: quote.payment_terms,
+    paymentStatus: nextPaymentStatus,
+    paymentProfileSnapshot: quote.payment_profile_snapshot ?? null,
+  });
 
   if (paymentUnlocksProduction(quote.payment_terms, nextPaymentStatus)) {
     const jobResult = await createJobForApprovedQuote(supabase, {

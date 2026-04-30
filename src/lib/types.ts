@@ -627,9 +627,31 @@ export interface QuoteRow {
   status: QuoteStatus;
   payment_terms: PaymentTerm;
   payment_status: PaymentStatus;
+  payment_profile_snapshot?: Record<string, unknown> | null;
   public_token: string;
   valid_until: string;
   created_at: string;
+}
+
+export interface QuotePaymentRecordRow {
+  id: string;
+  quote_id: string;
+  lead_id: string;
+  amount_due: number;
+  payment_terms: PaymentTerm;
+  payment_status: PaymentStatus;
+  payment_profile_snapshot?: Record<string, unknown> | null;
+  requires_action: boolean;
+  proof_reference?: string | null;
+  proof_received_at?: string | null;
+  note?: string | null;
+  opened_at: string;
+  last_status_changed_at: string;
+  partially_paid_at?: string | null;
+  paid_at?: string | null;
+  closed_at?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface QuoteItemRow {

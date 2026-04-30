@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRuntimeAppConfig } from "@/lib/app-settings";
 import { resolvePaymentProfileFromConfig } from "@/lib/payment-routing";
+import { syncQuotePaymentRecord } from "@/lib/quote-payment-records";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   createJobForApprovedQuote,
@@ -86,6 +87,16 @@ export async function POST(
       payment_profile_snapshot: paymentProfileSnapshot,
     })
     .eq("id", id);
+
+  await syncQuotePaymentRecord(supabase, {
+    quoteId: quote.id,
+    leadId: quote.lead_id,
+    quoteStatus: quote.status,
+    total: Number(quote.total || 0),
+    paymentTerms,
+    paymentStatus,
+    paymentProfileSnapshot,
+  });
 
   let jobCreated = false;
   let jobId: string | null = null;
