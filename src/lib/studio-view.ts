@@ -18,6 +18,7 @@ import type {
   SnapshotLead,
   SnapshotQuote,
 } from "@/lib/backoffice-snapshot";
+import { hasLeadAiPromptContext } from "@/lib/lead-ai-prompt";
 
 type StudioFilter = {
   id: "all" | "design" | "production" | "blocked" | "assigned";
@@ -422,7 +423,7 @@ function getAvailableActions(
   if (lead) {
     actions.add("design_status");
 
-    if (lead.ai_image_prompt) {
+    if (hasLeadAiPromptContext(lead)) {
       actions.add("ai_preview");
     }
   }
