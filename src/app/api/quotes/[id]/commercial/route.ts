@@ -101,6 +101,7 @@ export async function POST(
       id: quote.id,
       lead_id: quote.lead_id,
       public_token: quote.public_token,
+      total: Number(quote.total || 0),
       payment_terms: paymentTerms,
       payment_status: paymentStatus,
       leads: quote.leads,

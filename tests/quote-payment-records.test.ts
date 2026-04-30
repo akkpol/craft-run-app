@@ -5,7 +5,7 @@ import {
   buildMonthlyAccountingCsv,
   buildQuotePaymentRecordMutation,
   getAccountingMonthRange,
-} from "../src/lib/quote-payment-records.ts";
+} from "../src/lib/quote-payment-records";
 
 test("buildQuotePaymentRecordMutation opens a manual payment record for approved deposit quotes", () => {
   const mutation = buildQuotePaymentRecordMutation({

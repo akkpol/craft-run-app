@@ -1,15 +1,14 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   PaymentStatus,
   PaymentTerm,
   QuoteStatus,
 } from "@/lib/types";
 
-type SupabaseLikeClient = {
-  from: (table: string) => {
-    select: (query: string) => any;
-    upsert: (values: Record<string, unknown>, options?: Record<string, unknown>) => Promise<{ error?: { message?: string } | null }>;
-  };
-};
+type SupabaseLikeClient = Pick<
+  SupabaseClient<any, "public", "public", any, any>,
+  "from"
+>;
 
 type ExistingQuotePaymentRecord = {
   payment_status?: PaymentStatus | null;
