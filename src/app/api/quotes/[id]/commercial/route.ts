@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { syncQuotePaymentRecord } from "@/lib/quote-payment-records";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   createJobForApprovedQuote,
@@ -73,6 +74,16 @@ export async function POST(
     .from("quotes")
     .update({ payment_terms: paymentTerms, payment_status: paymentStatus })
     .eq("id", id);
+
+  await syncQuotePaymentRecord(supabase, {
+    quoteId: quote.id,
+    leadId: quote.lead_id,
+    quoteStatus: quote.status,
+    total: Number(quote.total || 0),
+    paymentTerms,
+    paymentStatus,
+    paymentProfileSnapshot: quote.payment_profile_snapshot ?? null,
+  });
 
   let jobCreated = false;
   let jobId: string | null = null;
