@@ -12,6 +12,8 @@ This is not the final operating-flow freeze.
 
 This document maps what the system actually does today, where policy must be strict, and which UI rules should be locked before the next coding round. The goal is to stop rebuilding from vague intent. Each future implementation slice should start from this map, then update it when reality changes.
 
+Related brainstorm: `docs/FOGUS_AUTOMATION_BRAINSTORM_V1.md` expands this map into automation opportunities, approval boundaries, CRM readiness, and anti-ping-pong rules.
+
 ## Source Hierarchy For This Analysis
 
 | Layer | Source | How to treat it |
