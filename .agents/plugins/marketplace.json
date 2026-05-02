@@ -1,7 +1,7 @@
 {
-  "name": "[TODO: marketplace-name]",
+  "name": "craft-run-local",
   "interface": {
-    "displayName": "[TODO: Marketplace Display Name]"
+    "displayName": "Craft Run Local Plugins"
   },
   "plugins": [
     {
