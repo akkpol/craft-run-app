@@ -58,6 +58,8 @@ export type AppSettingsRow = {
   updated_at: string;
 };
 
+export type AiImageProvider = "openai" | "google";
+
 export type RuntimeAppConfig = {
   businessName: string;
   businessPhone: string;
@@ -96,16 +98,24 @@ export type RuntimeAppConfig = {
   webhookUrl: string;
   liffEndpointUrl: string;
   aiImageEnabled: boolean;
-  aiImageProvider: string;
+  aiImageProvider: AiImageProvider;
   aiImageModel: string;
 };
 
 export type AiImageRuntimeConfig = {
   enabled: boolean;
-  provider: "openai";
+  provider: AiImageProvider;
   model: string;
   apiKey: string;
 };
+
+export function isAiImageProvider(value: string): value is AiImageProvider {
+  return value === "openai" || value === "google";
+}
+
+export function getDefaultAiImageModel(provider: AiImageProvider): string {
+  return provider === "google" ? "imagen-3.0-generate-002" : "gpt-image-1";
+}
 
 function normalizeUrl(value: string | null | undefined): string {
   return (value || "").trim().replace(/\/$/, "");
@@ -113,6 +123,11 @@ function normalizeUrl(value: string | null | undefined): string {
 
 function normalizeText(value: string | null | undefined): string {
   return (value || "").trim();
+}
+
+function normalizeAiImageProvider(value: string | null | undefined): AiImageProvider {
+  const provider = normalizeText(value).toLowerCase();
+  return isAiImageProvider(provider) ? provider : "openai";
 }
 
 export function getWebhookUrlFromBase(baseUrl: string): string {
@@ -142,8 +157,8 @@ export async function getRuntimeAppConfig(): Promise<RuntimeAppConfig> {
   const settings = await getAppSettings();
   const defaultProductionSettings = getDefaultProductionSettings();
   const baseUrl = normalizeUrl(settings?.base_url) || normalizeUrl(process.env.NEXT_PUBLIC_BASE_URL);
-  const aiImageProvider = normalizeText(settings?.ai_image_provider) || "openai";
-  const aiImageModel = normalizeText(settings?.ai_image_model) || "gpt-image-1";
+  const aiImageProvider = normalizeAiImageProvider(settings?.ai_image_provider);
+  const aiImageModel = normalizeText(settings?.ai_image_model) || getDefaultAiImageModel(aiImageProvider);
   const customerUploadUrl =
     normalizeUrl(settings?.customer_upload_url) || normalizeUrl(process.env.NEXT_PUBLIC_CUSTOMER_UPLOAD_URL);
 
@@ -210,9 +225,17 @@ export async function getRuntimeAppConfig(): Promise<RuntimeAppConfig> {
 
 export async function getAiImageRuntimeConfig(): Promise<AiImageRuntimeConfig> {
   const settings = await getAppSettings();
-  const provider = (normalizeText(settings?.ai_image_provider) || "openai") as "openai";
-  const model = normalizeText(settings?.ai_image_model) || "gpt-image-1";
-  const apiKey = normalizeText(settings?.ai_image_api_key) || normalizeText(process.env.OPENAI_API_KEY);
+  const provider = normalizeAiImageProvider(settings?.ai_image_provider);
+  const model = normalizeText(settings?.ai_image_model) || getDefaultAiImageModel(provider);
+
+  let apiKey = normalizeText(settings?.ai_image_api_key);
+  if (!apiKey) {
+    if (provider === "google") {
+      apiKey = normalizeText(process.env.GOOGLE_API_KEY) || normalizeText(process.env.GEMINI_API_KEY);
+    } else {
+      apiKey = normalizeText(process.env.OPENAI_API_KEY);
+    }
+  }
 
   return {
     enabled: Boolean(settings?.ai_image_enabled && apiKey),

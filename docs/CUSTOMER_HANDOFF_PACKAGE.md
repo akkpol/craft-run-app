@@ -40,6 +40,9 @@ All variables must be configured in Vercel Project Settings → Environment Vari
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase dashboard → Project Settings → API → `anon` public key | Browser/SSR read-only access | Public/client | Operator |
 | `SUPABASE_SECRET_KEY` | Supabase dashboard → Project Settings → API → `service_role` key | Server-only admin DB operations | **Server only — never expose to browser** | Operator |
 | `NEXT_PUBLIC_BASE_URL` | Self-defined — your Vercel deployment URL | Builds all quote/status/liff links | Public/client | Operator |
+| `OPENAI_API_KEY` | OpenAI Platform | Optional fallback key for AI preview provider `openai` | Server only | Operator / Business owner |
+| `GOOGLE_API_KEY` | Google AI Studio | Optional fallback key for AI preview provider `google` | Server only | Operator / Business owner |
+| `GEMINI_API_KEY` | Google AI Studio / legacy naming | Optional fallback if `GOOGLE_API_KEY` is not set | Server only | Operator / Business owner |
 | `VERCEL_OIDC_TOKEN` | Auto-provided by Vercel runtime | Vercel integration token | Deployment only | Auto |
 
 ---

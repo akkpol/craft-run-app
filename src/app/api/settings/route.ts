@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   APP_SETTINGS_ID,
   getAppSettings,
+  getDefaultAiImageModel,
   getRuntimeAppConfig,
   getWebhookUrlFromBase,
   getLiffEndpointUrlFromBase,
+  isAiImageProvider,
 } from "@/lib/app-settings";
 import { logHumanAction } from "@/lib/action-log";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -98,6 +100,13 @@ export async function GET() {
   const hasLineChannelSecret = Boolean(
     settings?.line_channel_secret || process.env.LINE_CHANNEL_SECRET
   );
+  const aiImageProvider = runtimeConfig.aiImageProvider;
+  const hasAiImageApiKey = Boolean(
+    settings?.ai_image_api_key ||
+      (aiImageProvider === "google"
+        ? process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY
+        : process.env.OPENAI_API_KEY)
+  );
 
   return NextResponse.json({
     settings: {
@@ -168,9 +177,9 @@ export async function GET() {
       webhookUrl: getWebhookUrlFromBase(runtimeConfig.baseUrl),
       liffEndpointUrl: getLiffEndpointUrlFromBase(runtimeConfig.baseUrl),
       aiImageEnabled: settings?.ai_image_enabled ?? runtimeConfig.aiImageEnabled,
-      aiImageProvider: settings?.ai_image_provider || runtimeConfig.aiImageProvider || "openai",
-      aiImageModel: settings?.ai_image_model || runtimeConfig.aiImageModel || "gpt-image-1",
-      hasAiImageApiKey: Boolean(settings?.ai_image_api_key || process.env.OPENAI_API_KEY),
+      aiImageProvider,
+      aiImageModel: settings?.ai_image_model || runtimeConfig.aiImageModel,
+      hasAiImageApiKey,
       updatedAt: settings?.updated_at || null,
     },
   });
@@ -239,9 +248,17 @@ export async function POST(request: NextRequest) {
   );
   const lineChannelAccessToken = (body.lineChannelAccessToken || "").trim();
   const lineChannelSecret = (body.lineChannelSecret || "").trim();
-  const aiImageProvider = (body.aiImageProvider || "openai").trim() || "openai";
-  const aiImageModel = (body.aiImageModel || "gpt-image-1").trim() || "gpt-image-1";
+  const aiImageProviderCandidate = (body.aiImageProvider || "openai").trim().toLowerCase();
   const aiImageApiKey = (body.aiImageApiKey || "").trim();
+
+  if (!isAiImageProvider(aiImageProviderCandidate)) {
+    return NextResponse.json({ error: "Unsupported AI image provider" }, { status: 400 });
+  }
+
+  const aiImageProvider = aiImageProviderCandidate;
+  const aiImageModel =
+    (body.aiImageModel || getDefaultAiImageModel(aiImageProvider)).trim() ||
+    getDefaultAiImageModel(aiImageProvider);
 
   if (baseUrl && !/^https?:\/\//i.test(baseUrl)) {
     return NextResponse.json(
@@ -269,10 +286,6 @@ export async function POST(request: NextRequest) {
       { error: "Customer upload URL must start with http:// or https://" },
       { status: 400 }
     );
-  }
-
-  if (aiImageProvider !== "openai") {
-    return NextResponse.json({ error: "Unsupported AI image provider" }, { status: 400 });
   }
 
   if (!isPaymentDisplayMode(paymentDisplayMode)) {
@@ -311,6 +324,12 @@ export async function POST(request: NextRequest) {
   const currentSettings = await getAppSettings();
   const currentSettingsRecord = (currentSettings ?? {}) as Record<string, unknown>;
   const defaultSettings = getDefaultProductionSettings();
+  const currentAiImageProviderRaw = (currentSettings?.ai_image_provider || "").trim();
+  const currentAiImageProvider = isAiImageProvider(currentAiImageProviderRaw)
+    ? currentAiImageProviderRaw
+    : "openai";
+  const preservedAiImageApiKey =
+    aiImageProvider === currentAiImageProvider ? currentSettings?.ai_image_api_key : null;
   const basePayload = {
     id: APP_SETTINGS_ID,
     business_name: (body.businessName || "").trim() || null,
@@ -328,7 +347,7 @@ export async function POST(request: NextRequest) {
     ai_image_enabled: Boolean(body.aiImageEnabled),
     ai_image_provider: aiImageProvider,
     ai_image_model: aiImageModel,
-    ai_image_api_key: aiImageApiKey || currentSettings?.ai_image_api_key || null,
+    ai_image_api_key: aiImageApiKey || preservedAiImageApiKey || null,
   };
   const fullPayload = {
     ...basePayload,
@@ -404,11 +423,11 @@ export async function POST(request: NextRequest) {
   if (changedFields.length > 0) {
     await logHumanAction(supabase, {
       entityType: "system",
-      entityId: APP_SETTINGS_ID,
       actionType: "settings.updated",
       actorId: adminActorId,
       actorLabel: adminEmail ?? "Admin",
       payload: {
+        app_settings_id: APP_SETTINGS_ID,
         changed_fields: changedFields,
         used_schema_fallback: persistedPayload === basePayload,
       },

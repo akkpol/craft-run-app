@@ -111,7 +111,7 @@ Meaning:
 
 - `ai_image_enabled` is off, or
 - no API key is available from `app_settings.ai_image_api_key`, or
-- no `OPENAI_API_KEY` fallback is available in the server environment
+- no provider-specific fallback is available in the server environment: `OPENAI_API_KEY` for OpenAI, or `GOOGLE_API_KEY` / `GEMINI_API_KEY` for Google AI Studio
 
 Operator action:
 
@@ -148,7 +148,7 @@ Escalation owner:
 
 Typical message:
 
-- provider returns an OpenAI error message in the API response
+- provider returns an OpenAI or Google AI Studio error message in the API response
 - examples may include invalid key, insufficient quota, billing, or auth errors
 
 Meaning:

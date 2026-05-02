@@ -17,7 +17,7 @@ This repo now supports a local-only GPT Image 2 handoff for Studio and design pr
 - Not a backend route integration.
 - Not a capability that works on Vercel or on shared staff machines unless they also have local prerequisites.
 
-The current server runtime still uses the configured OpenAI image provider path in `src/lib/ai-images.ts` and `src/app/api/leads/[id]/ai-preview/route.ts`.
+The current server runtime still uses the configured deployed provider path in `src/lib/ai-images.ts` and `src/app/api/leads/[id]/ai-preview/route.ts`, currently OpenAI by default with optional Google AI Studio selection through Admin Settings.
 
 ## Why Studio uses this path
 

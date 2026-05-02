@@ -16,6 +16,7 @@
 - `Supabase` = database, auth, server data
 - `NEXT_PUBLIC_BASE_URL` = URL หลักของแอป
 - `Cloudflare R2` = optional private blob storage สำหรับ customer media โดยยังให้ Supabase ถือ metadata/permission mapping
+- `OPENAI_API_KEY` / `GOOGLE_API_KEY` = optional server-side fallback keys สำหรับ AI image preview ถ้าไม่ได้กรอก key ผ่าน `/admin/settings`
 - Backoffice ใช้ `Supabase Auth + email allowlist` ไม่ได้ใช้ password จาก env โดยตรง
 
 ## หมายเหตุอัปเดต 2026
@@ -97,6 +98,9 @@
 | `CLOUDFLARE_R2_ACCESS_KEY_ID` | Cloudflare Dashboard > R2 API Tokens | access key สำหรับ server-side R2 client | server only |
 | `CLOUDFLARE_R2_SECRET_ACCESS_KEY` | Cloudflare Dashboard > R2 API Tokens | secret key สำหรับ server-side R2 client | server only |
 | `CLOUDFLARE_R2_REGION` | กำหนดเอง | region hint สำหรับ S3 client; ใช้ `auto` สำหรับ R2 โดยทั่วไป | server only |
+| `OPENAI_API_KEY` | OpenAI Platform | fallback key สำหรับ AI preview provider `openai` ถ้าไม่ได้บันทึก key ใน `/admin/settings` | server only |
+| `GOOGLE_API_KEY` | Google AI Studio | fallback key สำหรับ AI preview provider `google` ถ้าไม่ได้บันทึก key ใน `/admin/settings` | server only |
+| `GEMINI_API_KEY` | Google AI Studio / legacy naming | optional fallback สำรองของ provider `google` ถ้าไม่ได้ตั้ง `GOOGLE_API_KEY` | server only |
 | `VERCEL_OIDC_TOKEN` | Vercel CLI / runtime | token สำหรับ integration บางแบบ ไม่ใช่ค่าที่ user ต้องกรอกเอง | deployment only |
 
 ## URL ที่ต้องใส่ให้ถูก
@@ -157,6 +161,7 @@ ADMIN_ALLOWED_EMAILS="admin@example.com,ops@example.com"
 - `SUPABASE_SECRET_KEY` ห้ามย้ายไปเป็น `NEXT_PUBLIC_`
 - `LINE_CHANNEL_SECRET` ห้ามใช้ฝั่ง client
 - `CLOUDFLARE_R2_ACCESS_KEY_ID` และ `CLOUDFLARE_R2_SECRET_ACCESS_KEY` ต้องอยู่ฝั่ง server เท่านั้น
+- `OPENAI_API_KEY`, `GOOGLE_API_KEY`, และ `GEMINI_API_KEY` ต้องอยู่ฝั่ง server เท่านั้น
 
 ## Cloudflare R2 สำหรับ customer media
 

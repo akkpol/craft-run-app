@@ -221,8 +221,8 @@ flowchart TD
 | `lineChannelSecret` | `app_settings.line_channel_secret` | `LINE_CHANNEL_SECRET` | secret สำหรับ verify webhook | ใช้ตรวจ `x-line-signature` |
 | `liffId` | `app_settings.liff_id` | `NEXT_PUBLIC_LIFF_ID` หรือ `LIFF_ID` | LIFF ID ตัวเดียวที่ runtime ใช้ | ใช้ init LIFF ฝั่ง browser |
 | `aiImageProvider` | `app_settings.ai_image_provider` | ค่า default `openai` | provider ที่ runtime จะใช้ | คุมเส้นทาง AI preview |
-| `aiImageModel` | `app_settings.ai_image_model` | ค่า default `gpt-image-1` | model ที่ runtime จะใช้ | คุมการ generate preview |
-| `aiImageApiKey` | `app_settings.ai_image_api_key` | `OPENAI_API_KEY` | key ฝั่ง server | ใช้เรียก provider |
+| `aiImageModel` | `app_settings.ai_image_model` | `gpt-image-1` สำหรับ OpenAI หรือ `imagen-3.0-generate-002` สำหรับ Google | model ที่ runtime จะใช้ | คุมการ generate preview |
+| `aiImageApiKey` | `app_settings.ai_image_api_key` | `OPENAI_API_KEY` สำหรับ OpenAI หรือ `GOOGLE_API_KEY`/`GEMINI_API_KEY` สำหรับ Google | key ฝั่ง server | ใช้เรียก provider |
 
 สรุปเชิงเทคนิค:
 
