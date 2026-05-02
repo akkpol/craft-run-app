@@ -515,7 +515,7 @@ SUPABASE_SECRET_KEY=
 # App
 NEXT_PUBLIC_BASE_URL=https://your-app.vercel.app
 ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=change-me-in-production
+ADMIN_PASSWORD="MANAGED_BY_SUPABASE_AUTH_DO_NOT_COMMIT_PASSWORDS"
 ```
 
 ## Workflow Source Of Truth
