@@ -92,7 +92,11 @@ export function buildCommercialDocumentIssuePlan(
 
   const entityValidation = validateReceiverEntityActive(input.receiverEntity);
   if (!entityValidation.ok) {
-    return entityValidation;
+    return {
+      ok: false,
+      error: "RECEIVER_ENTITY_INACTIVE",
+      detail: entityValidation.detail,
+    };
   }
 
   const allowedTypes = allowedDocumentTypesAfterPayment(
