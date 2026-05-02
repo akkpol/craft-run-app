@@ -1,6 +1,6 @@
 ---
 
-## goal: Implement FOGUS commercial document flow from policy v1 without breaking quote/payment/workflow gates version: 1.0 date_created: 2026-05-02 last_updated: 2026-05-02 owner: Delivery Engineering status: In progress role: scoped feature plan tags: \[feature, commercial-documents, invoice, receipt, tax-ready, payment\]
+## goal: Implement FOGUS commercial document flow from policy v1 without breaking quote/payment/workflow gates version: 1.0 date_created: 2026-05-02 last_updated: 2026-05-03 owner: Delivery Engineering status: In progress role: scoped feature plan tags: \[feature, commercial-documents, invoice, receipt, tax-ready, payment\]
 
 # Commercial Documents
 
@@ -103,19 +103,36 @@ Decision Owner
 
 ### Phase 1 - Schema And Domain Contract
 
-TaskDescriptionCompletedDateTASK-001Map policy v1 schema to existing FOGUS tables and decide whether `order_id` maps to quote, job, or a new commercial order record.Yes2026-05-02TASK-002Add migrations for seller entities, customer tax profiles, payments/receiver selection, commercial documents, and document number sequences.Partial (core schema added)2026-05-02TASK-003Add database constraints/indexes for document number uniqueness and issued-document immutability support.
+| Task | Description | Status | Completed Date |
+| --- | --- | --- | --- |
+| TASK-001 | Map policy v1 schema to existing FOGUS tables and decide whether `order_id` maps to quote, job, or a new commercial order record. | Yes | 2026-05-02 |
+| TASK-002 | Add migrations for seller entities, customer tax profiles, payments/receiver selection, commercial documents, and document number sequences. | Yes | 2026-05-02 |
+| TASK-003 | Add database constraints/indexes for document number uniqueness and issued-document immutability support. | Yes | 2026-05-02 |
 
 ### Phase 2 - Service Validation
 
-TaskDescriptionCompletedDateTASK-004Implement receiver selection validation before payment.Partial (API route added)2026-05-02TASK-005Implement payment confirmation validation and receiver lock.TASK-006Implement document issue validation for receiver/issuer match, VAT registration, customer tax profile, branch data, and numbering.TASK-007Implement error codes from policy v1.
+| Task | Description | Status | Completed Date |
+| --- | --- | --- | --- |
+| TASK-004 | Implement receiver selection validation before payment. | Yes | 2026-05-02 |
+| TASK-005 | Implement payment confirmation validation and receiver lock. | Yes | 2026-05-02 |
+| TASK-006 | Implement document issue validation for receiver/issuer match, VAT registration, customer tax profile, branch data, and numbering. | Yes | 2026-05-02 |
+| TASK-007 | Implement error codes from policy v1. | Partial (current payment confirm, issue, and intake paths return policy-aligned error codes; full catalog is not centralized yet) | 2026-05-02 |
 
 ### Phase 3 - UI And Documents
 
-TaskDescriptionCompletedDateTASK-008Add admin UI for receiver/entity selection and blocked tax-invoice warnings.Yes2026-05-02TASK-009Add LIFF/customer tax-document data validation aligned to policy v1.Yes2026-05-02TASK-010Add printable/downloadable commercial document surfaces using locked snapshots.
+| Task | Description | Status | Completed Date |
+| --- | --- | --- | --- |
+| TASK-008 | Add admin UI for receiver/entity selection and blocked tax-invoice warnings. | Yes | 2026-05-02 |
+| TASK-009 | Add LIFF/customer tax-document data validation aligned to policy v1. | Yes | 2026-05-02 |
+| TASK-010 | Add printable/downloadable commercial document surfaces using locked snapshots. | Yes | 2026-05-02 |
 
 ### Phase 4 - Audit And Tests
 
-TaskDescriptionCompletedDateTASK-011Add audit events from policy v1 for receiver selection, payment confirmation, mismatch, document issue/void, numbering, VAT/branch failures, and tax invoice blocking.TASK-012Add tests for receiver mismatch, VAT restrictions, branch validation, document number uniqueness, and issued-document immutability.TASK-013Run focused tests, workflow policy smoke if workflow surfaces changed, then run build/lint before release.
+| Task | Description | Status | Completed Date |
+| --- | --- | --- | --- |
+| TASK-011 | Add audit events from policy v1 for receiver selection, payment confirmation, mismatch, document issue/void, numbering, VAT/branch failures, and tax invoice blocking. | Partial (receiver selection, payment confirmation, mismatch, numbering, and tax-document blocking are covered; `VOID` flow is not implemented in v1) | 2026-05-02 |
+| TASK-012 | Add tests for receiver mismatch, VAT restrictions, branch validation, document number uniqueness, and issued-document immutability. | Partial (service/helper/print/audit coverage exists; route-level uniqueness and immutability coverage is still thin) | 2026-05-02 |
+| TASK-013 | Run focused tests, workflow policy smoke if workflow surfaces changed, then run build/lint before release. | Yes (`npm run test:node` and `npm run build` passed for the packet slices that changed workflow-adjacent commercial behavior) | 2026-05-02 |
 
 ## Stop Rules
 
@@ -130,11 +147,21 @@ Stop immediately if any proposed implementation:
 
 ## Closure Record
 
-Current slice (2026-05-02)
+Packet state (2026-05-03)
 
 - Added additive core migration: `supabase/migrations/20260502113000_add_commercial_document_core.sql`
-- Added tables: `commercial_entities`, `customer_tax_profiles`, `commercial_orders`, `payments`, `commercial_documents`, `document_number_sequences`
+- Added follow-up migrations for receiver-lock immutability, document number allocation, allocator prefix hardening, and issued-document immutability.
 - Added receiver-selection API: `src/app/api/commercial/select-receiver/route.ts`
+- Added payment confirmation + receiver lock route: `src/app/api/payments/confirm/route.ts`
+- Added document issue route: `src/app/api/commercial/documents/issue/route.ts`
+- Added printable/downloadable commercial document surface backed by locked snapshots.
 - Added admin receiver/entity selection UI and blocked tax-invoice warnings in quote action surfaces.
-- Extended receiver selection to lazily create a `commercial_orders` anchor from `quoteId` when needed.
-- Existing workflow/payment routes were intentionally left unchanged in this slice.
+- Added LIFF/customer tax-document validation shared across client and server intake paths.
+- Added failure-path audit mapping for blocked payment/document flows.
+- Added focused tests for commercial validation, receiver UI warnings, document issue planning, print snapshots, and audit mapping.
+
+Open follow-up to close packet cleanly
+
+- Sync this packet plan with the GitHub issue body and milestone notes.
+- Add narrower route/integration coverage for document-number conflict and issued-document immutability behavior.
+- Decide whether `VOID` remains explicitly out of v1 scope or gets a follow-up packet.
