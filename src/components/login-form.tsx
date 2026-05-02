@@ -1,9 +1,4 @@
-'use client'
-
-import { useEffect } from 'react'
-
 import { cn } from '@/lib/utils'
-import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -21,25 +16,14 @@ import { loginWithPasswordAction } from '@/app/auth/login/actions'
 type LoginFormProps = React.ComponentPropsWithoutRef<'div'> & {
   message?: string | null
   redirectTo?: string
-  signOutOnMount?: boolean
 }
 
 export function LoginForm({
   className,
   message,
   redirectTo = '/admin',
-  signOutOnMount = false,
   ...props
 }: LoginFormProps) {
-  useEffect(() => {
-    if (!signOutOnMount) {
-      return
-    }
-
-    const supabase = createClient()
-    void supabase.auth.signOut({ scope: 'local' })
-  }, [signOutOnMount])
-
   return (
     <div className={cn('flex flex-col gap-6', className)} {...props}>
       <Card>

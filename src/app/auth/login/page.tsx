@@ -1,4 +1,5 @@
 import { LoginForm } from '@/components/login-form'
+import { normalizeAdminRedirectPath } from '@/lib/admin-auth-flow'
 
 const LOGIN_ERROR_MESSAGES = {
   admin_allowlist_missing:
@@ -17,30 +18,18 @@ function firstValue(value: string | string[] | undefined) {
   return value
 }
 
-function normalizeRedirectPath(pathname: string | undefined) {
-  if (!pathname || !pathname.startsWith('/') || pathname.startsWith('/auth')) {
-    return '/admin'
-  }
-
-  return pathname
-}
-
 export default async function Page(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const searchParams = await props.searchParams
   const errorCode = firstValue(searchParams.error) as keyof typeof LOGIN_ERROR_MESSAGES | undefined
   const message = errorCode ? LOGIN_ERROR_MESSAGES[errorCode] : null
-  const redirectTo = normalizeRedirectPath(firstValue(searchParams.next))
+  const redirectTo = normalizeAdminRedirectPath(firstValue(searchParams.next))
 
   return (
     <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
       <div className="w-full max-w-sm">
-        <LoginForm
-          message={message}
-          redirectTo={redirectTo}
-          signOutOnMount={Boolean(errorCode)}
-        />
+        <LoginForm message={message} redirectTo={redirectTo} />
       </div>
     </div>
   )
