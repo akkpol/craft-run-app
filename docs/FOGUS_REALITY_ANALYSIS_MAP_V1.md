@@ -311,7 +311,7 @@ flowchart TD
 	E --> E1[Web intake validation]
 	F --> F1[LIFF client + server validation]
 
-	D1 --> G[Shared CRM lead draft]
+	D1 --> G[Shared CRM lead draft/table]
 	E1 --> G
 	F1 --> G
 
@@ -405,7 +405,7 @@ The way to reduce data ping-pong is to treat LINE, LIFF, admin intake, and futur
 ```mermaid
 flowchart LR
 	A[LINE / LIFF / Admin / Web] --> B[Validated intake envelope]
-	B --> C[Shared CRM lead draft]
+	B --> C[Shared CRM lead draft/table]
 	C --> D[Readiness engine]
 	D --> E{Next action owner}
 	E -->|customer| F[Open only missing LIFF/web section]
@@ -428,6 +428,63 @@ Practical anti-ping-pong rules:
 - If the owner is not `customer`, do not send the customer back to LIFF.
 
 This makes the CRM the central processor while keeping each customer touchpoint light. The customer should feel like the system remembers previous answers, and staff should see exactly which small missing piece blocks the next step.
+
+## CRM Table And Manual Admin Add
+
+The validated intake envelope should land in a table-backed CRM draft. In current system terms, this can start from the existing customer, conversation, lead, quote, job, action log, and escalation data rather than a separate CRM product.
+
+Strict rule:
+
+```text
+Admin manual add is another intake adapter.
+It must write the same CRM draft contract as LIFF, with source, actor, validation result, and next action owner.
+```
+
+Suggested table-backed ownership:
+
+| CRM data | Primary purpose | Likely source | Notes |
+| --- | --- | --- | --- |
+| customer identity | who the customer is | LIFF, LINE, admin manual, web | dedupe by LINE id, phone, email, tax id where safe |
+| conversation/channel | how the customer can be contacted | LINE webhook, admin manual, web | keeps resume/fresh flow and latest context |
+| lead draft | what the customer wants now | LIFF, admin manual, web | main CRM work item before quote/job |
+| validation result | what is complete or missing | channel validation + CRM readiness engine | store `missing_fields`, `blocking_reason`, `next_action_owner` |
+| product intent | selected catalog/manual product | LIFF picker or admin manual selector | drives required fields and auto-quote safety |
+| fulfillment intent | pickup/delivery/install details | LIFF or admin manual | controls address/location/site-risk requirements |
+| document request | receipt/tax invoice request | LIFF or admin manual | customer request only; final eligibility waits for commercial gate |
+| quote/commercial link | quote and payment path | system/admin | created after lead is quote-ready or reviewed |
+| audit/action log | who changed what | all channels/admin actions | required for manual edits and approval decisions |
+
+Manual admin add should be easy because it is progressive, not because it bypasses rules.
+
+Minimum quick-add fields:
+
+| Field | Required at quick add? | Why |
+| --- | --- | --- |
+| customer name or display name | yes | creates a usable CRM row |
+| contact method | yes | staff can follow up without hunting chat history |
+| source channel | yes | separates walk-in, phone, social, email, B2B, LINE-assisted |
+| product intent or free-text request | yes | CRM can route catalog/manual review |
+| fulfillment mode | if known | prevents asking address for pickup and missing site data for install |
+| notes | optional but visible | captures human context from phone/walk-in |
+
+Expandable admin sections should mirror LIFF sections:
+
+- Product and pricing inputs.
+- Fulfillment and location.
+- Document/tax request.
+- Media/design brief.
+- Quote notes and admin review reason.
+
+Admin UX rules:
+
+- Quick add can save an incomplete draft.
+- The table row must show readiness chips such as `customer_info_missing`, `admin_review_required`, `quote_ready`, and `commercial_review_required`.
+- Admin should be able to edit the same draft without creating a duplicate lead.
+- If only customer-owned data is missing, admin can send a focused LIFF/web section link.
+- If the missing data is catalog/payment/receiver/AI/production policy, the row stays in staff/owner/dev queue instead of sending the customer back to LIFF.
+- Manual edits must write audit events with admin actor and reason when they affect quote, payment, document, or production readiness.
+
+This is the clean operating model: every customer request becomes one CRM table row/draft, no matter whether it came from LIFF or an admin typing it in after a call.
 
 ## Product Catalog To LIFF Decision Chain
 
