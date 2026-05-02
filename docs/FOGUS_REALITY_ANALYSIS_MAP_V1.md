@@ -307,9 +307,13 @@ flowchart TD
 	B -->|Website / future form| E[Web intake]
 
 	C --> F[LIFF smart intake]
-	D --> G[Shared CRM lead draft]
-	E --> G
-	F --> G
+	D --> D1[Admin intake validation]
+	E --> E1[Web intake validation]
+	F --> F1[LIFF client + server validation]
+
+	D1 --> G[Shared CRM lead draft]
+	E1 --> G
+	F1 --> G
 
 	G --> H[Identity + contactability]
 	H --> I[Product catalog selection]
@@ -355,6 +359,75 @@ Read the diagram this way:
 - Product catalog drives which fields LIFF should ask and whether auto quote is safe.
 - Fulfillment mode changes required fields before quote readiness.
 - Payment/commercial gate is after quote approval, but its risk starts at catalog, tax request, payment profile, and receiver mapping.
+
+## Validated Intake Envelope
+
+The system should not wait until quote/payment/production to discover that basic intake data is unusable. Each channel should send a validated envelope into the shared CRM lead draft, then CRM becomes the place that computes readiness, missing fields, ownership, and next action.
+
+Strict rule:
+
+```text
+Channel forms validate shape and customer-owned fields.
+CRM validates normalized business readiness and decides who owns the next action.
+```
+
+What should already pass validation before CRM processing:
+
+| Data group | Edge validation before CRM | CRM processing after intake | If not valid |
+| --- | --- | --- | --- |
+| channel identity | LIFF token, LINE user id, admin actor, or web session/source marker exists | dedupe customer, attach conversation, choose resume/fresh path | block anonymous production intake or mark manual source review |
+| contactability | name plus reachable phone/LINE/email according to channel | choose primary contact method and escalation path | ask customer only for missing contact field |
+| product intent | selected catalog item or manual/custom description exists | map to catalog policy, pricing model, auto-quote safety | admin catalog review if product is unclear |
+| quantity/size/pricing inputs | required numeric fields for selected product are present and sane | compute draft price inputs, mark quote-ready or needs review | ask only missing work fields |
+| fulfillment mode | pickup/delivery/install selected when required by catalog | compute required fulfillment fields and operational risk | reopen only fulfillment section if customer-owned |
+| delivery/install location | address/contact/map pin/photos when required by mode | route delivery/install risk, schedule, and completion checklist | customer task for missing address/photos; admin review for site risk |
+| document/tax request | tax invoice fields validated when requested | store request, then defer eligibility to receiver/payment gate | customer task for missing tax profile only |
+| media/design brief | uploaded files and brief metadata are attached or explicitly skipped | assign design readiness, AI prompt readiness, or manual design path | customer task only when brief/media is actually needed |
+| consent/audit source | submission source, timestamp, and actor are known | write audit/action log and prevent silent mutation | block or manual review |
+
+The important detail is that CRM should store both the raw customer answer and the validation result. Downstream screens should read `missing_fields`, `blocking_reason`, and `next_action_owner` from the shared lead/quote state instead of guessing from the original LIFF form again.
+
+Useful readiness labels:
+
+| Label | Meaning | Owner |
+| --- | --- | --- |
+| `edge_validated` | Channel payload is shaped enough to enter CRM | source channel |
+| `crm_normalized` | Customer, lead, conversation, and product intent are joined | CRM |
+| `customer_info_missing` | Only customer-owned fields are missing | customer via LIFF/web/admin-assisted intake |
+| `admin_review_required` | Business/catalog/pricing/site risk needs staff decision | admin/team |
+| `quote_ready` | CRM has enough validated inputs to create or send quote | system/admin |
+| `commercial_review_required` | Payment receiver/document/credit safety is not settled | finance/owner |
+
+## Central CRM Processing To Reduce Round Trips
+
+The way to reduce data ping-pong is to treat LINE, LIFF, admin intake, and future web forms as input adapters only. They should all write into one CRM lead draft contract. After that, the workflow engine decides whether to auto-advance, ask customer for a small delta, or assign staff review.
+
+```mermaid
+flowchart LR
+	A[LINE / LIFF / Admin / Web] --> B[Validated intake envelope]
+	B --> C[Shared CRM lead draft]
+	C --> D[Readiness engine]
+	D --> E{Next action owner}
+	E -->|customer| F[Open only missing LIFF/web section]
+	E -->|admin/team| G[Admin review queue]
+	E -->|finance/owner| H[Commercial review]
+	E -->|system| I[Auto quote / status update]
+	F --> C
+	G --> C
+	H --> C
+	I --> C
+```
+
+Practical anti-ping-pong rules:
+
+- CRM should ask for deltas, not full resubmission.
+- LIFF should reopen only the section that owns the missing customer data.
+- Admin CRM intake should edit the same draft, not create a parallel copy of the lead.
+- Quote, payment, design, production, and status screens should consume CRM readiness results, not re-validate channel payloads independently.
+- Every blocker should have an owner: `customer`, `admin`, `finance`, `owner`, `dev`, `system`, or `external_provider`.
+- If the owner is not `customer`, do not send the customer back to LIFF.
+
+This makes the CRM the central processor while keeping each customer touchpoint light. The customer should feel like the system remembers previous answers, and staff should see exactly which small missing piece blocks the next step.
 
 ## Product Catalog To LIFF Decision Chain
 
