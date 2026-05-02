@@ -254,17 +254,23 @@ Use this flow when staff or a customer asks whether the current system can issue
 #### Current production boundary
 
 1. The existing quote PDF route proves quotation download only.
-2. The existing admin commercial unlock proves workflow/payment unlock only.
-3. LIFF tax-document validation proves intake validation only.
-4. Do not tell staff or customers that invoice, receipt, or tax invoice issuance is production-complete until `plan/feature-commercial-documents-1.md` is implemented and validated.
+2. Admin must use the `/admin?filter=commercial-gate` queue to find approved quotes that are still waiting for receiver selection or post-payment document issuance.
+3. Admin can now select receiver, confirm payment, and issue runtime commercial documents through the existing admin commercial actions.
+4. Current runtime issuance is limited to `RECEIPT` and `TAX_INVOICE_RECEIPT` after confirmed payment and receiver lock.
+5. `BILLING_NOTE`, `INVOICE`, standalone `TAX_INVOICE`, and correction documents remain outside the current runtime scope.
+6. Production must stay blocked until the required commercial document is issued or an explicit future waiver flow exists.
 
 #### Operator action
 
 1. If the request is only for a quotation, use the existing quote page and download flow.
-2. If the request is for invoice, receipt, tax-ready, or tax invoice output, escalate to Delivery Engineering and Business Owner with the quote ID, payment receiver, requested document type, and customer tax profile details.
-3. If receiver/issuer mismatch is present, block issuance and record the mismatch.
-4. If non-VAT entity is selected for a tax invoice, block issuance.
-5. If launch sign-off is in progress, record the decision in `docs/GO_NOGO_REVIEW.md` as either `Deferred after launch` or `Required before GO`.
+2. Check `/admin?filter=commercial-gate` first when a quote is approved but the team is asking why production cannot start yet.
+3. If the quote is waiting for receiver selection, use the admin commercial flow to select the payment receiver before confirming the document path.
+4. If the request is for `RECEIPT` or `TAX_INVOICE_RECEIPT` and payment is already confirmed, use the admin commercial flow to verify receiver lock and issue the document.
+5. If the request is for `BILLING_NOTE`, `INVOICE`, standalone `TAX_INVOICE`, or correction documents, escalate to Delivery Engineering and Business Owner because they are outside current runtime scope.
+6. If receiver/issuer mismatch is present, block issuance and record the mismatch.
+7. If non-VAT entity is selected for a tax invoice, block issuance.
+8. If payment is confirmed but the document is still not issued, do not move the job to production; clear the commercial gate first.
+9. If launch sign-off is in progress, record the decision in `docs/GO_NOGO_REVIEW.md` as either `Deferred after launch` or `Required before GO`.
 
 Escalation owner:
 

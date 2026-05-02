@@ -13,6 +13,16 @@ import {
   type AdminToastState,
 } from "./admin-action-ui";
 
+const BLOCKING_REQUIREMENT_COPY: Record<string, string> = {
+  "payment must be cleared": "ต้องเคลียร์สถานะรับชำระให้ปลดล็อก production ก่อน",
+  "design_status must be approved or not_started": "งานนี้ต้องอนุมัติแบบแล้ว หรือเป็นงานที่ไม่ต้องผ่านขั้นออกแบบก่อน",
+  "required commercial document must be issued or explicitly waived": "ต้องออกเอกสารหลังรับชำระให้ครบก่อน จึงจะย้ายงานเข้า production ได้",
+};
+
+function formatBlockingRequirement(requirement: string) {
+  return BLOCKING_REQUIREMENT_COPY[requirement] || requirement;
+}
+
 export default function AdminJobActions({
   jobId,
   currentStatus,
@@ -28,12 +38,14 @@ export default function AdminJobActions({
   const [selectedStatus, setSelectedStatus] = useState<JobStatus | null>(null);
   const [note, setNote] = useState("");
   const [toast, setToast] = useState<AdminToastState | null>(null);
+  const [blockingDetails, setBlockingDetails] = useState<string[]>([]);
   const router = useRouter();
 
   const nextStatuses = ALLOWED_JOB_TRANSITIONS[currentStatus] || [];
 
   function openStatusAction(nextStatus: JobStatus) {
     setSelectedStatus(nextStatus);
+    setBlockingDetails([]);
     setNote(
       nextStatus === "CANCELLED"
         ? "ยกเลิกงานโดยทีมแอดมิน"
@@ -46,6 +58,7 @@ export default function AdminJobActions({
   function closePanel() {
     setSelectedStatus(null);
     setLoading(false);
+    setBlockingDetails([]);
   }
 
   async function updateStatus() {
@@ -61,12 +74,28 @@ export default function AdminJobActions({
         body: JSON.stringify({ status: selectedStatus, note: note.trim() || undefined }),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as {
+        error?: string;
+        missingRequirements?: string[];
+      };
 
       if (!res.ok) {
-        throw new Error(data.error || "อัปเดตสถานะงานไม่สำเร็จ");
+        const details = Array.isArray(data.missingRequirements)
+          ? data.missingRequirements.filter(
+              (requirement): requirement is string => Boolean(requirement)
+            ).map((requirement) => formatBlockingRequirement(requirement))
+          : [];
+
+        setBlockingDetails(details);
+
+        const description = [data.error || "อัปเดตสถานะงานไม่สำเร็จ", ...details]
+          .filter(Boolean)
+          .join(" | ");
+
+        throw new Error(description);
       }
 
+      setBlockingDetails([]);
       setToast({
         tone: "success",
         title: "อัปเดตสถานะงานแล้ว",
@@ -126,6 +155,23 @@ export default function AdminJobActions({
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
             สถานะปัจจุบัน: {JOB_STATUS_LABELS[currentStatus] || currentStatus}
           </div>
+          {selectedStatus === "IN_PRODUCTION" ? (
+            <div className="space-y-2">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                ระบบจะตรวจ payment, design approval และ commercial document gate ก่อนย้ายงานเข้า production
+              </div>
+              {blockingDetails.length > 0 ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+                  <p className="font-medium">ตอนนี้ยังย้ายเข้า production ไม่ได้</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {blockingDetails.map((requirement) => (
+                      <li key={requirement}>{requirement}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <label className="block text-sm font-medium text-slate-800">หมายเหตุสำหรับ timeline</label>
           <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={5} />
         </div>

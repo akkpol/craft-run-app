@@ -1,4 +1,5 @@
 import { getDesignQueueLeads } from "@/lib/admin-dashboard-queues";
+import { getCommercialGateQuotes } from "@/lib/backoffice-commercial-gate";
 
 import type {
   BackofficeSnapshot,
@@ -29,6 +30,7 @@ export type BackofficeAutomationSnapshot = {
     needsHumanNowCount: number;
     waitingOnCustomerCount: number;
     incidentsOpenCount: number;
+    commercialGateCount: number;
   };
   lanes: BackofficeAutomationLane[];
   queues: {
@@ -37,6 +39,7 @@ export type BackofficeAutomationSnapshot = {
     escalations: SnapshotEscalation[];
     blockedConversations: SnapshotConversation[];
     waitingPaymentConversations: SnapshotConversation[];
+    commercialGateQuotes: SnapshotQuote[];
     manualReviewConversations: SnapshotConversation[];
     customerWaitingConversations: SnapshotConversation[];
     customerWaitingLeads: SnapshotLead[];
@@ -78,6 +81,7 @@ export function buildBackofficeAutomationSnapshot(
     const hasJob = Array.isArray(quote.jobs) && quote.jobs.length > 0;
     return quote.status === "sent" || (quote.status === "approved" && !hasJob);
   });
+  const commercialGateQuotes = getCommercialGateQuotes(snapshot);
 
   const pendingProductionReview = snapshot.productionReviewQueue.filter(
     (event) => event.review_status === "pending"
@@ -103,7 +107,8 @@ export function buildBackofficeAutomationSnapshot(
     snapshot.escalations.length +
     manualReviewConversations.length +
     waitingPaymentConversations.length +
-    pendingProductionReview.length;
+    pendingProductionReview.length +
+    commercialGateQuotes.length;
 
   const waitingOnCustomerCount =
     customerWaitingConversations.length + customerWaitingLeads.length;
@@ -117,7 +122,10 @@ export function buildBackofficeAutomationSnapshot(
   );
 
   const incidentsOpenCount =
-    snapshot.escalations.length + blockedConversations.length + pendingProductionReview.length;
+    snapshot.escalations.length +
+    blockedConversations.length +
+    pendingProductionReview.length +
+    commercialGateQuotes.length;
 
   const lanes: BackofficeAutomationLane[] = [
     {
@@ -164,6 +172,7 @@ export function buildBackofficeAutomationSnapshot(
       needsHumanNowCount,
       waitingOnCustomerCount,
       incidentsOpenCount,
+      commercialGateCount: commercialGateQuotes.length,
     },
     lanes,
     queues: {
@@ -172,6 +181,7 @@ export function buildBackofficeAutomationSnapshot(
       escalations: snapshot.escalations,
       blockedConversations,
       waitingPaymentConversations,
+      commercialGateQuotes,
       manualReviewConversations,
       customerWaitingConversations,
       customerWaitingLeads,

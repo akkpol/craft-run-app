@@ -564,7 +564,7 @@ export function AdminViewStripBlock({
 
 export function AdminSummaryStripBlock({ items }: { items: AdminSummaryStripItem[] }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className={cn("grid gap-3 sm:grid-cols-2", items.length >= 5 ? "xl:grid-cols-5" : "xl:grid-cols-4")}>
       {items.map((item) => (
         <div
           key={item.label}
@@ -629,6 +629,11 @@ const OVERVIEW_QUEUE_FILTERS: Array<{
     key: "quote",
     label: "Quote",
     description: "ใบเสนอราคาที่ต้องตามการอนุมัติ การจ่ายเงิน หรือการเปิดงานต่อจากเอกสาร",
+  },
+  {
+    key: "commercial-gate",
+    label: "Commercial gate",
+    description: "quote ที่ยังติด receiver lock หรือเอกสารหลังรับชำระ และยังไม่ควรปล่อยเข้า production",
   },
   {
     key: "production-review",

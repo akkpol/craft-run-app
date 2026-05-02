@@ -3,6 +3,7 @@ import { signLeadMediaAssetPaths } from "./customer-media";
 import { getLeadAiDisplayPrompt, getLeadDesignRoutingSummary } from "./lead-ai-prompt";
 import { buildProductionLinkUrl } from "./production-links";
 import { getShareableProductionToken, isExpired } from "./production-media";
+import { filterCommercialGateQuotes } from "./backoffice-commercial-gate";
 import {
   clampOverviewPage,
   paginateOverviewRows,
@@ -37,6 +38,7 @@ export const ADMIN_OVERVIEW_FILTER_KEYS = [
   "blocked",
   "waiting-customer",
   "quote",
+  "commercial-gate",
   "production-review",
   "running-job",
 ] as const;
@@ -98,7 +100,7 @@ export type AdminOverviewRow =
     })
   | (BaseOverviewRow & {
       kind: "quote";
-      filterKey: "quote";
+      filterKey: "quote" | "commercial-gate";
       createdAt: string;
       quoteId: string;
       total: number;
@@ -382,6 +384,40 @@ async function fetchStalledQuotesWindow(limit: number) {
     );
 }
 
+async function attachCommercialContextToQuotes(quotes: SnapshotQuote[]) {
+  const quoteIds = quotes.map((quote) => quote.id);
+  const context = await fetchCommercialAdminContextForQuoteIds(quoteIds);
+
+  return quotes.map((quote) => ({
+    ...quote,
+    commercialOrder: context.orderByQuoteId[quote.id] || null,
+  }));
+}
+
+async function fetchCommercialGateQuotesWindow(limit: number) {
+  if (limit <= 0) {
+    return [] as SnapshotQuote[];
+  }
+
+  const supabase = createAdminClient();
+  const quoteSelect = "id, lead_id, status, total, public_token, created_at, payment_terms, payment_status, leads(id, conversation_id, product_type, requested_document_type, billing_entity_type, billing_name, customers(display_name, line_friendship_status, last_liff_context)), jobs!left(id, status, assigned_to)";
+  const { data } = await supabase
+    .from("quotes")
+    .select(quoteSelect)
+    .eq("status", "approved")
+    .in("leads.requested_document_type", ["receipt", "tax_invoice"])
+    .order("created_at", { ascending: false })
+    .range(0, limit - 1);
+
+  const quotes = (data || []) as unknown as SnapshotQuote[];
+  const quotesWithCommercialContext = await attachCommercialContextToQuotes(quotes);
+
+  return filterCommercialGateQuotes(quotesWithCommercialContext).sort(
+    (left, right) =>
+      new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
+  );
+}
+
 async function fetchPendingProductionReviews(
   limit: number,
   offset = 0
@@ -462,6 +498,7 @@ async function fetchOverviewCounts(): Promise<OverviewCounts> {
     waitingCustomerRes,
     sentQuotesRes,
     approvedNoJobQuotesRes,
+    commercialGateQuotes,
     pendingReviewRes,
     runningJobsRes,
   ] = await Promise.all([
@@ -486,6 +523,7 @@ async function fetchOverviewCounts(): Promise<OverviewCounts> {
       .select("id, jobs!left(id)", { count: "exact", head: true })
       .eq("status", "approved")
       .is("jobs.id", null),
+    fetchCommercialGateQuotesWindow(500),
     supabase
       .from("job_media_events")
       .select("id", { count: "exact", head: true })
@@ -502,6 +540,7 @@ async function fetchOverviewCounts(): Promise<OverviewCounts> {
     blocked: blockedRes.count || 0,
     "waiting-customer": waitingCustomerRes.count || 0,
     quote: (sentQuotesRes.count || 0) + (approvedNoJobQuotesRes.count || 0),
+    "commercial-gate": commercialGateQuotes.length,
     "production-review": pendingReviewRes.count || 0,
     "running-job": runningJobsRes.count || 0,
   };
@@ -582,12 +621,19 @@ function buildConversationRows(
 }
 
 function buildQuoteRows(quotes: SnapshotQuote[]): AdminOverviewRow[] {
+  return buildQuoteRowsForFilter(quotes, "quote");
+}
+
+function buildQuoteRowsForFilter(
+  quotes: SnapshotQuote[],
+  filterKey: "quote" | "commercial-gate"
+): AdminOverviewRow[] {
   return quotes.map((quote) => ({
     ...buildLeadContextMeta(quote.leads),
     kind: "quote",
     id: quote.id,
     quoteId: quote.id,
-    filterKey: "quote",
+    filterKey,
     sortAt: quote.created_at,
     createdAt: quote.created_at,
     customerLabel: customerLabel(quote.leads?.customers),
@@ -747,6 +793,15 @@ async function fetchRowsForFilter(
   if (filter === "quote") {
     const quotes = await fetchStalledQuotesWindow(offset + pageSize);
     return paginateOverviewRows(buildQuoteRows(quotes), page, pageSize);
+  }
+
+  if (filter === "commercial-gate") {
+    const quotes = await fetchCommercialGateQuotesWindow(offset + pageSize);
+    return paginateOverviewRows(
+      buildQuoteRowsForFilter(quotes, "commercial-gate"),
+      page,
+      pageSize
+    );
   }
 
   if (filter === "production-review") {

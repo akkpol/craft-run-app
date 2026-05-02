@@ -109,7 +109,7 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
       quote_status: quote.status,
       payment_terms: quote.payment_terms,
       payment_status: quote.payment_status,
-      design_status: designStatus,
+      design_status: designStatus || undefined,
       conversation_state: job?.status || undefined,
       job_status: job?.status || undefined,
       hold_reason: lead?.hold_reason || null,

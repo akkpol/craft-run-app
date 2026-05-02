@@ -46,6 +46,12 @@ export default function AdminDashboardClient({ baseUrl, automation, overview }: 
                 hint: "คิวที่ flow ยังเดินต่อไม่ได้เพราะกำลังรอข้อมูลหรือ feedback จากลูกค้า",
                 tone: "warning",
               },
+              {
+                label: "ติด commercial gate",
+                value: automation.summary.commercialGateCount,
+                hint: "quote ที่ยังต้องเลือก receiver หรือออกเอกสารหลังรับชำระก่อนปลดล็อก production",
+                tone: automation.summary.commercialGateCount > 0 ? "danger" : "info",
+              },
             ]}
           />
 
