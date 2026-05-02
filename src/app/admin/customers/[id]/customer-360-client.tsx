@@ -1,8 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { formatBangkokDate } from "@/lib/bangkok-date-time";
+import {
+  BILLING_ENTITY_TYPE_LABELS,
+  DOCUMENT_REQUEST_TYPE_LABELS,
+  FULFILLMENT_MODE_LABELS,
+  type BillingEntityType,
+  type DocumentRequestType,
+  type FulfillmentMode,
+} from "@/lib/types";
 
-// ─── Conversation state labels ────────────────────────────────────────────────
 const STATE_LABELS: Record<string, string> = {
   NEW_MESSAGE: "ข้อความใหม่",
   COLLECTING_REQUIREMENTS: "กำลังเก็บข้อมูล",
@@ -46,12 +54,7 @@ const QUOTE_STATUS_COLORS: Record<string, string> = {
 };
 
 function formatDate(iso: string | null) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("th-TH", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return iso ? formatBangkokDate(iso) : "—";
 }
 
 function formatBaht(value: number) {
@@ -60,6 +63,41 @@ function formatBaht(value: number) {
     currency: "THB",
     minimumFractionDigits: 0,
   }).format(value);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function asStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value
+        .map((entry) => asString(entry))
+        .filter((entry): entry is string => Boolean(entry))
+    : [];
+}
+
+function formatContextType(type: string | null) {
+  switch (type) {
+    case "utou":
+      return "1:1 chat";
+    case "group":
+      return "Group";
+    case "room":
+      return "Multi-person room";
+    case "external":
+      return "External browser";
+    case "none":
+      return "Other LINE surface";
+    default:
+      return "—";
+  }
 }
 
 function StateChip({ state }: { state: string }) {
@@ -76,6 +114,12 @@ type Customer = {
   line_user_id: string;
   display_name: string | null;
   phone: string | null;
+  line_email?: string | null;
+  line_picture_url?: string | null;
+  line_status_message?: string | null;
+  line_friendship_status?: boolean | null;
+  last_liff_profile?: Record<string, unknown> | null;
+  last_liff_context?: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -94,7 +138,18 @@ type Lead = {
   qty: number | null;
   status: string;
   due_date: string | null;
+  design_brief?: string | null;
+  ai_image_prompt?: string | null;
+  ai_prompt_snapshot?: string | null;
   note_from_form: string | null;
+  requested_document_type?: string | null;
+  billing_entity_type?: string | null;
+  billing_name?: string | null;
+  tax_id?: string | null;
+  billing_address?: string | null;
+  fulfillment_mode?: FulfillmentMode | null;
+  liff_profile_snapshot?: Record<string, unknown> | null;
+  liff_context_snapshot?: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -126,9 +181,25 @@ export default function Customer360Client({
   quotes: Quote[];
   summary: Summary;
 }) {
+  const latestLiffProfile = asRecord(customer.last_liff_profile);
+  const latestLiffContext = asRecord(customer.last_liff_context);
+  const latestLiffContextMeta = asRecord(latestLiffContext?.context);
+  const latestGrantedScopes = asStringArray(
+    latestLiffContext?.grantedScopes || latestLiffContextMeta?.scope
+  );
+  const latestLead = leads[0] ?? null;
+  const latestBillingEntityType = asString(
+    latestLead?.billing_entity_type
+  ) as BillingEntityType | null;
+  const latestDocumentType = asString(
+    latestLead?.requested_document_type
+  ) as DocumentRequestType | null;
+  const latestDesignBrief = asString(latestLead?.design_brief);
+  const latestAiImagePrompt = asString(latestLead?.ai_image_prompt);
+  const latestAiPromptSnapshot = asString(latestLead?.ai_prompt_snapshot);
+
   return (
     <div className="admin-shell min-h-screen bg-slate-50">
-      {/* Header */}
       <div className="border-b border-slate-200 bg-white px-6 py-4">
         <div className="mx-auto max-w-5xl">
           <Link
@@ -143,9 +214,7 @@ export default function Customer360Client({
                 {customer.display_name || "ลูกค้าไม่ระบุชื่อ"}
               </h1>
               <div className="mt-1 flex flex-wrap gap-3 text-sm text-slate-600">
-                {customer.phone && (
-                  <span>📞 {customer.phone}</span>
-                )}
+                {customer.phone ? <span>{customer.phone}</span> : null}
                 <span className="text-slate-400">LINE: {customer.line_user_id}</span>
                 <span className="text-slate-400">
                   สมัครเมื่อ {formatDate(customer.created_at)}
@@ -157,7 +226,6 @@ export default function Customer360Client({
       </div>
 
       <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
-        {/* KPI cards */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div className="admin-kpi-card">
             <p className="text-xs font-medium text-slate-500">คำสั่งซื้อ</p>
@@ -179,7 +247,125 @@ export default function Customer360Client({
           </div>
         </div>
 
-        {/* Conversations */}
+        <div className="grid gap-4 lg:grid-cols-3">
+          <section className="admin-panel lg:col-span-1">
+            <h2 className="text-sm font-semibold text-slate-700">Verified LINE Profile</h2>
+            <div className="mt-4 flex items-start gap-4">
+              <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 text-lg font-semibold text-slate-500">
+                {customer.line_picture_url || asString(latestLiffProfile?.pictureUrl) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={customer.line_picture_url || asString(latestLiffProfile?.pictureUrl) || ""}
+                    alt={customer.display_name || "LINE profile"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  (customer.display_name || "?").slice(0, 1)
+                )}
+              </div>
+              <div className="min-w-0 flex-1 space-y-1.5 text-sm text-slate-600">
+                <p className="font-semibold text-slate-900">
+                  {customer.display_name || asString(latestLiffProfile?.displayName) || "ลูกค้าไม่ระบุชื่อ"}
+                </p>
+                <p className="wrap-break-word text-slate-500">LINE ID: {customer.line_user_id}</p>
+                <p>{customer.line_email || asString(latestLiffProfile?.email) || "ยังไม่มีอีเมลจาก LINE"}</p>
+                <p>{customer.phone || "ยังไม่มีเบอร์โทรในระบบ"}</p>
+                <p>{customer.line_status_message || asString(latestLiffProfile?.statusMessage) || "ยังไม่มี status message"}</p>
+                <p>
+                  สถานะ OA: {customer.line_friendship_status ? "เป็นเพื่อนแล้ว" : customer.line_friendship_status === false ? "ยังไม่ได้เป็นเพื่อนหรือบล็อกอยู่" : "ยังไม่ทราบ"}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="admin-panel lg:col-span-1">
+            <h2 className="text-sm font-semibold text-slate-700">LIFF Runtime Snapshot</h2>
+            <div className="mt-4 space-y-2 text-sm text-slate-600">
+              <p>เก็บล่าสุด: {formatDate(asString(latestLiffContext?.collectedAt))}</p>
+              <p>เปิดจาก: {formatContextType(asString(latestLiffContextMeta?.type))}</p>
+              <p>OS: {asString(latestLiffContext?.os) || "—"}</p>
+              <p>App language: {asString(latestLiffContext?.appLanguage) || "—"}</p>
+              <p>LINE version: {asString(latestLiffContext?.lineVersion) || "—"}</p>
+              <p>LIFF SDK: {asString(latestLiffContext?.liffSdkVersion) || "—"}</p>
+              <p>View type: {asString(latestLiffContextMeta?.viewType) || "—"}</p>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {latestGrantedScopes.length > 0 ? (
+                latestGrantedScopes.map((scope) => (
+                  <span
+                    key={scope}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600"
+                  >
+                    {scope}
+                  </span>
+                ))
+              ) : (
+                <span className="text-sm text-slate-400">ยังไม่มี scope snapshot</span>
+              )}
+            </div>
+          </section>
+
+          <section className="admin-panel lg:col-span-1">
+            <h2 className="text-sm font-semibold text-slate-700">Document Defaults ล่าสุด</h2>
+            {latestLead ? (
+              <div className="mt-4 space-y-2 text-sm text-slate-600">
+                <p>
+                  เอกสารหลัก: {latestDocumentType ? DOCUMENT_REQUEST_TYPE_LABELS[latestDocumentType] : "—"}
+                </p>
+                <p>
+                  ประเภทลูกค้า: {latestBillingEntityType ? BILLING_ENTITY_TYPE_LABELS[latestBillingEntityType] : "—"}
+                </p>
+                <p>
+                  การรับงาน: {latestLead.fulfillment_mode ? FULFILLMENT_MODE_LABELS[latestLead.fulfillment_mode] : "—"}
+                </p>
+                <p>{latestLead.billing_name || "ยังไม่ได้ระบุชื่อออกเอกสาร"}</p>
+                <p>{latestLead.tax_id || "ยังไม่ได้ระบุ Tax ID"}</p>
+                <p className="wrap-break-word">
+                  {latestLead.billing_address || "ยังไม่ได้ระบุที่อยู่ออกเอกสาร"}
+                </p>
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-slate-400">ยังไม่มี lead ในระบบ</p>
+            )}
+          </section>
+
+          <section className="admin-panel lg:col-span-1">
+            <h2 className="text-sm font-semibold text-slate-700">แหล่งข้อมูลพรอมพ์ AI ล่าสุด</h2>
+            {latestLead ? (
+              <div className="mt-4 space-y-3 text-sm text-slate-600">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    Design brief (ข้อมูลจากลูกค้า)
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-slate-700">
+                    {latestDesignBrief || "ยังไม่มี design brief จากลูกค้า"}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    AI image prompt (พรอมพ์ดิบ)
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-slate-700">
+                    {latestAiImagePrompt || "ยังไม่มี ai_image_prompt ที่ระบุโดยตรง"}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    AI prompt snapshot (พรอมพ์สุดท้ายที่เตรียมแล้ว)
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-slate-700">
+                    {latestAiPromptSnapshot || "ยังไม่มี ai_prompt_snapshot ที่ระบบเตรียมไว้"}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-slate-400">ยังไม่มี lead สำหรับตรวจสอบ prompt source</p>
+            )}
+          </section>
+        </div>
+
         <section className="admin-panel">
           <h2 className="mb-4 text-sm font-semibold text-slate-700">
             Conversations ({conversations.length})
@@ -216,7 +402,6 @@ export default function Customer360Client({
           )}
         </section>
 
-        {/* Leads */}
         <section className="admin-panel">
           <h2 className="mb-4 text-sm font-semibold text-slate-700">
             Leads ({leads.length})
@@ -229,6 +414,8 @@ export default function Customer360Client({
                 <thead>
                   <tr className="border-b border-slate-100 text-left text-xs font-medium text-slate-500">
                     <th className="pb-2 pr-4">ประเภทงาน</th>
+                    <th className="pb-2 pr-4">เอกสาร / บิล</th>
+                    <th className="pb-2 pr-4">การรับงาน</th>
                     <th className="pb-2 pr-4">ขนาด</th>
                     <th className="pb-2 pr-4">จำนวน</th>
                     <th className="pb-2 pr-4">สถานะ</th>
@@ -240,6 +427,21 @@ export default function Customer360Client({
                     <tr key={lead.id}>
                       <td className="py-2.5 pr-4 font-medium text-slate-800">
                         {lead.product_type || "—"}
+                      </td>
+                      <td className="py-2.5 pr-4 text-slate-600">
+                        <div className="min-w-45 space-y-1">
+                          <p>
+                            {lead.requested_document_type && DOCUMENT_REQUEST_TYPE_LABELS[lead.requested_document_type as DocumentRequestType]
+                              ? DOCUMENT_REQUEST_TYPE_LABELS[lead.requested_document_type as DocumentRequestType]
+                              : "—"}
+                          </p>
+                          <p className="wrap-break-word text-xs text-slate-500">
+                            {lead.billing_name || "ยังไม่ระบุชื่อออกเอกสาร"}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="py-2.5 pr-4 text-slate-600">
+                        {lead.fulfillment_mode ? FULFILLMENT_MODE_LABELS[lead.fulfillment_mode] : "—"}
                       </td>
                       <td className="py-2.5 pr-4 text-slate-600">
                         {lead.width_mm && lead.height_mm
@@ -265,7 +467,6 @@ export default function Customer360Client({
           )}
         </section>
 
-        {/* Quotes */}
         <section className="admin-panel">
           <h2 className="mb-4 text-sm font-semibold text-slate-700">
             Quotes &amp; Jobs ({quotes.length})
@@ -289,6 +490,7 @@ export default function Customer360Client({
                     const statusColor =
                       QUOTE_STATUS_COLORS[quote.status] ??
                       "bg-slate-100 text-slate-600";
+
                     return (
                       <tr key={quote.id}>
                         <td className="py-2.5 pr-4 font-semibold text-slate-800">
@@ -302,11 +504,7 @@ export default function Customer360Client({
                           </span>
                         </td>
                         <td className="py-2.5 pr-4 text-slate-600">
-                          {jobs.length > 0
-                            ? jobs
-                                .map((j) => j.status)
-                                .join(", ")
-                            : "—"}
+                          {jobs.length > 0 ? jobs.map((job) => job.status).join(", ") : "—"}
                         </td>
                         <td className="py-2.5 text-slate-500">
                           {formatDate(quote.created_at)}

@@ -49,6 +49,12 @@ const actionLogModuleUrl = toDataUrl(`
   }
 `);
 
+const utilsModuleUrl = toDataUrl(`
+  export function getSupabaseHost() {
+    return "supabase.test";
+  }
+`);
+
 const quoteWorkflowModuleUrl = toDataUrl(`
   export async function approveQuote() {
     return { success: true };
@@ -64,6 +70,7 @@ async function loadRouteModule(relativePath) {
     '"@/lib/supabase/admin"': JSON.stringify(adminModuleUrl),
     '"@/lib/types"': JSON.stringify(typesModuleUrl),
     '"@/lib/action-log"': JSON.stringify(actionLogModuleUrl),
+    '"@/lib/utils"': JSON.stringify(utilsModuleUrl),
     '"@/lib/quote-workflow"': JSON.stringify(quoteWorkflowModuleUrl),
   })) {
     source = source.replaceAll(specifier, replacement);

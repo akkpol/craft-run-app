@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
 import {
   PAYMENT_STATUS_LABELS,
@@ -34,7 +34,12 @@ export default function AdminQuoteActions({
   paymentTerms,
   paymentStatus,
   hasJob,
-}: Props) {
+  buttonVariant = "outline",
+  buttonLabel = "ดูแล quote",
+}: Props & {
+  buttonVariant?: ComponentProps<typeof Button>["variant"];
+  buttonLabel?: string;
+}) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<AdminToastState | null>(null);
   const [panel, setPanel] = useState<
@@ -210,7 +215,8 @@ export default function AdminQuoteActions({
         onSelect={(key) => openPanel(key as typeof panel)}
         disabled={loading}
         compact
-        label="จัดการ"
+        label={buttonLabel}
+        buttonVariant={buttonVariant}
       />
 
       <AdminActionSheet

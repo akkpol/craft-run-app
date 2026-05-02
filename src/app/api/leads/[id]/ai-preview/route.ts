@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateLeadAiPreview } from "@/lib/ai-images";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAiAction } from "@/lib/action-log";
+import { prepareLeadAiPrompt } from "@/lib/lead-ai-prompt";
 
 export async function POST(
   _request: NextRequest,
@@ -12,7 +13,7 @@ export async function POST(
 
   const { data: lead, error } = await supabase
     .from("leads")
-    .select("id, product_type, width_mm, height_mm, qty, note_from_form, reference_info, ai_image_prompt")
+    .select("id, product_type, width_mm, height_mm, qty, note_from_form, reference_info, design_brief, ai_image_prompt, ai_prompt_snapshot")
     .eq("id", id)
     .single();
 
@@ -20,8 +21,12 @@ export async function POST(
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
 
-  if (!lead.ai_image_prompt) {
-    return NextResponse.json({ error: "Lead does not have an AI prompt" }, { status: 400 });
+  const preparedPrompt = prepareLeadAiPrompt(lead);
+  if (!preparedPrompt) {
+    return NextResponse.json(
+      { error: "Lead does not have an AI prompt or design brief" },
+      { status: 400 }
+    );
   }
 
   await supabase
@@ -29,12 +34,16 @@ export async function POST(
     .update({
       ai_image_status: "pending",
       ai_image_error: null,
+      ai_prompt_snapshot: preparedPrompt.prompt,
       design_status: "drafting",
     })
     .eq("id", id);
 
   try {
-    const imageUrls = await generateLeadAiPreview(lead);
+    const imageUrls = await generateLeadAiPreview({
+      leadId: id,
+      prompt: preparedPrompt.prompt,
+    });
 
     const { error: updateError } = await supabase
       .from("leads")
@@ -42,6 +51,7 @@ export async function POST(
         ai_image_status: "generated",
         ai_generated_images: imageUrls,
         ai_image_error: null,
+        ai_prompt_snapshot: preparedPrompt.prompt,
         design_status: "preview_sent",
       })
       .eq("id", id);
@@ -92,7 +102,13 @@ export async function POST(
       entityType: "lead",
       entityId: id,
       actionType: "lead.ai_preview_generated",
-      payload: { success: true, image_count: imageUrls.length, job_id: relatedJob?.id ?? null },
+      payload: {
+        success: true,
+        image_count: imageUrls.length,
+        job_id: relatedJob?.id ?? null,
+        prompt_seed: preparedPrompt.seed,
+        prompt_length: preparedPrompt.prompt.length,
+      },
     });
 
     return NextResponse.json({ success: true, imageUrls });
@@ -109,7 +125,12 @@ export async function POST(
       entityId: id,
       actionType: "lead.ai_preview_generated",
       note: `AI image generation failed: ${message}`,
-      payload: { success: false, error: message },
+      payload: {
+        success: false,
+        error: message,
+        prompt_seed: preparedPrompt.seed,
+        prompt_length: preparedPrompt.prompt.length,
+      },
     });
 
     return NextResponse.json({ error: message }, { status: 500 });

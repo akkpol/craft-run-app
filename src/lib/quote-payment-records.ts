@@ -1,14 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+
 import type {
   PaymentStatus,
   PaymentTerm,
   QuoteStatus,
 } from "@/lib/types";
-
-type SupabaseLikeClient = Pick<
-  SupabaseClient<any, "public", "public", any, any>,
-  "from"
->;
 
 type ExistingQuotePaymentRecord = {
   payment_status?: PaymentStatus | null;
@@ -203,7 +199,7 @@ export function buildQuotePaymentRecordMutation(input: QuotePaymentRecordSyncInp
 }
 
 export async function syncQuotePaymentRecord(
-  supabase: SupabaseLikeClient,
+  supabase: SupabaseClient,
   input: QuotePaymentRecordSyncInput
 ) {
   const { data: existingRecord, error: readError } = await supabase

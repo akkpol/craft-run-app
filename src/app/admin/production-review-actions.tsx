@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,9 +16,13 @@ type ReviewAction = "approve" | "reject" | "send";
 export default function ProductionReviewActions({
   eventId,
   reviewStatus,
+  buttonVariant = "outline",
+  buttonLabel = "ตรวจหลักฐาน",
 }: {
   eventId: string;
   reviewStatus: "pending" | "approved" | "rejected" | "sent";
+  buttonVariant?: ComponentProps<typeof Button>["variant"];
+  buttonLabel?: string;
 }) {
   const [loading, setLoading] = useState<ReviewAction | "">("");
   const [selectedAction, setSelectedAction] = useState<ReviewAction | null>(null);
@@ -107,7 +111,8 @@ export default function ProductionReviewActions({
           setReviewNote("");
         }}
         disabled={Boolean(loading)}
-        label="จัดการ review"
+        label={buttonLabel}
+        buttonVariant={buttonVariant}
       />
 
       <AdminActionSheet

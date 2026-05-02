@@ -2,14 +2,19 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { formatBangkokDateTime } from "@/lib/bangkok-date-time";
+import { resolveProductCatalogLabel } from "@/lib/product-catalog";
 import {
   DESIGN_STATUS_LABELS,
-  PRODUCT_TYPES,
+  FULFILLMENT_MODE_LABELS,
   designStatusNeedsCustomerResponse,
+  isFulfillmentMode,
   isDesignStatus,
   type DesignStatus,
+  type FulfillmentMode,
 } from "@/lib/types";
 import CustomerStatusActions from "./customer-status-actions";
+import CopyTrackingCodeButton from "./copy-tracking-code-button";
 
 const STATUS_DISPLAY: Record<string, { label: string; color: string; icon: string }> = {
   IN_DESIGN: { label: "กำลังออกแบบ", color: "bg-violet-100 text-violet-700", icon: "🎨" },
@@ -20,6 +25,39 @@ const STATUS_DISPLAY: Record<string, { label: string; color: string; icon: strin
   COMPLETED: { label: "เสร็จสมบูรณ์", color: "bg-green-100 text-green-700", icon: "✅" },
   CANCELLED: { label: "ยกเลิก", color: "bg-red-100 text-red-700", icon: "❌" },
 };
+
+const THAI_NUMBER_FORMATTER = new Intl.NumberFormat("th-TH-u-nu-latn");
+
+function getStatusDisplayForFulfillment(
+  status: string | null | undefined,
+  fulfillmentMode: FulfillmentMode | null
+) {
+  if (status === "READY_FOR_FULFILLMENT") {
+    if (fulfillmentMode === "pickup") {
+      return { label: "พร้อมให้รับงาน", color: "bg-blue-100 text-blue-700", icon: "📦" };
+    }
+
+    if (fulfillmentMode === "install") {
+      return { label: "พร้อมเข้าติดตั้ง", color: "bg-blue-100 text-blue-700", icon: "🛠️" };
+    }
+  }
+
+  if (status === "COMPLETED") {
+    if (fulfillmentMode === "pickup") {
+      return { label: "รับงานแล้ว", color: "bg-green-100 text-green-700", icon: "✅" };
+    }
+
+    if (fulfillmentMode === "install") {
+      return { label: "ติดตั้งแล้ว", color: "bg-green-100 text-green-700", icon: "✅" };
+    }
+  }
+
+  return STATUS_DISPLAY[status || ""] || {
+    label: status || "ไม่ระบุ",
+    color: "bg-gray-100 text-gray-700",
+    icon: "📋",
+  };
+}
 
 export default async function StatusPage(props: { params: Promise<{ token: string }> }) {
   const { token } = await props.params;
@@ -43,8 +81,14 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   ) || [];
 
-  const productLabel = PRODUCT_TYPES.find((p) => p.value === lead?.product_type)?.label || lead?.product_type || "ไม่ระบุ";
-  const statusInfo = STATUS_DISPLAY[job?.status] || { label: job?.status || "ไม่ระบุ", color: "bg-gray-100 text-gray-700", icon: "📋" };
+  const productLabel = resolveProductCatalogLabel({
+    productType: lead?.product_type,
+    productLabelSnapshot: lead?.product_label_snapshot,
+  });
+  const fulfillmentMode: FulfillmentMode | null = isFulfillmentMode(lead?.fulfillment_mode || "")
+    ? (lead?.fulfillment_mode as FulfillmentMode)
+    : null;
+  const statusInfo = getStatusDisplayForFulfillment(job?.status, fulfillmentMode);
   const designStatus: DesignStatus | null = isDesignStatus(lead?.design_status || "")
     ? (lead.design_status as DesignStatus)
     : null;
@@ -66,7 +110,10 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
 
         {/* Current status */}
         <div className="bg-white px-6 py-6 border-b border-gray-100 text-center">
-          <div className="text-4xl mb-2">{statusInfo.icon}</div>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <div className="text-4xl">{statusInfo.icon}</div>
+            <CopyTrackingCodeButton token={token} />
+          </div>
           <div className={`inline-block px-4 py-1.5 rounded-full text-sm font-medium ${statusInfo.color}`}>
             {statusInfo.label}
           </div>
@@ -75,6 +122,7 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
               <p className="text-sm font-medium text-amber-700">งานนี้รอลูกค้าอนุมัติใบเสนอราคา</p>
               <Link
                 href={`/quote/${token}`}
+                prefetch={false}
                 className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800"
               >
                 ไปอนุมัติใบเสนอราคา
@@ -88,7 +136,7 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
           <p className="mt-1 break-all font-mono text-sm font-semibold text-sky-900">{token}</p>
           <p className="mt-1 text-xs text-sky-800">ใช้โค้ดนี้เปิดหน้านี้หรือหน้าใบเสนอราคาได้ตลอดเวลา</p>
           <div className="mt-3">
-            <Link href="/status" className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+            <Link href="/status" prefetch={false} className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
               ค้นหาด้วยเลขติดตาม
             </Link>
           </div>
@@ -100,9 +148,10 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
           <div className="space-y-1 text-sm">
             <p><span className="text-gray-500">ลูกค้า:</span> {customer?.display_name || "ไม่ระบุ"}</p>
             <p><span className="text-gray-500">ประเภท:</span> {productLabel}</p>
+            <p><span className="text-gray-500">การรับงาน:</span> {fulfillmentMode ? FULFILLMENT_MODE_LABELS[fulfillmentMode] : "ไม่ระบุ"}</p>
             {lead && <p><span className="text-gray-500">ขนาด:</span> {(lead.width_mm / 10).toFixed(1)} × {(lead.height_mm / 10).toFixed(1)} ซม.</p>}
             {lead?.qty && <p><span className="text-gray-500">จำนวน:</span> {lead.qty} ชิ้น</p>}
-            <p><span className="text-gray-500">ราคารวม:</span> <span className="font-medium">฿{Number(quote.total).toLocaleString()}</span></p>
+            <p><span className="text-gray-500">ราคารวม:</span> <span className="font-medium">฿{THAI_NUMBER_FORMATTER.format(Number(quote.total))}</span></p>
           </div>
         </div>
 
@@ -183,7 +232,7 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
                       </p>
                       {entry.note && <p className="text-xs text-gray-400 mt-0.5">{entry.note}</p>}
                       <p className="text-xs text-gray-300 mt-0.5">
-                        {new Date(entry.created_at).toLocaleString("th-TH")}
+                        {formatBangkokDateTime(entry.created_at)}
                       </p>
                     </div>
                   </div>

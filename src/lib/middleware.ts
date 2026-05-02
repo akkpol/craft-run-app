@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+import { buildAdminLoginRedirect } from '@/lib/admin-auth-flow'
 import {
   hasConfiguredAdminAllowlist,
   isAdminEmailAllowed,
@@ -22,27 +23,6 @@ const PUBLIC_ROUTE_PREFIXES = [
 
 function isPublicRoute(pathname: string) {
   return PUBLIC_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix))
-}
-
-function buildLoginRedirectUrl(
-  request: NextRequest,
-  errorCode?: 'admin_allowlist_missing' | 'admin_not_allowed'
-) {
-  const url = request.nextUrl.clone()
-  const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`
-
-  url.pathname = '/auth/login'
-  url.search = ''
-
-  if (errorCode) {
-    url.searchParams.set('error', errorCode)
-  }
-
-  if (nextPath && nextPath !== '/auth/login') {
-    url.searchParams.set('next', nextPath)
-  }
-
-  return url
 }
 
 export async function updateSession(request: NextRequest) {
@@ -92,17 +72,36 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/login')
   ) {
     // no user, potentially respond by redirecting the user to the login page
-    return NextResponse.redirect(buildLoginRedirectUrl(request))
+    return NextResponse.redirect(
+      new URL(
+        buildAdminLoginRedirect(`${request.nextUrl.pathname}${request.nextUrl.search}`),
+        request.url
+      )
+    )
   }
 
   if (!hasConfiguredAdminAllowlist()) {
     return NextResponse.redirect(
-      buildLoginRedirectUrl(request, 'admin_allowlist_missing')
+      new URL(
+        buildAdminLoginRedirect(
+          `${request.nextUrl.pathname}${request.nextUrl.search}`,
+          'admin_allowlist_missing'
+        ),
+        request.url
+      )
     )
   }
 
   if (!isAdminEmailAllowed(email)) {
-    return NextResponse.redirect(buildLoginRedirectUrl(request, 'admin_not_allowed'))
+    return NextResponse.redirect(
+      new URL(
+        buildAdminLoginRedirect(
+          `${request.nextUrl.pathname}${request.nextUrl.search}`,
+          'admin_not_allowed'
+        ),
+        request.url
+      )
+    )
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.

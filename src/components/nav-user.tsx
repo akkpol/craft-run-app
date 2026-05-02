@@ -1,5 +1,9 @@
 "use client"
 
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+
+import { createClient } from "@/lib/supabase/client"
 import {
   Avatar,
   AvatarFallback,
@@ -32,6 +36,14 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const router = useRouter()
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push("/auth/login")
+    router.refresh()
+  }
 
   return (
     <SidebarMenu>
@@ -77,15 +89,19 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <CircleUserRoundIcon
-                />
-                Account
+              <DropdownMenuItem asChild>
+                <Link href="/admin/profile" prefetch={false}>
+                  <CircleUserRoundIcon
+                  />
+                  Account
+                </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/admin/settings" prefetch={false}>
                 <CreditCardIcon
                 />
-                Billing
+                Settings
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <BellIcon
@@ -94,7 +110,7 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void handleLogout()}>
               <LogOutIcon
               />
               Log out

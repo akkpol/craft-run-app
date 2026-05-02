@@ -18,6 +18,17 @@ function getFieldForAssetType(assetType: string): { urlField: string; nameField?
     };
   }
 
+  if (assetType === "paymentQr") {
+    return { urlField: "payment_qr_code_url", folder: "payment/qr" };
+  }
+
+  if (assetType === "paymentSecondaryQr") {
+    return {
+      urlField: "payment_secondary_qr_code_url",
+      folder: "payment/qr-secondary",
+    };
+  }
+
   return null;
 }
 

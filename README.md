@@ -17,6 +17,84 @@ CUSTOMER (LINE)
 REALTIME DASHBOARD = cross-cutting visibility layer, not the final business step.
 ```
 
+## Local Install And Run
+
+If you only need the fastest local bootstrap, do this first:
+
+```bash
+npm install
+copy .env.example .env.local
+npm run dev
+```
+
+Then fill the required values in `.env.local` before you expect the full app flow to work:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY`
+- `NEXT_PUBLIC_BASE_URL`
+- `ADMIN_ALLOWED_EMAILS`
+- `LIFF_ID`
+- `NEXT_PUBLIC_LIFF_ID`
+- `LINE_CHANNEL_SECRET`
+- `LINE_CHANNEL_ACCESS_TOKEN`
+
+Open these URLs after boot:
+
+- `http://localhost:3000/admin` or the port shown by Next.js for backoffice auth
+- `http://localhost:3000/liff` for the registered LIFF entry surface
+- `http://localhost:3000/quote/<token>` for public quote actions
+- `http://localhost:3000/status/<token>` for the customer status page
+
+Use these validation commands after setup:
+
+```bash
+npm test
+npm run lint
+npm run build
+npm run check:workflow-policy
+```
+
+Important boundary:
+
+- `Supabase Auth` owns passwords and password reset
+- `ADMIN_ALLOWED_EMAILS` only decides which authenticated emails may enter `/admin`
+- `LIFF_ID` and `NEXT_PUBLIC_LIFF_ID` must be the same value
+- `Webhook URL` is `/api/webhook`, while the LIFF endpoint is `/liff`
+
+## Document Map
+
+If you are looking for where a setup or operations document lives, start here:
+
+| Need | File |
+|---|---|
+| Full local + production env setup | `docs/ENV_AND_LINE_SETUP.md` |
+| Current launch status and go/no-go evidence | `docs/GO_NOGO_REVIEW.md` |
+| Operator launch checklist | `docs/OPERATOR_LAUNCH_ONE_PAGE.md` |
+| Live LIFF validation steps | `docs/LIFF_LIVE_VALIDATION_RUNBOOK.md` |
+| Production upload go-live steps | `docs/PRODUCTION_UPLOAD_GO_LIVE_CHECKLIST.md` |
+| Supabase CLI auth recovery | `docs/SUPABASE_CLI_UNAUTHORIZED_RECOVERY.md` |
+| Session/context recovery after drift | `docs/START_HERE_CONTEXT_RECOVERY.md` |
+| Workflow contract and allowed transitions | `docs/workflow-policy.json` and `docs/WORKFLOW_TRANSITION_TABLE.md` |
+| Customer handoff package | `docs/CUSTOMER_HANDOFF_PACKAGE.md` |
+| Repo-level onboarding | `ONBOARDING.md` |
+
+## Already Implemented Features
+
+These features are already in the codebase today:
+
+- `ลูกค้ามารับเอง`, `ให้จัดส่ง`, and `ให้ไปติดตั้ง` are supported fulfillment modes in the LIFF intake flow and the persisted lead model.
+- customer reference upload is already implemented in the intake flow and stored in `lead_media_assets`.
+- Cloudflare R2 is already supported as an optional storage backend for customer media; if R2 env vars are not set, the app falls back to Supabase Storage automatically.
+
+Use these files when checking those surfaces:
+
+| Feature | Main source |
+|---|---|
+| Pickup / Delivery / Install options | `src/lib/types.ts`, `src/app/liff/intake/intake-form.tsx`, `supabase/migrations/20260427043005_add_fulfillment_location_capture.sql` |
+| Intake file upload and admin preview | `src/app/api/intake/route.ts`, `src/lib/customer-media.ts`, `docs/CUSTOMER_FLOW_AND_DELIVERY_EXPLANATION_TH.md` |
+| Optional R2 storage path | `src/lib/customer-media-storage.ts`, `docs/ENV_AND_LINE_SETUP.md`, `docs/PRODUCTION_UPLOAD_GO_LIVE_CHECKLIST.md` |
+
 ## What Is Urgent First
 
 1. `P0 — Backbone`

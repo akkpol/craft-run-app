@@ -15,6 +15,12 @@ import {
 export type SnapshotCustomer = {
   display_name: string | null;
   phone: string | null;
+  line_email?: string | null;
+  line_picture_url?: string | null;
+  line_status_message?: string | null;
+  line_friendship_status?: boolean | null;
+  last_liff_profile?: Record<string, unknown> | null;
+  last_liff_context?: Record<string, unknown> | null;
 } | null;
 
 export type SnapshotConversation = {
@@ -32,6 +38,9 @@ export type SnapshotLead = {
   superseded_at?: string | null;
   supersede_reason?: string | null;
   product_type: string;
+  product_label_snapshot?: string | null;
+  product_category_snapshot?: string | null;
+  product_category_label_snapshot?: string | null;
   width_mm: number;
   height_mm: number;
   qty: number;
@@ -41,9 +50,18 @@ export type SnapshotLead = {
   note_from_form?: string | null;
   note_from_chat?: string | null;
   reference_info?: string | null;
+  design_brief?: string | null;
   ai_image_prompt?: string | null;
+  ai_prompt_snapshot?: string | null;
   ai_image_status?: string | null;
   ai_generated_images?: string[] | null;
+  requested_document_type?: string | null;
+  billing_entity_type?: string | null;
+  billing_name?: string | null;
+  tax_id?: string | null;
+  billing_address?: string | null;
+  liff_profile_snapshot?: Record<string, unknown> | null;
+  liff_context_snapshot?: Record<string, unknown> | null;
   design_status?: DesignStatus | null;
   assigned_designer?: string | null;
   fulfillment_mode?: string | null;
@@ -291,12 +309,10 @@ export async function fetchBackofficeSnapshot(): Promise<BackofficeSnapshot> {
       ? await signJobMediaAssetPaths(supabase, productionAssetPaths)
       : {};
 
-  const leadAssetPaths = leads.flatMap((lead) =>
-    (lead.lead_media_assets || []).map((asset) => asset.storage_path)
-  );
+  const leadAssets = leads.flatMap((lead) => lead.lead_media_assets || []);
   const signedLeadAssetUrls =
-    leadAssetPaths.length > 0
-      ? await signLeadMediaAssetPaths(supabase, leadAssetPaths)
+    leadAssets.length > 0
+      ? await signLeadMediaAssetPaths(supabase, leadAssets)
       : {};
 
   const hydratedLeads = leads.map((lead) => ({

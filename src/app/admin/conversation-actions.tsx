@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,10 +20,14 @@ export default function AdminConversationActions({
   conversationId,
   currentState,
   compact = false,
+  buttonVariant = "outline",
+  buttonLabel,
 }: {
   conversationId: string;
   currentState: WorkflowState;
   compact?: boolean;
+  buttonVariant?: ComponentProps<typeof Button>["variant"];
+  buttonLabel?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [selectedState, setSelectedState] = useState<WorkflowState | null>(null);
@@ -104,7 +108,8 @@ export default function AdminConversationActions({
         onSelect={(key) => openStateAction(key as WorkflowState)}
         disabled={loading}
         compact={compact}
-        label={compact ? "เปลี่ยน" : "จัดการ workflow"}
+        label={buttonLabel || (compact ? "ขยับ workflow" : "จัดการ workflow")}
+        buttonVariant={buttonVariant}
       />
 
       <AdminActionSheet

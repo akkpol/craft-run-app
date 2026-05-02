@@ -39,7 +39,7 @@ export default function AdminLeadDesignActions({ leadId, designStatus }: Props) 
   };
 
   const labels: Record<DesignActionStatus, string> = {
-    preview_sent: "ส่งแบบให้ลูกค้าตรวจ",
+    preview_sent: "mark ว่าส่งแบบให้ลูกค้าตรวจแล้ว",
     approved: "ยืนยันว่าแบบอนุมัติแล้ว",
     revision_requested: "บันทึกว่าลูกค้าขอแก้แบบ",
     drafting: "รีเซ็ตกลับ drafting",
@@ -99,7 +99,7 @@ export default function AdminLeadDesignActions({ leadId, designStatus }: Props) 
     {
       key: "preview_sent",
       label: labels.preview_sent,
-      description: "ย้ายงานไปสถานะรอลูกค้าตรวจแบบ",
+      description: "ใช้เป็น fallback เมื่อมีการส่งแบบนอกระบบและต้องการอัปเดตสถานะเท่านั้น",
       disabled: designStatus === "preview_sent",
     },
     (isPreviewOrRevision || isApproved)

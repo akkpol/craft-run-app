@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getRuntimeAppConfig } from "@/lib/app-settings";
 import Link from "next/link";
@@ -15,15 +16,24 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatBangkokDate } from "@/lib/bangkok-date-time";
+import { resolveProductCatalogLabel } from "@/lib/product-catalog";
 import {
+  BILLING_BRANCH_TYPE_LABELS,
+  BILLING_ENTITY_TYPE_LABELS,
+  DOCUMENT_REQUEST_TYPE_LABELS,
   PAYMENT_STATUS_LABELS,
   PAYMENT_TERM_LABELS,
-  PRODUCT_TYPES,
+  type BillingBranchType,
+  type BillingEntityType,
+  type DocumentRequestType,
   type PaymentStatus,
   type PaymentTerm,
 } from "@/lib/types";
 import QuoteApproveButton from "./approve-button";
 import { paymentUnlocksProduction } from "@/lib/quote-workflow";
+import { getPaymentDisplayState } from "@/lib/payment-display";
+import { resolvePaymentProfileFromConfig } from "@/lib/payment-routing";
 
 type QuoteStatusMeta = {
   badgeLabel: string;
@@ -35,12 +45,14 @@ type QuoteStatusMeta = {
   iconWrapClassName: string;
 };
 
+const THAI_NUMBER_FORMATTER = new Intl.NumberFormat("th-TH-u-nu-latn");
+
 function formatMoney(value: number | string | null | undefined) {
-  return `฿${Number(value || 0).toLocaleString("th-TH")}`;
+  return `฿${THAI_NUMBER_FORMATTER.format(Number(value || 0))}`;
 }
 
 function formatDate(value: string | null | undefined) {
-  return value ? new Date(value).toLocaleDateString("th-TH") : "-";
+  return formatBangkokDate(value);
 }
 
 function getQuoteStatusMeta({
@@ -143,7 +155,10 @@ export default async function QuotePage(props: { params: Promise<{ token: string
   const lead = quote.leads;
   const customer = lead?.customers;
   const items = quote.quote_items || [];
-  const productLabel = PRODUCT_TYPES.find((p) => p.value === lead?.product_type)?.label || lead?.product_type || "ไม่ระบุ";
+  const productLabel = resolveProductCatalogLabel({
+    productType: lead?.product_type,
+    productLabelSnapshot: lead?.product_label_snapshot,
+  });
   const isApproved = quote.status === "approved";
   const isRejected = quote.status === "rejected";
   const isExpired = quote.valid_until && new Date(quote.valid_until) < new Date();
@@ -162,19 +177,39 @@ export default async function QuotePage(props: { params: Promise<{ token: string
     isRejected,
     isExpired,
   });
-  const paymentDetails = [
-    { label: "ธนาคาร", value: config.paymentBankName },
-    { label: "ชื่อบัญชี", value: config.paymentAccountName },
-    { label: "เลขบัญชี", value: config.paymentAccountNumber },
-    { label: "พร้อมเพย์ / PromptPay", value: config.paymentPromptPayId },
-  ].filter(
-    (detail): detail is { label: string; value: string } => Boolean(detail.value)
-  );
+  const paymentRouting =
+    quote.payment_profile_snapshot && typeof quote.payment_profile_snapshot === "object" && "profile" in quote.payment_profile_snapshot
+      ? (quote.payment_profile_snapshot as ReturnType<typeof resolvePaymentProfileFromConfig>)
+      : resolvePaymentProfileFromConfig(config, {
+          total: quote.total,
+          billingEntityType: lead?.billing_entity_type || null,
+          paymentTerms,
+        });
+  const paymentDisplay = getPaymentDisplayState({
+    paymentDisplayMode: paymentRouting.profile.displayMode,
+    paymentBankName: paymentRouting.profile.bankName,
+    paymentAccountName: paymentRouting.profile.accountName,
+    paymentAccountNumber: paymentRouting.profile.accountNumber,
+    paymentPromptPayId: paymentRouting.profile.promptPayId,
+    paymentQrCodeUrl: paymentRouting.profile.qrCodeUrl,
+    paymentQrCodeLabel: paymentRouting.profile.qrCodeLabel,
+  });
   const paymentHelpText =
     paymentTerms === "credit"
       ? "รายการนี้เป็นเครดิต ทีมงานจะยืนยันรอบวางบิลหรือกำหนดชำระกับคุณโดยตรง"
-      : config.paymentInstructions ||
+      : paymentRouting.profile.instructions ||
+        config.paymentInstructions ||
         "หลังโอนเงินแล้ว กรุณาส่งสลิปกลับใน LINE แชตนี้เพื่อให้ทีมงานยืนยันการชำระ";
+  const paymentRoutingNote =
+    paymentRouting.sourceProfile === "secondary"
+      ? paymentRouting.reason === "secondary_total_threshold"
+        ? "ระบบเลือกบัญชีรองอัตโนมัติตามยอดใบเสนอราคานี้"
+        : paymentRouting.reason === "secondary_payment_terms"
+          ? "ระบบเลือกบัญชีรองอัตโนมัติตามประเภทการจ่ายที่ลูกค้าเลือกตอนเริ่มต้น"
+          : paymentRouting.reason === "secondary_customer_scope"
+            ? "ระบบเลือกบัญชีรองอัตโนมัติตามประเภทลูกค้า"
+            : "ระบบสลับไปใช้บัญชีรองอัตโนมัติเพราะบัญชีหลักยังไม่ครบ"
+      : null;
   const paymentContact = [
     config.businessPhone ? `โทร ${config.businessPhone}` : null,
     config.businessEmail ? `อีเมล ${config.businessEmail}` : null,
@@ -185,6 +220,27 @@ export default async function QuotePage(props: { params: Promise<{ token: string
     paymentTerms === "credit"
       ? "เครดิตเทอมหรือรอบวางบิลจะมีทีมงานยืนยันให้ต่อใน LINE แชตนี้"
       : "แจ้งชำระเงิน: ส่งสลิปหรือหลักฐานการโอนกลับมาใน LINE แชตนี้เพื่อให้ทีมงานตรวจสอบได้เร็วขึ้น";
+  const requestedDocumentType =
+    (lead?.requested_document_type as DocumentRequestType | undefined) || "quote";
+  const requestedDocumentLabel =
+    DOCUMENT_REQUEST_TYPE_LABELS[requestedDocumentType] || requestedDocumentType;
+  const billingEntityType =
+    (lead?.billing_entity_type as BillingEntityType | undefined) || null;
+  const billingEntityLabel = billingEntityType
+    ? BILLING_ENTITY_TYPE_LABELS[billingEntityType]
+    : "-";
+  const billingBranchType =
+    (lead?.billing_branch_type as BillingBranchType | undefined) || null;
+  const billingBranchCode = lead?.billing_branch_code || null;
+  const billingBranchLabel =
+    billingEntityType === "company" && billingBranchType
+      ? billingBranchType === "branch"
+        ? `${BILLING_BRANCH_TYPE_LABELS.branch}${billingBranchCode ? ` (${billingBranchCode})` : ""}`
+        : BILLING_BRANCH_TYPE_LABELS[billingBranchType]
+      : null;
+  const billingName =
+    lead?.billing_name || customer?.display_name || "ไม่ระบุชื่อลูกค้า";
+  const billingAddress = lead?.billing_address || "-";
   const StatusIcon = statusMeta.icon;
   const showActionPanel = (!hasJob && !isApproved && !isRejected && !isExpired) ||
     (waitingPayment && canRescopeQuote);
@@ -220,19 +276,54 @@ export default async function QuotePage(props: { params: Promise<{ token: string
           <p className="mt-1 font-mono text-sm font-semibold text-sky-900 break-all">{token}</p>
           <p className="mt-1 text-xs text-sky-800">ใช้โค้ดนี้เพื่อเปิดหน้าใบเสนอราคา/สถานะงานจากหน้าค้นหา</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Link href={`/status/${token}`} className="inline-flex rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700">
+            <Link href={`/status/${token}`} prefetch={false} className="inline-flex rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700">
               ดูสถานะงาน
             </Link>
-            <Link href="/status" className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+            <Link href="/status" prefetch={false} className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
               ค้นหาด้วยเลขติดตาม
             </Link>
           </div>
         </div>
 
-        <div className="bg-white px-6 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-medium text-gray-500 mb-2">ข้อมูลลูกค้า</h2>
-          <p className="text-sm text-gray-900">{customer?.display_name || "ไม่ระบุ"}</p>
-          {customer?.phone && <p className="text-sm text-gray-600">{customer.phone}</p>}
+        <div className="border-b border-gray-100 bg-white px-6 py-4">
+          <h2 className="mb-3 text-sm font-medium text-gray-500">ข้อมูลลูกค้า / Bill To</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-sm">
+              <p className="font-semibold text-slate-950">{billingName}</p>
+              <p className="mt-1 text-slate-600">
+                {customer?.phone || "ยังไม่มีเบอร์โทรในระบบ"}
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                ที่อยู่ออกเอกสาร: {billingAddress}
+              </p>
+              {billingBranchLabel ? (
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  สาขา: {billingBranchLabel}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-700">
+              <p>
+                <span className="text-gray-500">เอกสารที่ร้องขอ:</span>{" "}
+                <span className="font-medium text-slate-950">{requestedDocumentLabel}</span>
+              </p>
+              <p className="mt-1">
+                <span className="text-gray-500">ประเภทการวางบิล:</span>{" "}
+                <span className="font-medium text-slate-950">{billingEntityLabel}</span>
+              </p>
+              <p className="mt-1">
+                <span className="text-gray-500">Tax ID:</span>{" "}
+                <span className="font-medium text-slate-950">{lead?.tax_id || "-"}</span>
+              </p>
+              {billingBranchLabel ? (
+                <p className="mt-1">
+                  <span className="text-gray-500">สาขา:</span>{" "}
+                  <span className="font-medium text-slate-950">{billingBranchLabel}</span>
+                </p>
+              ) : null}
+            </div>
+          </div>
         </div>
 
         <div className="bg-white px-6 py-4 border-b border-gray-100">
@@ -241,7 +332,7 @@ export default async function QuotePage(props: { params: Promise<{ token: string
             <p><span className="text-gray-500">ประเภท:</span> <span className="font-medium">{productLabel}</span></p>
             {lead && <p><span className="text-gray-500">ขนาด:</span> {(lead.width_mm / 10).toFixed(1)} × {(lead.height_mm / 10).toFixed(1)} ซม.</p>}
             {lead?.qty && <p><span className="text-gray-500">จำนวน:</span> {lead.qty} ชิ้น</p>}
-            {lead?.due_date && <p><span className="text-gray-500">กำหนดส่ง:</span> {new Date(lead.due_date).toLocaleDateString("th-TH")}</p>}
+            {lead?.due_date && <p><span className="text-gray-500">กำหนดส่ง:</span> {formatDate(lead.due_date)}</p>}
             {lead?.note_from_form && <p><span className="text-gray-500">หมายเหตุ:</span> {lead.note_from_form}</p>}
           </div>
         </div>
@@ -281,6 +372,9 @@ export default async function QuotePage(props: { params: Promise<{ token: string
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-slate-900">ช่องทางชำระเงิน / Payment Instructions</p>
                   <p className="mt-1 text-xs leading-relaxed text-slate-600">{paymentHelpText}</p>
+                  {paymentRoutingNote ? (
+                    <p className="mt-2 text-xs font-medium text-sky-700">{paymentRoutingNote}</p>
+                  ) : null}
                   {waitingPayment ? (
                     <p className="mt-2 text-xs font-medium text-amber-700">
                       งานจะเริ่มต่อเมื่อทีมงานยืนยันยอดชำระตามเงื่อนไขนี้แล้ว
@@ -294,18 +388,38 @@ export default async function QuotePage(props: { params: Promise<{ token: string
                   รายการนี้ไม่ต้องโอนทันที หากต้องการเอกสารประกอบการชำระหรือรอบวางบิล กรุณาติดต่อทีมงาน
                   {paymentContact ? ` ที่ ${paymentContact}` : " ผ่าน LINE แชตนี้"}
                 </div>
-              ) : paymentDetails.length > 0 ? (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {paymentDetails.map((detail) => (
+              ) : paymentDisplay.showDetails || paymentDisplay.showQr ? (
+                <div className={`grid gap-3 ${paymentDisplay.showDetails && paymentDisplay.showQr ? "lg:grid-cols-[minmax(0,1fr)_220px]" : "sm:grid-cols-2"}`}>
+                  {paymentDisplay.showDetails ? paymentDisplay.paymentDetails.map((detail) => (
                     <div key={detail.label} className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200/70">
                       <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-400">
                         {detail.label}
                       </p>
-                      <p className="mt-2 break-words text-sm font-semibold text-slate-950">
+                      <p className="mt-2 wrap-break-word text-sm font-semibold text-slate-950">
                         {detail.value}
                       </p>
                     </div>
-                  ))}
+                  )) : null}
+                  {paymentDisplay.showQr ? (
+                    <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200/70">
+                      <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-400">
+                        QR Code
+                      </p>
+                      <div className="mt-3 flex justify-center">
+                        <Image
+                          src={paymentDisplay.qrCodeUrl}
+                          alt="Payment QR Code"
+                          width={180}
+                          height={180}
+                          unoptimized
+                          className="h-45 w-45 rounded-2xl object-contain"
+                        />
+                      </div>
+                      <p className="mt-3 text-center text-xs font-medium text-slate-600">
+                        {paymentDisplay.qrCodeLabel}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm leading-relaxed text-slate-600 ring-1 ring-slate-200/70">

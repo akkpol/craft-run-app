@@ -15,9 +15,14 @@ export default function AdminSettingsPage() {
               หน้านี้มีไว้ให้เจ้าของระบบกรอกค่าที่จำเป็นสำหรับ LINE Messaging API, LINE MINI App (ผ่าน LIFF SDK) และ Base URL โดยไม่ต้องแก้ไฟล์ env ใน repo
             </p>
           </div>
-          <Link href="/admin" className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/15">
-            กลับไป Dashboard
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/admin" className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/15">
+              กลับไป Dashboard
+            </Link>
+            <Link href="/admin/profile" className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/15">
+              โปรไฟล์ผู้ดูแล
+            </Link>
+          </div>
         </div>
 
         <SettingsForm />

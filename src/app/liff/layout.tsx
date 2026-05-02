@@ -1,5 +1,20 @@
 import type { Metadata, Viewport } from "next";
+import { IBM_Plex_Sans_Thai, JetBrains_Mono } from "next/font/google";
 import Script from "next/script";
+
+const plexSansThai = IBM_Plex_Sans_Thai({
+  subsets: ["thai", "latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-liff-thai",
+});
+
+const jetBrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  display: "swap",
+  variable: "--font-flow-mono",
+});
 
 export const metadata: Metadata = {
   title: "FOGUS - สั่งงาน",
@@ -16,7 +31,9 @@ export default function LiffLayout({ children }: { children: React.ReactNode }) 
   return (
     <>
       <Script src="https://static.line-scdn.net/liff/edge/2/sdk.js" strategy="beforeInteractive" />
-      <div className="liff-shell">{children}</div>
+      <div className={`liff-shell flow-theme-shell liff-thai ${plexSansThai.variable} ${jetBrainsMono.variable}`}>
+        {children}
+      </div>
     </>
   );
 }

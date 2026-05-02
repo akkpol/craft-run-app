@@ -1,10 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getRuntimeAppConfig } from "@/lib/app-settings";
+import {
+  normalizeLiffContextSnapshot,
+  parseLiffContextSnapshot,
+} from "@/lib/liff-capture";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { pushQuoteLink, verifyLiffIdToken } from "@/lib/line";
+import {
+  getVerifiedLiffAccessProfile,
+  pushQuoteLink,
+  verifyLiffIdToken,
+} from "@/lib/line";
+import { resolvePaymentProfileFromConfig } from "@/lib/payment-routing";
+import {
+  calculateProductCatalogPrice,
+  findProductCatalogItem,
+  resolveProductCatalogLabel,
+} from "@/lib/product-catalog";
+import { getProductCatalog } from "@/lib/product-catalog-store";
 import {
   toMM,
   calculatePrice,
-  PRODUCT_TYPES,
+  isBillingBranchType,
+  isBillingEntityType,
+  isDocumentRequestType,
+  isFulfillmentMode,
   isPaymentTerm,
 } from "@/lib/types";
 import type { IntakeFormData, WorkflowState } from "@/lib/types";
@@ -24,34 +43,33 @@ import {
   type FreshRestartLeadCandidate,
 } from "@/lib/customer-restart";
 import { logSystemAction } from "@/lib/action-log";
+import {
+  buildLeadPromptFields,
+  parseMultipartIntakeFormData,
+  parseOptionalNumber,
+} from "@/lib/intake-payload";
+
+const THAI_SUMMARY_NUMBER_FORMATTER = new Intl.NumberFormat("th-TH-u-nu-latn");
+
+function getBangkokTodayDateString() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
 
 export async function POST(request: NextRequest) {
   let data: IntakeFormData;
   let customerMediaFiles: File[] = [];
+
   try {
     const contentType = request.headers.get("content-type") || "";
     if (contentType.includes("multipart/form-data")) {
-      const formData = await request.formData();
-      const getString = (name: string) => String(formData.get(name) || "");
-      customerMediaFiles = formData
-        .getAll("referenceFiles")
-        .filter((value): value is File => value instanceof File && value.size > 0);
-      data = {
-        lineUserId: getString("lineUserId") || undefined,
-        displayName: getString("displayName") || undefined,
-        liffIdToken: getString("liffIdToken") || undefined,
-        productType: getString("productType"),
-        width: Number(getString("width")),
-        height: Number(getString("height")),
-        unit: getString("unit") as IntakeFormData["unit"],
-        qty: Number(getString("qty")) || 1,
-        dueDate: getString("dueDate"),
-        phone: getString("phone"),
-        note: getString("note"),
-        referenceInfo: getString("referenceInfo"),
-        aiImagePrompt: getString("aiImagePrompt") || undefined,
-        intakeMode: (getString("intakeMode") || undefined) as IntakeFormData["intakeMode"],
-      };
+      ({ data, customerMediaFiles } = parseMultipartIntakeFormData(
+        await request.formData()
+      ));
     } else {
       data = await request.json();
     }
@@ -62,6 +80,9 @@ export async function POST(request: NextRequest) {
   const providedLineUserId = data.lineUserId?.trim() || "";
   const providedDisplayName = data.displayName?.trim() || "";
   const providedLiffIdToken = data.liffIdToken?.trim() || "";
+  const liffDebugFingerprint =
+    request.headers.get("x-liff-debug-fingerprint")?.trim() || null;
+  const earliestDueDate = getBangkokTodayDateString();
 
   // Simple required-field validation
   const errors: string[] = [];
@@ -74,8 +95,20 @@ export async function POST(request: NextRequest) {
   if (data.paymentTerms && !isPaymentTerm(data.paymentTerms)) {
     errors.push("paymentTerms is invalid");
   }
+  if (!data.fulfillmentMode || !isFulfillmentMode(data.fulfillmentMode)) {
+    errors.push("fulfillmentMode is required");
+  }
+  if (data.billingEntityType && !isBillingEntityType(data.billingEntityType)) {
+    errors.push("billingEntityType is invalid");
+  }
+  if (data.requestedDocumentType && !isDocumentRequestType(data.requestedDocumentType)) {
+    errors.push("requestedDocumentType is invalid");
+  }
   if (data.intakeMode && !["resume", "fresh"].includes(data.intakeMode)) {
     errors.push("intakeMode is invalid");
+  }
+  if (data.dueDate && data.dueDate < earliestDueDate) {
+    errors.push("dueDate must be today or later");
   }
 
   if (errors.length > 0) {
@@ -91,13 +124,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let intakeIdentity: { userId: string; displayName: string | null };
+  let intakeIdentity: Awaited<ReturnType<typeof verifyLiffIdToken>>;
   if (providedLiffIdToken) {
     try {
       intakeIdentity = await verifyLiffIdToken(providedLiffIdToken);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to verify LIFF identity";
+      await logSystemAction(createAdminClient(), {
+        entityType: "system",
+        actionType: "liff.intake_issue",
+        serviceName: "intake",
+        note: "LIFF intake identity verification failed",
+        payload: {
+          fingerprint: liffDebugFingerprint,
+          stage: "intake_verify_token_failed",
+          message,
+          intakeMode: data.intakeMode || null,
+          hasLiffIdToken: true,
+          hasLiffContextSnapshot: Boolean(data.liffContextSnapshot),
+          lineUserIdHint: data.lineUserId?.trim() || null,
+          userAgent: request.headers.get("user-agent"),
+        },
+      });
       return NextResponse.json(
         { error: `Unable to verify LINE identity: ${message}` },
         { status: 400 }
@@ -107,6 +156,10 @@ export async function POST(request: NextRequest) {
     intakeIdentity = {
       userId: providedLineUserId,
       displayName: providedDisplayName || "ลูกค้า",
+      pictureUrl: null,
+      email: null,
+      authTime: null,
+      amr: [],
     };
   } else {
     return NextResponse.json(
@@ -121,6 +174,156 @@ export async function POST(request: NextRequest) {
   const resolvedLineUserId = intakeIdentity.userId;
   const resolvedDisplayName =
     intakeIdentity.displayName?.trim() || providedDisplayName || "ลูกค้า";
+  const billingEntityType =
+    data.billingEntityType && isBillingEntityType(data.billingEntityType)
+      ? data.billingEntityType
+      : "person";
+  const normalizedBillingBranchType =
+    data.billingBranchType && isBillingBranchType(data.billingBranchType)
+      ? data.billingBranchType
+      : "head_office";
+  const billingBranchType =
+    billingEntityType === "company" ? normalizedBillingBranchType : null;
+  const billingBranchCode =
+    billingEntityType === "company" && normalizedBillingBranchType === "branch"
+      ? data.billingBranchCode?.trim() || null
+      : null;
+  const requestedDocumentType =
+    data.requestedDocumentType &&
+    isDocumentRequestType(data.requestedDocumentType)
+      ? data.requestedDocumentType
+      : "quote";
+  const fulfillmentMode =
+    data.fulfillmentMode && isFulfillmentMode(data.fulfillmentMode)
+      ? data.fulfillmentMode
+      : null;
+  const billingName = data.billingName?.trim() || null;
+  const taxId = data.taxId?.trim() || null;
+  const billingAddress = data.billingAddress?.trim() || null;
+  const fulfillmentAddressLine1 = data.fulfillmentAddressLine1?.trim() || null;
+  const fulfillmentAddressLine2 = data.fulfillmentAddressLine2?.trim() || null;
+  const fulfillmentSubdistrict = data.fulfillmentSubdistrict?.trim() || null;
+  const fulfillmentDistrict = data.fulfillmentDistrict?.trim() || null;
+  const fulfillmentProvince = data.fulfillmentProvince?.trim() || null;
+  const fulfillmentPostalCode = data.fulfillmentPostalCode?.trim() || null;
+  const fulfillmentLatitude = parseOptionalNumber(data.fulfillmentLatitude);
+  const fulfillmentLongitude = parseOptionalNumber(data.fulfillmentLongitude);
+  const requiresFulfillmentAddress =
+    fulfillmentMode === "delivery" || fulfillmentMode === "install";
+
+  if (
+    requiresFulfillmentAddress &&
+    (!fulfillmentAddressLine1 ||
+      !fulfillmentDistrict ||
+      !fulfillmentProvince ||
+      !fulfillmentPostalCode)
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "กรุณาระบุที่อยู่จัดส่งหรือติดตั้งให้ครบอย่างน้อย บ้านเลขที่/ถนน เขตหรืออำเภอ จังหวัด และรหัสไปรษณีย์",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (
+    typeof fulfillmentLatitude === "number" &&
+    (Number.isNaN(fulfillmentLatitude) ||
+      fulfillmentLatitude < -90 ||
+      fulfillmentLatitude > 90)
+  ) {
+    return NextResponse.json(
+      { error: "latitude ต้องอยู่ระหว่าง -90 ถึง 90" },
+      { status: 400 }
+    );
+  }
+
+  if (
+    typeof fulfillmentLongitude === "number" &&
+    (Number.isNaN(fulfillmentLongitude) ||
+      fulfillmentLongitude < -180 ||
+      fulfillmentLongitude > 180)
+  ) {
+    return NextResponse.json(
+      { error: "longitude ต้องอยู่ระหว่าง -180 ถึง 180" },
+      { status: 400 }
+    );
+  }
+
+  if (
+    (typeof fulfillmentLatitude === "number" && fulfillmentLongitude === null) ||
+    (typeof fulfillmentLongitude === "number" && fulfillmentLatitude === null)
+  ) {
+    return NextResponse.json(
+      { error: "กรุณาระบุ latitude และ longitude ให้ครบทั้งคู่" },
+      { status: 400 }
+    );
+  }
+
+  if (
+    billingEntityType === "company" &&
+    requestedDocumentType === "tax_invoice" &&
+    billingBranchType === "branch" &&
+    !billingBranchCode
+  ) {
+    return NextResponse.json(
+      { error: "กรุณาระบุเลขสาขาสำหรับใบกำกับภาษีของนิติบุคคล" },
+      { status: 400 }
+    );
+  }
+  const liffContextSnapshot =
+    typeof data.liffContextSnapshot === "string"
+      ? parseLiffContextSnapshot(data.liffContextSnapshot)
+      : normalizeLiffContextSnapshot(data.liffContextSnapshot);
+
+  let verifiedAccessProfile: Awaited<
+    ReturnType<typeof getVerifiedLiffAccessProfile>
+  > | null = null;
+
+  if (data.liffAccessToken?.trim()) {
+    try {
+      verifiedAccessProfile = await getVerifiedLiffAccessProfile(
+        data.liffAccessToken,
+        resolvedLineUserId
+      );
+    } catch (error) {
+      console.warn("Unable to enrich LIFF access profile:", error);
+      await logSystemAction(createAdminClient(), {
+        entityType: "system",
+        actionType: "liff.intake_issue",
+        serviceName: "intake",
+        note: "LIFF access profile enrichment failed",
+        payload: {
+          fingerprint: liffDebugFingerprint,
+          stage: "intake_access_profile_failed",
+          message: error instanceof Error ? error.message : String(error),
+          intakeMode: data.intakeMode || null,
+          lineUserId: resolvedLineUserId,
+        },
+      });
+    }
+  }
+
+  const liffProfileSnapshot = {
+    collectedAt: new Date().toISOString(),
+    userId: resolvedLineUserId,
+    displayName:
+      verifiedAccessProfile?.displayName || intakeIdentity.displayName || null,
+    pictureUrl:
+      verifiedAccessProfile?.pictureUrl || intakeIdentity.pictureUrl || null,
+    email: intakeIdentity.email || null,
+    statusMessage: verifiedAccessProfile?.statusMessage || null,
+    friendshipStatus: verifiedAccessProfile?.friendshipStatus ?? null,
+    authTime: intakeIdentity.authTime,
+    amr: intakeIdentity.amr,
+    accessTokenVerification: verifiedAccessProfile
+      ? {
+          scope: verifiedAccessProfile.scope,
+          expiresIn: verifiedAccessProfile.expiresIn,
+        }
+      : null,
+  };
 
   const supabase = createAdminClient();
 
@@ -128,6 +331,17 @@ export async function POST(request: NextRequest) {
   const widthMm = toMM(data.width, data.unit);
   const heightMm = toMM(data.height, data.unit);
   const qty = data.qty;
+  const { items: runtimeProductCatalog } = await getProductCatalog({
+    activeOnly: false,
+  });
+  const selectedProduct = findProductCatalogItem(
+    runtimeProductCatalog,
+    data.productType
+  );
+  const productLabel = resolveProductCatalogLabel({
+    productType: data.productType,
+    productLabelSnapshot: selectedProduct?.label || null,
+  });
 
   // 1. Upsert customer
   const { data: customer, error: customerError } = await supabase
@@ -137,6 +351,16 @@ export async function POST(request: NextRequest) {
         line_user_id: resolvedLineUserId,
         display_name: resolvedDisplayName,
         phone: data.phone,
+        line_email: intakeIdentity.email || undefined,
+        line_picture_url:
+          verifiedAccessProfile?.pictureUrl || intakeIdentity.pictureUrl || undefined,
+        line_status_message: verifiedAccessProfile?.statusMessage || undefined,
+        line_friendship_status:
+          typeof verifiedAccessProfile?.friendshipStatus === "boolean"
+            ? verifiedAccessProfile.friendshipStatus
+            : undefined,
+        last_liff_profile: liffProfileSnapshot,
+        last_liff_context: liffContextSnapshot || undefined,
       },
       { onConflict: "line_user_id" }
     )
@@ -329,7 +553,7 @@ export async function POST(request: NextRequest) {
   const holdReason = needsReview
     ? "ยังมีข้อมูลไม่ครบสำหรับออกใบเสนอราคาอัตโนมัติ"
     : null;
-  const leadDefaults = getLeadOperationalDefaults(data.fulfillmentMode);
+  const leadDefaults = getLeadOperationalDefaults(fulfillmentMode);
 
   const { data: lead, error: leadError } = await supabase
     .from("leads")
@@ -337,14 +561,47 @@ export async function POST(request: NextRequest) {
       conversation_id: conversationId,
       customer_id: customer.id,
       product_type: data.productType,
+      product_label_snapshot: productLabel,
+      product_category_snapshot: selectedProduct?.category || null,
+      product_category_label_snapshot: selectedProduct?.categoryLabel || null,
       width_mm: widthMm,
       height_mm: heightMm,
       qty,
       due_date: data.dueDate || null,
-      note_from_form: data.note || null,
-      reference_info: data.referenceInfo || null,
-      ai_image_prompt: data.aiImagePrompt || null,
-      ai_image_status: data.aiImagePrompt ? "pending" : "not_requested",
+      ...buildLeadPromptFields(data),
+      requested_document_type: requestedDocumentType,
+      billing_entity_type: billingEntityType,
+      billing_branch_type: billingBranchType,
+      billing_branch_code: billingBranchCode,
+      billing_name: billingName,
+      tax_id: taxId,
+      billing_address: billingAddress,
+      fulfillment_address_line1: requiresFulfillmentAddress
+        ? fulfillmentAddressLine1
+        : null,
+      fulfillment_address_line2: requiresFulfillmentAddress
+        ? fulfillmentAddressLine2
+        : null,
+      fulfillment_subdistrict: requiresFulfillmentAddress
+        ? fulfillmentSubdistrict
+        : null,
+      fulfillment_district: requiresFulfillmentAddress
+        ? fulfillmentDistrict
+        : null,
+      fulfillment_province: requiresFulfillmentAddress
+        ? fulfillmentProvince
+        : null,
+      fulfillment_postal_code: requiresFulfillmentAddress
+        ? fulfillmentPostalCode
+        : null,
+      fulfillment_latitude: requiresFulfillmentAddress
+        ? fulfillmentLatitude
+        : null,
+      fulfillment_longitude: requiresFulfillmentAddress
+        ? fulfillmentLongitude
+        : null,
+      liff_profile_snapshot: liffProfileSnapshot,
+      liff_context_snapshot: liffContextSnapshot || null,
       fulfillment_mode: leadDefaults.fulfillment_mode,
       design_assignment_mode: leadDefaults.design_assignment_mode,
       design_executor: leadDefaults.design_executor,
@@ -461,14 +718,18 @@ export async function POST(request: NextRequest) {
   }
 
   // 6. Calculate price & create quote
-  const subtotal = calculatePrice(data.productType, widthMm, heightMm, qty);
+  const subtotal = selectedProduct
+    ? calculateProductCatalogPrice(selectedProduct, widthMm, heightMm, qty)
+    : calculatePrice(data.productType, widthMm, heightMm, qty);
   const vat = Math.round(subtotal * 0.07 * 100) / 100;
   const total = subtotal + vat;
   const paymentTerms = data.paymentTerms || "prepaid";
-
-  const productLabel =
-    PRODUCT_TYPES.find((p) => p.value === data.productType)?.label ||
-    data.productType;
+  const appConfig = await getRuntimeAppConfig();
+  const paymentProfileSnapshot = resolvePaymentProfileFromConfig(appConfig, {
+    total,
+    billingEntityType,
+    paymentTerms,
+  });
 
   const { data: quote, error: quoteError } = await supabase
     .from("quotes")
@@ -481,6 +742,7 @@ export async function POST(request: NextRequest) {
       status: "sent",
       payment_terms: paymentTerms,
       payment_status: paymentTerms === "credit" ? "not_required" : "unpaid",
+      payment_profile_snapshot: paymentProfileSnapshot,
     })
     .select("id, public_token")
     .single();
@@ -533,7 +795,7 @@ export async function POST(request: NextRequest) {
 
   // 9. Send quote link to customer via LINE push
   try {
-    const summary = `${productLabel} ${(widthMm / 10).toFixed(0)}×${(heightMm / 10).toFixed(0)} ซม. จำนวน ${qty} ชิ้น\nราคารวม VAT: ฿${total.toLocaleString()}`;
+    const summary = `${productLabel} ${(widthMm / 10).toFixed(0)}×${(heightMm / 10).toFixed(0)} ซม. จำนวน ${qty} ชิ้น\nราคารวม VAT: ฿${THAI_SUMMARY_NUMBER_FORMATTER.format(total)}`;
     await pushQuoteLink(resolvedLineUserId, quote.public_token, summary);
   } catch (error) {
     console.error("Failed to push quote link:", error);

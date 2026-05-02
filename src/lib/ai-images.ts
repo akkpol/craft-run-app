@@ -1,15 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAiImageRuntimeConfig, type AppSettingsRow } from "@/lib/app-settings";
+import { buildLeadAiPreviewStoragePath } from "@/lib/asset-storage-paths";
 
-type LeadAiInput = {
-  id: string;
-  product_type: string | null;
-  width_mm: number | null;
-  height_mm: number | null;
-  qty: number | null;
-  note_from_form: string | null;
-  reference_info: string | null;
-  ai_image_prompt: string | null;
+type LeadAiGenerationInput = {
+  leadId: string;
+  prompt: string;
 };
 
 type OpenAiImageResponse = {
@@ -25,29 +20,40 @@ type OpenAiImageResponse = {
 
 const APP_ASSETS_BUCKET = "app-assets";
 
-function buildPrompt(lead: LeadAiInput): string {
-  const parts = [
-    lead.ai_image_prompt?.trim(),
-    lead.product_type ? `ประเภทงาน: ${lead.product_type}` : "",
-    lead.width_mm && lead.height_mm
-      ? `ขนาดงานประมาณ ${(lead.width_mm / 10).toFixed(1)} x ${(lead.height_mm / 10).toFixed(1)} ซม.`
-      : "",
-    lead.qty ? `จำนวน ${lead.qty} ชิ้น` : "",
-    lead.note_from_form?.trim() ? `รายละเอียดจากลูกค้า: ${lead.note_from_form.trim()}` : "",
-    lead.reference_info?.trim() ? `ข้อมูลอ้างอิง: ${lead.reference_info.trim()}` : "",
-    "Create a polished Thai signage or print concept mockup, front-facing, realistic materials, readable layout, production-friendly composition.",
-  ];
+function getImageExtensionFromContentType(contentType: string | null | undefined) {
+  if (!contentType) {
+    return "png";
+  }
 
-  return parts.filter(Boolean).join("\n");
+  if (contentType.includes("png")) {
+    return "png";
+  }
+
+  if (contentType.includes("jpeg") || contentType.includes("jpg")) {
+    return "jpg";
+  }
+
+  if (contentType.includes("webp")) {
+    return "webp";
+  }
+
+  return "png";
 }
 
-async function uploadGeneratedImage(leadId: string, fileBytes: Uint8Array): Promise<string> {
+async function uploadGeneratedImage(
+  leadId: string,
+  fileBytes: Uint8Array,
+  contentType = "image/png"
+): Promise<string> {
   const supabase = createAdminClient();
-  const filePath = `ai-previews/${leadId}/${Date.now()}.png`;
+  const filePath = buildLeadAiPreviewStoragePath(
+    leadId,
+    getImageExtensionFromContentType(contentType)
+  );
   const { error } = await supabase.storage
     .from(APP_ASSETS_BUCKET)
     .upload(filePath, fileBytes, {
-      contentType: "image/png",
+      contentType,
       upsert: false,
     });
 
@@ -59,7 +65,22 @@ async function uploadGeneratedImage(leadId: string, fileBytes: Uint8Array): Prom
   return data.publicUrl;
 }
 
-export async function generateLeadAiPreview(lead: LeadAiInput): Promise<string[]> {
+async function downloadRemoteGeneratedImage(url: string) {
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error("AI image provider returned an unusable image URL");
+  }
+
+  return {
+    bytes: new Uint8Array(await response.arrayBuffer()),
+    contentType: response.headers.get("content-type") || "image/png",
+  };
+}
+
+export async function generateLeadAiPreview(
+  input: LeadAiGenerationInput
+): Promise<string[]> {
   const aiConfig = await getAiImageRuntimeConfig();
 
   if (!aiConfig.enabled || !aiConfig.apiKey) {
@@ -70,7 +91,7 @@ export async function generateLeadAiPreview(lead: LeadAiInput): Promise<string[]
     throw new Error("Unsupported AI image provider");
   }
 
-  const prompt = buildPrompt(lead);
+  const prompt = input.prompt.trim();
   if (!prompt) {
     throw new Error("Lead does not have an AI prompt");
   }
@@ -101,7 +122,12 @@ export async function generateLeadAiPreview(lead: LeadAiInput): Promise<string[]
   const uploadedUrls = await Promise.all(
     images.slice(0, 1).map(async (image) => {
       if (image.url) {
-        return image.url;
+        const downloadedImage = await downloadRemoteGeneratedImage(image.url);
+        return uploadGeneratedImage(
+          input.leadId,
+          downloadedImage.bytes,
+          downloadedImage.contentType
+        );
       }
 
       if (!image.b64_json) {
@@ -109,7 +135,7 @@ export async function generateLeadAiPreview(lead: LeadAiInput): Promise<string[]
       }
 
       const fileBytes = Buffer.from(image.b64_json, "base64");
-      return uploadGeneratedImage(lead.id, fileBytes);
+      return uploadGeneratedImage(input.leadId, fileBytes);
     })
   );
 
@@ -120,4 +146,4 @@ export function getAppAssetsBucketName(): string {
   return APP_ASSETS_BUCKET;
 }
 
-export type { LeadAiInput, AppSettingsRow };
+export type { LeadAiGenerationInput, AppSettingsRow };

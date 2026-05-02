@@ -59,9 +59,19 @@ export function designStatusNeedsCustomerResponse(
   return status === "preview_sent";
 }
 
-export const FULFILLMENT_MODES = ["pickup", "delivery"] as const;
+export const FULFILLMENT_MODES = ["pickup", "delivery", "install"] as const;
 
 export type FulfillmentMode = (typeof FULFILLMENT_MODES)[number];
+
+export const FULFILLMENT_MODE_LABELS: Record<FulfillmentMode, string> = {
+  pickup: "ลูกค้ามารับเอง",
+  delivery: "ให้จัดส่ง",
+  install: "ให้ไปติดตั้ง",
+};
+
+export function isFulfillmentMode(value: string): value is FulfillmentMode {
+  return FULFILLMENT_MODES.includes(value as FulfillmentMode);
+}
 
 export const FULFILLMENT_STATUSES = [
   "not_ready",
@@ -126,6 +136,52 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   paid: "ชำระครบแล้ว",
   not_required: "ยังไม่ต้องรับชำระก่อนผลิต",
 };
+
+export const DOCUMENT_REQUEST_TYPES = [
+  "quote",
+  "invoice",
+  "receipt",
+  "tax_invoice",
+] as const;
+
+export type DocumentRequestType = (typeof DOCUMENT_REQUEST_TYPES)[number];
+
+export const BILLING_ENTITY_TYPES = ["person", "company"] as const;
+
+export type BillingEntityType = (typeof BILLING_ENTITY_TYPES)[number];
+
+export const BILLING_BRANCH_TYPES = ["head_office", "branch"] as const;
+
+export type BillingBranchType = (typeof BILLING_BRANCH_TYPES)[number];
+
+export const DOCUMENT_REQUEST_TYPE_LABELS: Record<DocumentRequestType, string> = {
+  quote: "ใบเสนอราคา",
+  invoice: "ใบแจ้งหนี้ / Invoice",
+  receipt: "ใบเสร็จรับเงิน",
+  tax_invoice: "ใบกำกับภาษี",
+};
+
+export const BILLING_ENTITY_TYPE_LABELS: Record<BillingEntityType, string> = {
+  person: "บุคคลธรรมดา",
+  company: "บริษัท / นิติบุคคล",
+};
+
+export const BILLING_BRANCH_TYPE_LABELS: Record<BillingBranchType, string> = {
+  head_office: "สำนักงานใหญ่",
+  branch: "สาขา",
+};
+
+export function isDocumentRequestType(value: string): value is DocumentRequestType {
+  return DOCUMENT_REQUEST_TYPES.includes(value as DocumentRequestType);
+}
+
+export function isBillingEntityType(value: string): value is BillingEntityType {
+  return BILLING_ENTITY_TYPES.includes(value as BillingEntityType);
+}
+
+export function isBillingBranchType(value: string): value is BillingBranchType {
+  return BILLING_BRANCH_TYPES.includes(value as BillingBranchType);
+}
 
 export const WORKFLOW_STATE_LABELS: Record<WorkflowState, string> = {
   NEW_MESSAGE: "เริ่มต้นการสนทนา",
@@ -471,6 +527,8 @@ export interface IntakeFormData {
   lineUserId?: string;
   displayName?: string;
   liffIdToken?: string;
+  liffAccessToken?: string;
+  liffContextSnapshot?: unknown;
   productType: string;
   width: number;
   height: number;
@@ -480,7 +538,23 @@ export interface IntakeFormData {
   phone: string;
   note: string;
   referenceInfo: string;
+  designBrief?: string;
   aiImagePrompt?: string;
+  requestedDocumentType?: DocumentRequestType;
+  billingEntityType?: BillingEntityType;
+  billingBranchType?: BillingBranchType;
+  billingBranchCode?: string;
+  billingName?: string;
+  taxId?: string;
+  billingAddress?: string;
+  fulfillmentAddressLine1?: string;
+  fulfillmentAddressLine2?: string;
+  fulfillmentSubdistrict?: string;
+  fulfillmentDistrict?: string;
+  fulfillmentProvince?: string;
+  fulfillmentPostalCode?: string;
+  fulfillmentLatitude?: number;
+  fulfillmentLongitude?: number;
   paymentTerms?: PaymentTerm;
   fulfillmentMode?: FulfillmentMode;
   intakeMode?: "resume" | "fresh";
@@ -499,6 +573,9 @@ export interface LeadRow {
   conversation_id: string;
   customer_id: string;
   product_type: string;
+  product_label_snapshot?: string | null;
+  product_category_snapshot?: string | null;
+  product_category_label_snapshot?: string | null;
   width_mm: number;
   height_mm: number;
   qty: number;
@@ -506,10 +583,29 @@ export interface LeadRow {
   note_from_form: string;
   note_from_chat: string;
   reference_info: string;
+  design_brief?: string;
   ai_image_prompt?: string;
+  ai_prompt_snapshot?: string;
   ai_image_status?: "not_requested" | "pending" | "generated" | "failed";
   ai_generated_images?: string[];
   ai_image_error?: string;
+  requested_document_type?: DocumentRequestType;
+  billing_entity_type?: BillingEntityType;
+  billing_branch_type?: BillingBranchType | null;
+  billing_branch_code?: string | null;
+  billing_name?: string;
+  tax_id?: string;
+  billing_address?: string;
+  fulfillment_address_line1?: string | null;
+  fulfillment_address_line2?: string | null;
+  fulfillment_subdistrict?: string | null;
+  fulfillment_district?: string | null;
+  fulfillment_province?: string | null;
+  fulfillment_postal_code?: string | null;
+  fulfillment_latitude?: number | null;
+  fulfillment_longitude?: number | null;
+  liff_profile_snapshot?: Record<string, unknown> | null;
+  liff_context_snapshot?: Record<string, unknown> | null;
   fulfillment_mode?: FulfillmentMode | null;
   design_assignment_mode?: DesignAssignmentMode;
   design_executor?: DesignExecutor;

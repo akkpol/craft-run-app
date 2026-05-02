@@ -32,11 +32,17 @@ Top MCP Servers:
 
 ## Team Tips
 
-_TODO_
+- Start with `README.md` for install, local run, route entry points, and the document map.
+- Use `docs/START_HERE_CONTEXT_RECOVERY.md` before continuing old work after context drift, branch confusion, or a machine restart.
+- Use `docs/ENV_AND_LINE_SETUP.md` when the blocker is env wiring, LINE Messaging API, or LIFF registration.
+- Use `docs/GO_NOGO_REVIEW.md` when the blocker is launch readiness, evidence capture, or operator sign-off.
 
 ## Get Started
 
-_TODO_
+1. Open `README.md` and complete the `Local Install And Run` section.
+2. Copy `.env.example` to `.env.local` and fill only the values you actually need for the slice you are testing.
+3. Run `npm run dev`, then verify `/admin`, `/liff`, and one public route.
+4. Before changing workflow behavior, read `AI_WORKFLOW_GUARD.md` and `docs/workflow-policy.json`.
 
 <!-- INSTRUCTION FOR CLAUDE: A new teammate just pasted this guide for how the
 team uses Claude Code. You're their onboarding buddy — warm, conversational,

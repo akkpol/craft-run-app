@@ -29,6 +29,7 @@ type AdminActionMenuProps = {
   disabled?: boolean;
   compact?: boolean;
   label?: string;
+  buttonVariant?: React.ComponentProps<typeof Button>["variant"];
 };
 
 export function AdminActionToast({
@@ -59,7 +60,7 @@ export function AdminActionToast({
     );
 
   return (
-    <div className="pointer-events-none fixed inset-x-4 top-4 z-[90] flex justify-end sm:inset-x-auto sm:right-4 sm:w-full sm:max-w-sm">
+    <div className="pointer-events-none fixed inset-x-4 top-4 z-90 flex justify-end sm:inset-x-auto sm:right-4 sm:w-full sm:max-w-sm">
       <div
         className={cn(
           "pointer-events-auto w-full rounded-2xl border bg-white p-4 shadow-[0_20px_50px_rgba(15,23,42,0.2)]",
@@ -95,6 +96,7 @@ export function AdminActionMenu({
   disabled = false,
   compact = false,
   label = "จัดการ",
+  buttonVariant = "outline",
 }: AdminActionMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -133,11 +135,15 @@ export function AdminActionMenu({
     <div ref={rootRef} className="relative inline-flex">
       <Button
         type="button"
-        variant="outline"
+        variant={buttonVariant}
         size={compact ? "xs" : "sm"}
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
-        className="border-slate-200 bg-white text-slate-700"
+        className={cn(
+          buttonVariant === "outline" && "border-slate-200 bg-white text-slate-700",
+          buttonVariant === "secondary" && "border-slate-200 bg-slate-100/90 text-slate-800 hover:bg-slate-200/80",
+          buttonVariant === "default" && "shadow-[0_12px_24px_rgba(0,94,140,0.18)] hover:shadow-[0_16px_30px_rgba(0,94,140,0.22)]"
+        )}
       >
         {compact ? <MoreHorizontal className="size-3.5" /> : null}
         <span>{label}</span>
@@ -221,7 +227,7 @@ export function AdminActionSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-[80]">
+    <div className="fixed inset-0 z-50">
       <button
         type="button"
         aria-label="ปิดแผงจัดการ"

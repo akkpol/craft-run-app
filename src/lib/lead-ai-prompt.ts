@@ -39,10 +39,6 @@ export function hasLeadAiSeedPrompt(lead: LeadPromptContext): boolean {
   );
 }
 
-export function hasLeadAiPromptContext(lead: LeadPromptContext): boolean {
-  return Boolean(prepareLeadAiPrompt(lead));
-}
-
 export function getLeadDesignRoutingSummary(lead: LeadPromptContext): string {
   return prepareLeadAiPrompt(lead)
     ? "มี AI prompt พร้อมใช้งาน"
@@ -122,6 +118,10 @@ export function getLeadAiDisplayPrompt(lead: LeadPromptContext): string {
 
 export function composeLeadAiPrompt(lead: LeadPromptContext): string {
   return getLeadAiDisplayPrompt(lead);
+}
+
+export function hasLeadAiPromptContext(lead: LeadPromptContext): boolean {
+  return Boolean(prepareLeadAiPrompt(lead));
 }
 
 export type { LeadPromptContext, PreparedLeadAiPrompt };

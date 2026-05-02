@@ -2,6 +2,26 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import {
+  DEFAULT_PAYMENT_DISPLAY_MODE,
+  PAYMENT_DISPLAY_MODE_LABELS,
+  PAYMENT_DISPLAY_MODES,
+} from "@/lib/payment-display";
+import {
+  PAYMENT_ROUTING_CUSTOMER_SCOPE_LABELS,
+  PAYMENT_ROUTING_CUSTOMER_SCOPES,
+  PAYMENT_ROUTING_TERM_SCOPE_LABELS,
+  PAYMENT_ROUTING_TERM_SCOPES,
+} from "@/lib/payment-routing";
+import { formatBangkokDateTime } from "@/lib/bangkok-date-time";
+
+type ProductCatalogImportResult = {
+  importedCount: number;
+  insertedCount: number;
+  updatedCount: number;
+  activeCount: number;
+  generatedValueCount: number;
+};
 
 type SettingsState = {
   businessName: string;
@@ -11,6 +31,20 @@ type SettingsState = {
   paymentBankName: string;
   paymentAccountNumber: string;
   paymentPromptPayId: string;
+  paymentQrCodeUrl: string;
+  paymentQrCodeLabel: string;
+  paymentDisplayMode: string;
+  paymentSecondaryAccountName: string;
+  paymentSecondaryBankName: string;
+  paymentSecondaryAccountNumber: string;
+  paymentSecondaryPromptPayId: string;
+  paymentSecondaryQrCodeUrl: string;
+  paymentSecondaryQrCodeLabel: string;
+  paymentSecondaryDisplayMode: string;
+  paymentSecondaryInstructions: string;
+  paymentSecondaryMaxQuoteTotal: number | null;
+  paymentSecondaryCustomerScope: string;
+  paymentSecondaryPaymentTermsScope: string;
   paymentInstructions: string;
   businessLogoUrl: string;
   businessCatalogUrl: string;
@@ -22,6 +56,8 @@ type SettingsState = {
   productionAssetRetentionDays: number;
   lineChannelAccessToken: string;
   lineChannelSecret: string;
+  hasLineChannelAccessToken: boolean;
+  hasLineChannelSecret: boolean;
   liffId: string;
   baseUrl: string;
   webhookUrl: string;
@@ -42,6 +78,20 @@ const emptyState: SettingsState = {
   paymentBankName: "",
   paymentAccountNumber: "",
   paymentPromptPayId: "",
+  paymentQrCodeUrl: "",
+  paymentQrCodeLabel: "",
+  paymentDisplayMode: DEFAULT_PAYMENT_DISPLAY_MODE,
+  paymentSecondaryAccountName: "",
+  paymentSecondaryBankName: "",
+  paymentSecondaryAccountNumber: "",
+  paymentSecondaryPromptPayId: "",
+  paymentSecondaryQrCodeUrl: "",
+  paymentSecondaryQrCodeLabel: "",
+  paymentSecondaryDisplayMode: DEFAULT_PAYMENT_DISPLAY_MODE,
+  paymentSecondaryInstructions: "",
+  paymentSecondaryMaxQuoteTotal: null,
+  paymentSecondaryCustomerScope: "none",
+  paymentSecondaryPaymentTermsScope: "none",
   paymentInstructions: "หลังโอนเงินแล้ว กรุณาส่งสลิปกลับใน LINE แชตนี้เพื่อให้ทีมงานยืนยันการชำระ",
   businessLogoUrl: "",
   businessCatalogUrl: "",
@@ -53,6 +103,8 @@ const emptyState: SettingsState = {
   productionAssetRetentionDays: 30,
   lineChannelAccessToken: "",
   lineChannelSecret: "",
+  hasLineChannelAccessToken: false,
+  hasLineChannelSecret: false,
   liffId: "",
   baseUrl: "",
   webhookUrl: "",
@@ -69,9 +121,14 @@ export default function SettingsForm() {
   const [form, setForm] = useState<SettingsState>(emptyState);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingAsset, setUploadingAsset] = useState<"" | "logo" | "catalog">("");
+  const [uploadingAsset, setUploadingAsset] = useState<"" | "logo" | "catalog" | "paymentQr" | "paymentSecondaryQr">("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [importingCatalog, setImportingCatalog] = useState(false);
+  const [catalogImportMessage, setCatalogImportMessage] = useState("");
+  const [catalogImportError, setCatalogImportError] = useState("");
+  const [catalogImportSummary, setCatalogImportSummary] =
+    useState<ProductCatalogImportResult | null>(null);
 
   useEffect(() => {
     async function loadSettings() {
@@ -99,7 +156,7 @@ export default function SettingsForm() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function handleAssetUpload(assetType: "logo" | "catalog", file: File | null) {
+  async function handleAssetUpload(assetType: "logo" | "catalog" | "paymentQr" | "paymentSecondaryQr", file: File | null) {
     if (!file) return;
 
     setUploadingAsset(assetType);
@@ -128,6 +185,14 @@ export default function SettingsForm() {
 
       if (assetType === "catalog") {
         setForm((prev) => ({ ...prev, businessCatalogUrl: data.url, businessCatalogName: data.fileName }));
+      }
+
+      if (assetType === "paymentQr") {
+        setForm((prev) => ({ ...prev, paymentQrCodeUrl: data.url }));
+      }
+
+      if (assetType === "paymentSecondaryQr") {
+        setForm((prev) => ({ ...prev, paymentSecondaryQrCodeUrl: data.url }));
       }
 
       setMessage("อัปโหลดไฟล์เรียบร้อยแล้ว");
@@ -173,6 +238,53 @@ export default function SettingsForm() {
     }
   }
 
+  async function handleProductCatalogImport(file: File | null) {
+    if (!file) {
+      return;
+    }
+
+    setImportingCatalog(true);
+    setCatalogImportMessage("");
+    setCatalogImportError("");
+    setCatalogImportSummary(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/admin/product-catalog/import", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        const detailMessage = Array.isArray(data.details) && data.details.length > 0
+          ? `: ${data.details.slice(0, 3).join(" | ")}`
+          : "";
+        setCatalogImportError(
+          `${data.error || "นำเข้า product catalog ไม่สำเร็จ"}${detailMessage}`
+        );
+        return;
+      }
+
+      setCatalogImportSummary({
+        importedCount: Number(data.importedCount) || 0,
+        insertedCount: Number(data.insertedCount) || 0,
+        updatedCount: Number(data.updatedCount) || 0,
+        activeCount: Number(data.activeCount) || 0,
+        generatedValueCount: Number(data.generatedValueCount) || 0,
+      });
+      setCatalogImportMessage(
+        `นำเข้า catalog สำเร็จ ${Number(data.importedCount) || 0} รายการ`
+      );
+    } catch {
+      setCatalogImportError("นำเข้า product catalog ไม่สำเร็จ");
+    } finally {
+      setImportingCatalog(false);
+    }
+  }
+
   if (loading) {
     return <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500">กำลังโหลดการตั้งค่า...</div>;
   }
@@ -211,11 +323,161 @@ export default function SettingsForm() {
             <span>พร้อมเพย์ / PromptPay</span>
             <input value={form.paymentPromptPayId} onChange={(e) => updateField("paymentPromptPayId", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="เบอร์โทรหรือเลข PromptPay" />
           </label>
+          <label className="grid gap-2 text-sm text-slate-700">
+            <span>รูปแบบแสดงช่องทางชำระเงิน</span>
+            <select
+              value={form.paymentDisplayMode}
+              onChange={(e) => updateField("paymentDisplayMode", e.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
+            >
+              {PAYMENT_DISPLAY_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {PAYMENT_DISPLAY_MODE_LABELS[mode]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-2 text-sm text-slate-700 md:col-span-2">
+            <span>ข้อความใต้ QR Code</span>
+            <input value={form.paymentQrCodeLabel} onChange={(e) => updateField("paymentQrCodeLabel", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="เช่น สแกนเพื่อโอนเข้าบัญชีบริษัท หรือ PromptPay ร้าน" />
+          </label>
           <label className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>คำแนะนำการชำระเงินสำหรับลูกค้า</span>
             <textarea value={form.paymentInstructions} onChange={(e) => updateField("paymentInstructions", e.target.value)} rows={3} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="เช่น หลังโอนแล้วส่งสลิปกลับมาใน LINE แชตนี้" />
             <p className="text-xs text-slate-500">ข้อมูลชุดนี้จะไปแสดงในหน้าใบเสนอราคาและหน้าเอกสารดาวน์โหลดของลูกค้า</p>
           </label>
+          <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
+            <span>QR Code สำหรับชำระเงิน</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => handleAssetUpload("paymentQr", e.target.files?.[0] || null)} className="block text-sm" />
+              {uploadingAsset === "paymentQr" ? <span className="text-xs text-slate-500">กำลังอัปโหลด...</span> : null}
+              {form.paymentQrCodeUrl ? <a href={form.paymentQrCodeUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">เปิด QR Code</a> : null}
+            </div>
+            {form.paymentQrCodeUrl ? (
+              <Image
+                src={form.paymentQrCodeUrl}
+                alt="Payment QR Code"
+                width={192}
+                height={192}
+                unoptimized
+                className="mt-2 h-40 w-40 rounded-2xl border border-slate-200 bg-white object-contain p-2"
+              />
+            ) : null}
+            <p className="text-xs text-slate-500">ถ้าเลือกโหมด QR only แต่ยังไม่มี QR ระบบจะ fallback ไปใช้เลขบัญชีหรือ PromptPay ที่ตั้งไว้เพื่อไม่ให้ flow สะดุด</p>
+          </div>
+          <div className="md:col-span-2 rounded-[24px] border border-dashed border-slate-200 bg-slate-50/80 p-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <h3 className="text-sm font-semibold text-slate-900">บัญชีรอง / Auto-routing profile</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  ใช้สำหรับกรณีที่ระบบต้องเลือกช่องทางรับเงินอีกชุดโดยอัตโนมัติตามยอด quote หรือ payment term ที่ลูกค้าเลือกตั้งแต่ตอน intake
+                </p>
+              </div>
+              <label className="grid gap-2 text-sm text-slate-700">
+                <span>ธนาคารบัญชีรอง</span>
+                <input value={form.paymentSecondaryBankName} onChange={(e) => updateField("paymentSecondaryBankName", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="เช่น ธนาคารกรุงเทพ" />
+              </label>
+              <label className="grid gap-2 text-sm text-slate-700">
+                <span>ชื่อบัญชีรอง</span>
+                <input value={form.paymentSecondaryAccountName} onChange={(e) => updateField("paymentSecondaryAccountName", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="ชื่อบัญชีอีกบริษัท / บัญชีรอง" />
+              </label>
+              <label className="grid gap-2 text-sm text-slate-700">
+                <span>เลขบัญชีรอง</span>
+                <input value={form.paymentSecondaryAccountNumber} onChange={(e) => updateField("paymentSecondaryAccountNumber", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="xxx-x-xxxxx-x" />
+              </label>
+              <label className="grid gap-2 text-sm text-slate-700">
+                <span>PromptPay บัญชีรอง</span>
+                <input value={form.paymentSecondaryPromptPayId} onChange={(e) => updateField("paymentSecondaryPromptPayId", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="เบอร์หรือเลข PromptPay สำรอง" />
+              </label>
+              <label className="grid gap-2 text-sm text-slate-700">
+                <span>รูปแบบแสดงบัญชีรอง</span>
+                <select
+                  value={form.paymentSecondaryDisplayMode}
+                  onChange={(e) => updateField("paymentSecondaryDisplayMode", e.target.value)}
+                  className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
+                >
+                  {PAYMENT_DISPLAY_MODES.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {PAYMENT_DISPLAY_MODE_LABELS[mode]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm text-slate-700">
+                <span>ใช้บัญชีรองเมื่อยอด quote ไม่เกิน</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={form.paymentSecondaryMaxQuoteTotal ?? ""}
+                  onChange={(e) =>
+                    updateField(
+                      "paymentSecondaryMaxQuoteTotal",
+                      e.target.value ? Number.parseFloat(e.target.value) : null
+                    )
+                  }
+                  className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
+                  placeholder="เช่น 300"
+                />
+              </label>
+              <label className="grid gap-2 text-sm text-slate-700">
+                <span>ใช้บัญชีรองตาม payment term ที่ลูกค้าเลือก</span>
+                <select
+                  value={form.paymentSecondaryPaymentTermsScope}
+                  onChange={(e) => updateField("paymentSecondaryPaymentTermsScope", e.target.value)}
+                  className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
+                >
+                  {PAYMENT_ROUTING_TERM_SCOPES.map((scope) => (
+                    <option key={scope} value={scope}>
+                      {PAYMENT_ROUTING_TERM_SCOPE_LABELS[scope]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm text-slate-700">
+                <span>ใช้บัญชีรองตามประเภทลูกค้า</span>
+                <select
+                  value={form.paymentSecondaryCustomerScope}
+                  onChange={(e) => updateField("paymentSecondaryCustomerScope", e.target.value)}
+                  className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
+                >
+                  {PAYMENT_ROUTING_CUSTOMER_SCOPES.map((scope) => (
+                    <option key={scope} value={scope}>
+                      {PAYMENT_ROUTING_CUSTOMER_SCOPE_LABELS[scope]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm text-slate-700 md:col-span-2">
+                <span>คำแนะนำการชำระเงินของบัญชีรอง</span>
+                <textarea value={form.paymentSecondaryInstructions} onChange={(e) => updateField("paymentSecondaryInstructions", e.target.value)} rows={3} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="เช่น งานมูลค่าน้อยหรือ credit ให้ใช้บัญชีนี้และแนบหลักฐานตามขั้นตอนนี้" />
+              </label>
+              <label className="grid gap-2 text-sm text-slate-700 md:col-span-2">
+                <span>ข้อความใต้ QR Code ของบัญชีรอง</span>
+                <input value={form.paymentSecondaryQrCodeLabel} onChange={(e) => updateField("paymentSecondaryQrCodeLabel", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="เช่น สแกนเพื่อโอนเข้าบัญชีรอง" />
+              </label>
+              <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
+                <span>QR Code ของบัญชีรอง</span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => handleAssetUpload("paymentSecondaryQr", e.target.files?.[0] || null)} className="block text-sm" />
+                  {uploadingAsset === "paymentSecondaryQr" ? <span className="text-xs text-slate-500">กำลังอัปโหลด...</span> : null}
+                  {form.paymentSecondaryQrCodeUrl ? <a href={form.paymentSecondaryQrCodeUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">เปิด QR บัญชีรอง</a> : null}
+                </div>
+                {form.paymentSecondaryQrCodeUrl ? (
+                  <Image
+                    src={form.paymentSecondaryQrCodeUrl}
+                    alt="Secondary Payment QR Code"
+                    width={192}
+                    height={192}
+                    unoptimized
+                    className="mt-2 h-40 w-40 rounded-2xl border border-slate-200 bg-white object-contain p-2"
+                  />
+                ) : null}
+                <p className="text-xs text-slate-500">
+                  ระบบจะเลือกบัญชีรองอัตโนมัติเมื่อเข้าเงื่อนไขข้อใดข้อหนึ่งที่ตั้งไว้ และถ้าบัญชีรองยังไม่ครบ ระบบจะถอยกลับไปใช้บัญชีหลักโดยอัตโนมัติเพื่อไม่ให้ quote พัง
+                </p>
+              </div>
+            </div>
+          </div>
           <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>โลโก้ร้าน</span>
             <div className="flex flex-wrap items-center gap-3">
@@ -261,11 +523,37 @@ export default function SettingsForm() {
         <div className="mt-5 grid gap-4">
           <label className="grid gap-2 text-sm text-slate-700">
             <span>LINE Channel Access Token</span>
-            <textarea value={form.lineChannelAccessToken} onChange={(e) => updateField("lineChannelAccessToken", e.target.value)} rows={3} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="ใส่ค่าจาก Messaging API" />
+            <textarea
+              value={form.lineChannelAccessToken}
+              onChange={(e) => updateField("lineChannelAccessToken", e.target.value)}
+              rows={3}
+              className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
+              placeholder={form.hasLineChannelAccessToken ? "มี token ถูกบันทึกไว้แล้ว, กรอกใหม่เมื่อต้องการเปลี่ยน" : "ใส่ค่าจาก Messaging API"}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <p className="text-xs text-slate-500">
+              {form.hasLineChannelAccessToken
+                ? "ระบบมี token อยู่แล้ว ถ้าปล่อยว่างจะเก็บค่าปัจจุบันไว้ และจะไม่ preload กลับมาในเบราว์เซอร์"
+                : "ค่านี้จะไม่ถูก preload กลับมาในเบราว์เซอร์เพื่อความปลอดภัย"}
+            </p>
           </label>
           <label className="grid gap-2 text-sm text-slate-700">
             <span>LINE Channel Secret</span>
-            <input type="password" value={form.lineChannelSecret} onChange={(e) => updateField("lineChannelSecret", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="ใส่ค่าจาก Messaging API" />
+            <input
+              type="password"
+              value={form.lineChannelSecret}
+              onChange={(e) => updateField("lineChannelSecret", e.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
+              placeholder={form.hasLineChannelSecret ? "มี secret ถูกบันทึกไว้แล้ว, กรอกใหม่เมื่อต้องการเปลี่ยน" : "ใส่ค่าจาก Messaging API"}
+              autoComplete="new-password"
+              spellCheck={false}
+            />
+            <p className="text-xs text-slate-500">
+              {form.hasLineChannelSecret
+                ? "ระบบมี secret อยู่แล้ว ถ้าปล่อยว่างจะเก็บค่าปัจจุบันไว้ และจะไม่ preload กลับมาในเบราว์เซอร์"
+                : "ค่านี้จะไม่ถูก preload กลับมาในเบราว์เซอร์เพื่อความปลอดภัย"}
+            </p>
           </label>
           <label className="grid gap-2 text-sm text-slate-700">
             <span>LIFF ID / MINI App ID</span>
@@ -275,6 +563,92 @@ export default function SettingsForm() {
             <span>Base URL ของระบบ</span>
             <input value={form.baseUrl} onChange={(e) => updateField("baseUrl", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="https://your-app.vercel.app" />
           </label>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-950">Product Catalog Runtime</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          ใช้ CSV ชุดเดียวสำหรับ bulk import รายการสินค้าเข้าระบบ เพื่อให้ LIFF intake และ quote flow ใช้ catalog runtime
+          ได้โดยไม่ต้องให้ผู้ใช้มานั่งกรอกสินค้าเป็นร้อยหรือเป็นพันรายการเอง
+        </p>
+
+        <div className="mt-5 rounded-[24px] border border-dashed border-slate-200 bg-slate-50/80 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="max-w-2xl">
+              <p className="text-sm font-semibold text-slate-900">CSV import สำหรับสินค้า</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                รองรับคอลัมน์ `value`, `label`, `category`, `category_label`, `description`, `keywords`,
+                `per_sqm`, `min_charge`, `active`, `sort_order` และถ้าไม่ใส่ `value` ระบบจะ generate slug ให้เอง
+              </p>
+            </div>
+
+            <a
+              href="/templates/product-catalog-template.csv"
+              download
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+            >
+              ดาวน์โหลด template CSV
+            </a>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(event) => {
+                void handleProductCatalogImport(event.target.files?.[0] || null);
+                event.currentTarget.value = "";
+              }}
+              className="block text-sm"
+            />
+            {importingCatalog ? (
+              <span className="text-xs text-slate-500">กำลังนำเข้า CSV...</span>
+            ) : null}
+          </div>
+
+          {catalogImportMessage ? (
+            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {catalogImportMessage}
+            </div>
+          ) : null}
+
+          {catalogImportError ? (
+            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {catalogImportError}
+            </div>
+          ) : null}
+
+          {catalogImportSummary ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Imported</p>
+                <p className="mt-2 text-lg font-semibold text-slate-950">{catalogImportSummary.importedCount}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Inserted</p>
+                <p className="mt-2 text-lg font-semibold text-slate-950">{catalogImportSummary.insertedCount}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Updated</p>
+                <p className="mt-2 text-lg font-semibold text-slate-950">{catalogImportSummary.updatedCount}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Active</p>
+                <p className="mt-2 text-lg font-semibold text-slate-950">{catalogImportSummary.activeCount}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Generated Keys</p>
+                <p className="mt-2 text-lg font-semibold text-slate-950">{catalogImportSummary.generatedValueCount}</p>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-4 space-y-1 text-xs leading-5 text-slate-500">
+            <p>1. ดาวน์โหลด template แล้วเติมรายการสินค้าเป็นชุด</p>
+            <p>2. import ผ่านกล่องนี้จากหลังบ้าน</p>
+            <p>3. LIFF intake จะอ่าน catalog runtime ชุดล่าสุดโดยอัตโนมัติ ถ้า database ยังว่างระบบจะ fallback ไป catalog มาตรฐาน</p>
+          </div>
         </div>
       </section>
 
@@ -399,7 +773,7 @@ export default function SettingsForm() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-slate-500">
-          {form.updatedAt ? `อัปเดตล่าสุด ${new Date(form.updatedAt).toLocaleString("th-TH")}` : "ยังไม่มีการบันทึกค่าจากหน้า settings"}
+          {form.updatedAt ? `อัปเดตล่าสุด ${formatBangkokDateTime(form.updatedAt)}` : "ยังไม่มีการบันทึกค่าจากหน้า settings"}
         </p>
         <button type="submit" disabled={saving} className="rounded-full bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#16213e] disabled:opacity-50">
           {saving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}

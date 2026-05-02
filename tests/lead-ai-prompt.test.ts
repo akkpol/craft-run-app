@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   composeLeadAiPrompt,
-  getLeadAiDisplayPrompt,
   getLeadDesignRoutingSummary,
+  getLeadAiDisplayPrompt,
   hasLeadAiPromptContext,
   hasLeadAiSeedPrompt,
   prepareLeadAiPrompt,
