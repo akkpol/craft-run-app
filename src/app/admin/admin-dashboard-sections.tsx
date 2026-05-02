@@ -1717,7 +1717,14 @@ export function DesignQueueTable({ leads }: { leads: SnapshotLead[] }) {
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="flex min-w-36 items-start gap-3">
                       {previewImageUrl ? (
-                        <a href={previewImageUrl} target="_blank" rel="noreferrer" className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                        <a
+                          href={previewImageUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label="เปิด preview ของ lead ในแท็บใหม่"
+                          title="เปิด preview ของ lead ในแท็บใหม่"
+                          className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+                        >
                           <Image src={previewImageUrl} alt="Lead preview" width={56} height={56} unoptimized className="h-14 w-14 object-cover" />
                         </a>
                       ) : null}

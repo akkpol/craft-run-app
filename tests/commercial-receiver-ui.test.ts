@@ -39,6 +39,22 @@ test("getCommercialReceiverWarnings warns when tax profile is missing for tax in
   assert.equal(warnings.some((warning) => warning.message.includes("customer tax profile")), true);
 });
 
+test("getCommercialReceiverWarnings keeps missing receiver as the primary warning", () => {
+  const warnings = getCommercialReceiverWarnings({
+    selectedEntity: null,
+    requestedDocumentType: "tax_invoice",
+    customerTaxProfileId: null,
+    paymentReceiverLockedAt: null,
+  });
+
+  assert.deepEqual(warnings, [
+    {
+      tone: "warning",
+      message: "ยังไม่ได้เลือกผู้รับเงินก่อนยืนยัน payment",
+    },
+  ]);
+});
+
 test("getCommercialReceiverWarnings reports readiness for VAT receiver with tax profile", () => {
   const warnings = getCommercialReceiverWarnings({
     selectedEntity: vatEntity,
@@ -48,5 +64,10 @@ test("getCommercialReceiverWarnings reports readiness for VAT receiver with tax 
   });
 
   assert.equal(warnings.some((warning) => warning.tone === "success"), true);
-  assert.equal(warnings.some((warning) => warning.message.includes("ล็อกผู้รับเงินแล้ว")), true);
+  assert.equal(
+    warnings.some(
+      (warning) => warning.tone === "info" && warning.message.includes("ล็อกผู้รับเงินแล้ว")
+    ),
+    true
+  );
 });

@@ -42,7 +42,7 @@ export function getCommercialReceiverWarnings(input: {
 
   if (input.paymentReceiverLockedAt) {
     warnings.push({
-      tone: "success",
+      tone: "info",
       message: "ล็อกผู้รับเงินแล้ว เอกสารหลังรับเงินต้องออกในชื่อ entity นี้เท่านั้น",
     });
   }

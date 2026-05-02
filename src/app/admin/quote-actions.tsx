@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ComponentProps } from "react";
+import { useId, useState, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
 import {
   PAYMENT_STATUS_LABELS,
@@ -48,6 +48,15 @@ function receiverWarningClass(warning: CommercialReceiverWarning) {
   );
 }
 
+function receiverStatusClass(tone: "missing" | "selected" | "locked") {
+  return cn(
+    "max-w-52 truncate rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none",
+    tone === "missing" && "border-amber-200 bg-amber-50 text-amber-800",
+    tone === "selected" && "border-sky-200 bg-sky-50 text-sky-800",
+    tone === "locked" && "border-slate-300 bg-slate-100 text-slate-700"
+  );
+}
+
 export default function AdminQuoteActions({
   quoteId,
   publicToken,
@@ -71,11 +80,12 @@ export default function AdminQuoteActions({
   >(null);
   const [paymentTermsDraft, setPaymentTermsDraft] = useState(paymentTerms);
   const [paymentStatusDraft, setPaymentStatusDraft] = useState(paymentStatus);
-  const activeReceiverEntities = commercialReceiverEntities.filter((entity) => entity.active);
   const [receiverEntityIdDraft, setReceiverEntityIdDraft] = useState(
-    commercialOrder?.selectedReceiverEntityId || activeReceiverEntities[0]?.id || ""
+    commercialOrder?.selectedReceiverEntityId || ""
   );
   const [note, setNote] = useState("");
+  const paymentTermsSelectId = useId();
+  const paymentStatusSelectId = useId();
   const router = useRouter();
 
   const selectedReceiverEntity =
@@ -114,9 +124,7 @@ export default function AdminQuoteActions({
     setPanel(nextPanel);
     setPaymentTermsDraft(paymentTerms);
     setPaymentStatusDraft(paymentStatus);
-    setReceiverEntityIdDraft(
-      commercialOrder?.selectedReceiverEntityId || activeReceiverEntities[0]?.id || ""
-    );
+    setReceiverEntityIdDraft(commercialOrder?.selectedReceiverEntityId || "");
 
     if (nextPanel === "rescope") {
       setNote("ลูกค้าขอปรับรายละเอียดและออกใบเสนอราคาใหม่");
@@ -251,6 +259,20 @@ export default function AdminQuoteActions({
   const canShowReceiverAction =
     commercialReceiverEntities.length > 0 &&
     (receiverLocked || (!hasJob && (quoteStatus === "sent" || quoteStatus === "approved")));
+  const receiverStatusTone = receiverLocked
+    ? "locked"
+    : commercialOrder?.selectedReceiverEntityId
+      ? "selected"
+      : "missing";
+  const receiverStatusLabel = receiverLocked
+    ? `ล็อก: ${getCommercialReceiverLabel(savedReceiverEntity)}`
+    : commercialOrder?.selectedReceiverEntityId
+      ? `ผู้รับเงิน: ${getCommercialReceiverLabel(savedReceiverEntity)}`
+      : "ยังไม่เลือกผู้รับเงิน";
+  const effectiveButtonLabel =
+    canShowReceiverAction && receiverStatusTone === "missing"
+      ? "เลือกผู้รับเงิน"
+      : buttonLabel;
 
   const actions = [
     canShowReceiverAction
@@ -304,14 +326,21 @@ export default function AdminQuoteActions({
 
   return (
     <>
-      <AdminActionMenu
-        actions={actions}
-        onSelect={(key) => openPanel(key as typeof panel)}
-        disabled={loading}
-        compact
-        label={buttonLabel}
-        buttonVariant={buttonVariant}
-      />
+      <div className="inline-flex flex-col items-end gap-1.5">
+        {canShowReceiverAction ? (
+          <span className={receiverStatusClass(receiverStatusTone)} title={receiverStatusLabel}>
+            {receiverStatusLabel}
+          </span>
+        ) : null}
+        <AdminActionMenu
+          actions={actions}
+          onSelect={(key) => openPanel(key as typeof panel)}
+          disabled={loading}
+          compact
+          label={effectiveButtonLabel}
+          buttonVariant={buttonVariant}
+        />
+      </div>
 
       <AdminActionSheet
         open={panel === "commercial"}
@@ -336,8 +365,9 @@ export default function AdminQuoteActions({
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-800">เงื่อนไขชำระเงิน</label>
+            <label htmlFor={paymentTermsSelectId} className="mb-2 block text-sm font-medium text-slate-800">เงื่อนไขชำระเงิน</label>
             <select
+              id={paymentTermsSelectId}
               value={paymentTermsDraft}
               onChange={(event) => setPaymentTermsDraft(event.target.value as PaymentTerm)}
               className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
@@ -351,8 +381,9 @@ export default function AdminQuoteActions({
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-800">สถานะชำระเงิน</label>
+            <label htmlFor={paymentStatusSelectId} className="mb-2 block text-sm font-medium text-slate-800">สถานะชำระเงิน</label>
             <select
+              id={paymentStatusSelectId}
               value={paymentStatusDraft}
               onChange={(event) =>
                 setPaymentStatusDraft(event.target.value as Props["paymentStatus"])
@@ -439,8 +470,17 @@ export default function AdminQuoteActions({
             ปัจจุบัน: {getCommercialReceiverLabel(savedReceiverEntity)}
           </div>
 
+          <div className="space-y-2" aria-live="polite">
+            <p className="text-sm font-medium text-slate-800">ผลต่อเอกสารหลังรับเงิน</p>
+            {receiverWarnings.map((warning) => (
+              <div key={warning.message} className={receiverWarningClass(warning)}>
+                {warning.message}
+              </div>
+            ))}
+          </div>
+
           <div className="space-y-2">
-            <p className="text-sm font-medium text-slate-800">Receiver entity</p>
+            <p className="text-sm font-medium text-slate-800">ผู้รับเงิน</p>
             {commercialReceiverEntities.map((entity) => {
               const selected = receiverEntityIdDraft === entity.id;
               return (
@@ -460,23 +500,15 @@ export default function AdminQuoteActions({
                   <span>
                     <span className="block text-sm font-semibold">{entity.displayName}</span>
                     <span className="mt-1 block text-xs leading-5 text-slate-500">
-                      {entity.legalName} · {entity.role} · {entity.isVatRegistered ? "VAT" : "Non-VAT"}
+                      {entity.legalName} · {entity.role} · {entity.isVatRegistered ? "จด VAT" : "ไม่จด VAT"}
                     </span>
                   </span>
                   <span className="mt-0.5 rounded-full border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-500">
-                    {entity.active ? "active" : "inactive"}
+                    {entity.active ? "เปิดใช้งาน" : "ปิดใช้งาน"}
                   </span>
                 </button>
               );
             })}
-          </div>
-
-          <div className="space-y-2">
-            {receiverWarnings.map((warning) => (
-              <div key={warning.message} className={receiverWarningClass(warning)}>
-                {warning.message}
-              </div>
-            ))}
           </div>
         </div>
       </AdminActionSheet>
