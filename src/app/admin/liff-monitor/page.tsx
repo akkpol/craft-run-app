@@ -50,6 +50,10 @@ function formatDateTime(value: string | null | undefined) {
   return formatBangkokDateTime(value);
 }
 
+function getSince24hIsoString() {
+  return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+}
+
 function getStageLabel(stage: string | null | undefined) {
   switch (stage) {
     case "sdk_load_timeout":
@@ -92,7 +96,7 @@ function getStageVariant(stage: string | null | undefined): "success" | "warning
 
 export default async function AdminLiffMonitorPage() {
   const supabase = createAdminClient();
-  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const since24h = getSince24hIsoString();
 
   const [{ data: incidents }, { data: customers }, { data: leads }] = await Promise.all([
     supabase
