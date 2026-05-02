@@ -929,6 +929,9 @@ export function OverviewCombinedQueueTable({
                             paymentTerms={row.paymentTerms}
                             paymentStatus={row.paymentStatus}
                             hasJob={row.hasJob}
+                            requestedDocumentType={row.documentRequestType}
+                            commercialOrder={row.commercialOrder}
+                            commercialReceiverEntities={overview.commercialReceiverEntities}
                             buttonVariant="default"
                             buttonLabel={getQuoteActionLabel(
                               row.quoteStatus,
@@ -1361,6 +1364,9 @@ export function AdminStuckQueueContent({
                       paymentTerms={quote.payment_terms}
                       paymentStatus={quote.payment_status}
                       hasJob={Array.isArray(quote.jobs) && quote.jobs.length > 0}
+                      requestedDocumentType={quote.leads?.requested_document_type || null}
+                      commercialOrder={quote.commercialOrder || null}
+                      commercialReceiverEntities={snapshot.commercialReceiverEntities}
                     />
                   </div>
                 }
@@ -1431,6 +1437,9 @@ export function AdminStuckQueueContent({
                             paymentTerms={quote.payment_terms}
                             paymentStatus={quote.payment_status}
                             hasJob={Array.isArray(quote.jobs) && quote.jobs.length > 0}
+                            requestedDocumentType={quote.leads?.requested_document_type || null}
+                            commercialOrder={quote.commercialOrder || null}
+                            commercialReceiverEntities={snapshot.commercialReceiverEntities}
                           />
                         </div>
                       </td>
@@ -1927,7 +1936,15 @@ export function ProductionJobsTable({ jobs, baseUrl }: { jobs: SnapshotJob[]; ba
   );
 }
 
-export function SalesQuotesTable({ quotes, baseUrl }: { quotes: SnapshotQuote[]; baseUrl: string }) {
+export function SalesQuotesTable({
+  quotes,
+  baseUrl,
+  commercialReceiverEntities = [],
+}: {
+  quotes: SnapshotQuote[];
+  baseUrl: string;
+  commercialReceiverEntities?: BackofficeSnapshot["commercialReceiverEntities"];
+}) {
   return (
     <AdminOperationalTable
       columns={["ลูกค้า", "งาน", "สถานะ quote", "การเงิน", "สัญญาณ", "Actions"]}
@@ -1984,6 +2001,9 @@ export function SalesQuotesTable({ quotes, baseUrl }: { quotes: SnapshotQuote[];
                         paymentTerms={quote.payment_terms}
                         paymentStatus={quote.payment_status}
                         hasJob={hasJob}
+                        requestedDocumentType={quote.leads?.requested_document_type || null}
+                        commercialOrder={quote.commercialOrder || null}
+                        commercialReceiverEntities={commercialReceiverEntities}
                       />
                     </div>
                   </TableCell>
@@ -2064,9 +2084,11 @@ export function SalesLeadsTable({ leads }: { leads: SnapshotLead[] }) {
 export function OverviewSalesSnapshotTable({
   quotes,
   baseUrl,
+  commercialReceiverEntities = [],
 }: {
   quotes: SnapshotQuote[];
   baseUrl: string;
+  commercialReceiverEntities?: BackofficeSnapshot["commercialReceiverEntities"];
 }) {
   return (
     <AdminOperationalTable
@@ -2104,6 +2126,9 @@ export function OverviewSalesSnapshotTable({
                         paymentTerms={quote.payment_terms}
                         paymentStatus={quote.payment_status}
                         hasJob={hasJob}
+                        requestedDocumentType={quote.leads?.requested_document_type || null}
+                        commercialOrder={quote.commercialOrder || null}
+                        commercialReceiverEntities={commercialReceiverEntities}
                       />
                     </div>
                   </TableCell>

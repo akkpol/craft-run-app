@@ -7,6 +7,11 @@ import {
   clampOverviewPage,
   paginateOverviewRows,
 } from "./admin-overview-pagination";
+import { fetchCommercialAdminContextForQuoteIds } from "./commercial-admin-context";
+import type {
+  CommercialOrderReceiverState,
+  CommercialReceiverEntityOption,
+} from "./commercial-receiver-ui";
 import type {
   JobStatus,
   PaymentStatus,
@@ -102,6 +107,7 @@ export type AdminOverviewRow =
       paymentTerms: PaymentTerm;
       paymentStatus: PaymentStatus;
       hasJob: boolean;
+      commercialOrder: CommercialOrderReceiverState | null;
     })
   | (BaseOverviewRow & {
       kind: "production-review";
@@ -145,6 +151,7 @@ export type AdminOverviewPage = {
   totalPages: number;
   counts: OverviewCounts;
   rows: AdminOverviewRow[];
+  commercialReceiverEntities: CommercialReceiverEntityOption[];
 };
 
 function rangeEnd(offset: number, limit: number) {
@@ -591,7 +598,30 @@ function buildQuoteRows(quotes: SnapshotQuote[]): AdminOverviewRow[] {
     paymentTerms: quote.payment_terms,
     paymentStatus: quote.payment_status,
     hasJob: Array.isArray(quote.jobs) && quote.jobs.length > 0,
+    commercialOrder: quote.commercialOrder || null,
   }));
+}
+
+async function attachCommercialOrderContext(
+  rows: AdminOverviewRow[]
+): Promise<{
+  rows: AdminOverviewRow[];
+  commercialReceiverEntities: CommercialReceiverEntityOption[];
+}> {
+  const quoteIds = rows.flatMap((row) => (row.kind === "quote" ? [row.quoteId] : []));
+  const context = await fetchCommercialAdminContextForQuoteIds(quoteIds);
+
+  return {
+    commercialReceiverEntities: context.receiverEntities,
+    rows: rows.map((row) =>
+      row.kind === "quote"
+        ? {
+            ...row,
+            commercialOrder: context.orderByQuoteId[row.quoteId] || null,
+          }
+        : row
+    ),
+  };
 }
 
 function buildProductionReviewRows(
@@ -778,6 +808,7 @@ export async function fetchAdminOverviewPage(input: {
   const totalCount = input.filter === "all" ? counts.all : counts[input.filter];
   const page = clampOverviewPage(input.page, totalCount, pageSize);
   const rows = await fetchRowsForFilter(input.filter, page, pageSize, input.baseUrl);
+  const commercialContext = await attachCommercialOrderContext(rows);
 
   return {
     filter: input.filter,
@@ -786,6 +817,7 @@ export async function fetchAdminOverviewPage(input: {
     totalCount,
     totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
     counts,
-    rows,
+    rows: commercialContext.rows,
+    commercialReceiverEntities: commercialContext.commercialReceiverEntities,
   };
 }

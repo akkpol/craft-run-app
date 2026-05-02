@@ -111,7 +111,7 @@ TaskDescriptionCompletedDateTASK-004Implement receiver selection validation befo
 
 ### Phase 3 - UI And Documents
 
-TaskDescriptionCompletedDateTASK-008Add admin UI for receiver/entity selection and blocked tax-invoice warnings.TASK-009Add LIFF/customer tax-document data validation aligned to policy v1.TASK-010Add printable/downloadable commercial document surfaces using locked snapshots.
+TaskDescriptionCompletedDateTASK-008Add admin UI for receiver/entity selection and blocked tax-invoice warnings.Yes2026-05-02TASK-009Add LIFF/customer tax-document data validation aligned to policy v1.TASK-010Add printable/downloadable commercial document surfaces using locked snapshots.
 
 ### Phase 4 - Audit And Tests
 
@@ -135,4 +135,6 @@ Current slice (2026-05-02)
 - Added additive core migration: `supabase/migrations/20260502113000_add_commercial_document_core.sql`
 - Added tables: `commercial_entities`, `customer_tax_profiles`, `commercial_orders`, `payments`, `commercial_documents`, `document_number_sequences`
 - Added receiver-selection API: `src/app/api/commercial/select-receiver/route.ts`
+- Added admin receiver/entity selection UI and blocked tax-invoice warnings in quote action surfaces.
+- Extended receiver selection to lazily create a `commercial_orders` anchor from `quoteId` when needed.
 - Existing workflow/payment routes were intentionally left unchanged in this slice.

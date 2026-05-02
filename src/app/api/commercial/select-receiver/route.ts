@@ -2,12 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { logHumanAction } from "@/lib/action-log";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { firstRow } from "@/lib/utils";
 
 type SelectReceiverBody = {
   orderId?: string;
+  quoteId?: string;
   receiverEntityId?: string;
   order_id?: string;
+  quote_id?: string;
   receiver_entity_id?: string;
+};
+
+type CommercialOrderRow = {
+  id: string;
+  quote_id: string;
+  selected_receiver_entity_id: string | null;
+  payment_receiver_locked_at: string | null;
+};
+
+type QuoteOrderAnchorRow = {
+  id: string;
+  lead_id: string;
+  leads?: { customer_id: string | null } | Array<{ customer_id: string | null }> | null;
 };
 
 export async function POST(request: NextRequest) {
@@ -19,29 +35,97 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const orderId = body.orderId || body.order_id;
+  const requestedOrderId = body.orderId || body.order_id;
+  const quoteId = body.quoteId || body.quote_id;
   const receiverEntityId = body.receiverEntityId || body.receiver_entity_id;
 
-  if (!orderId || !receiverEntityId) {
+  if ((!requestedOrderId && !quoteId) || !receiverEntityId) {
     return NextResponse.json(
-      { error: "orderId and receiverEntityId are required" },
+      { error: "orderId or quoteId, and receiverEntityId are required" },
       { status: 400 }
     );
   }
 
   const supabase = createAdminClient();
 
-  const { data: order, error: orderError } = await supabase
-    .from("commercial_orders")
-    .select("id, quote_id, selected_receiver_entity_id, payment_receiver_locked_at")
-    .eq("id", orderId)
-    .maybeSingle();
+  let order: CommercialOrderRow | null = null;
+  let orderError: { message?: string } | null = null;
+
+  if (requestedOrderId) {
+    const result = await supabase
+      .from("commercial_orders")
+      .select("id, quote_id, selected_receiver_entity_id, payment_receiver_locked_at")
+      .eq("id", requestedOrderId)
+      .maybeSingle();
+    order = result.data as CommercialOrderRow | null;
+    orderError = result.error;
+  }
+
+  if (!order && quoteId) {
+    const result = await supabase
+      .from("commercial_orders")
+      .select("id, quote_id, selected_receiver_entity_id, payment_receiver_locked_at")
+      .eq("quote_id", quoteId)
+      .maybeSingle();
+    order = result.data as CommercialOrderRow | null;
+    orderError = result.error;
+  }
 
   if (orderError) {
     return NextResponse.json(
       { error: orderError.message || "Failed to read commercial order" },
       { status: 500 }
     );
+  }
+
+  if (!order && requestedOrderId && !quoteId) {
+    return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+
+  if (!order && quoteId) {
+    const { data: quote, error: quoteError } = await supabase
+      .from("quotes")
+      .select("id, lead_id, leads(customer_id)")
+      .eq("id", quoteId)
+      .maybeSingle();
+
+    if (quoteError) {
+      return NextResponse.json(
+        { error: quoteError.message || "Failed to read quote" },
+        { status: 500 }
+      );
+    }
+
+    const quoteRow = quote as QuoteOrderAnchorRow | null;
+    const lead = firstRow(quoteRow?.leads);
+
+    if (!quoteRow || !lead?.customer_id) {
+      return NextResponse.json(
+        { error: "Quote cannot create commercial order anchor" },
+        { status: 404 }
+      );
+    }
+
+    const now = new Date().toISOString();
+    const { data: insertedOrder, error: insertError } = await supabase
+      .from("commercial_orders")
+      .insert({
+        quote_id: quoteRow.id,
+        lead_id: quoteRow.lead_id,
+        customer_id: lead.customer_id,
+        updated_at: now,
+      })
+      .select("id, quote_id, selected_receiver_entity_id, payment_receiver_locked_at")
+      .single();
+
+    if (insertError) {
+      return NextResponse.json(
+        { error: insertError.message || "Failed to create commercial order anchor" },
+        { status: 500 }
+      );
+    }
+
+    order = insertedOrder as CommercialOrderRow;
   }
 
   if (!order) {
@@ -82,7 +166,7 @@ export async function POST(request: NextRequest) {
   const { data: confirmedPayment, error: paymentError } = await supabase
     .from("payments")
     .select("id")
-    .eq("order_id", orderId)
+    .eq("order_id", order.id)
     .eq("status", "CONFIRMED")
     .limit(1)
     .maybeSingle();
@@ -108,7 +192,7 @@ export async function POST(request: NextRequest) {
       selected_receiver_entity_id: receiverEntityId,
       updated_at: now,
     })
-    .eq("id", orderId);
+    .eq("id", order.id);
 
   if (updateError) {
     return NextResponse.json(
@@ -123,7 +207,7 @@ export async function POST(request: NextRequest) {
     actionType: "commercial.receiver_selected",
     actorLabel: "Admin",
     payload: {
-      order_id: orderId,
+      order_id: order.id,
       receiver_entity_id: receiverEntityId,
       previous_receiver_entity_id: order.selected_receiver_entity_id || null,
     },
@@ -131,7 +215,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    orderId,
+    orderId: order.id,
     receiverEntityId,
   });
 }

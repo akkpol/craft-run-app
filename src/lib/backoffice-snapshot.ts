@@ -11,6 +11,11 @@ import {
   signLeadMediaAssetPaths,
   type LeadMediaAssetRow,
 } from "@/lib/customer-media";
+import {
+  fetchCommercialAdminContextForQuoteIds,
+  type CommercialAdminContext,
+} from "@/lib/commercial-admin-context";
+import type { CommercialOrderReceiverState } from "@/lib/commercial-receiver-ui";
 
 export type SnapshotCustomer = {
   display_name: string | null;
@@ -95,6 +100,7 @@ export type SnapshotQuote = {
     line_total: number;
   }> | null;
   jobs?: SnapshotQuoteJobRef[] | null;
+  commercialOrder?: CommercialOrderReceiverState | null;
 };
 
 export type SnapshotProductionLink = {
@@ -183,6 +189,7 @@ export type SnapshotEscalation = {
 export type BackofficeSnapshot = {
   leads: SnapshotLead[];
   quotes: SnapshotQuote[];
+  commercialReceiverEntities: CommercialAdminContext["receiverEntities"];
   jobs: SnapshotJob[];
   productionReviewQueue: SnapshotProductionEvent[];
   escalations: SnapshotEscalation[];
@@ -281,6 +288,13 @@ export async function fetchBackofficeSnapshot(): Promise<BackofficeSnapshot> {
       })()
     : ((leadsRes.data || []) as SnapshotLead[]);
   const quotes = (quotesRes.data || []) as SnapshotQuote[];
+  const commercialContext = await fetchCommercialAdminContextForQuoteIds(
+    quotes.map((quote) => quote.id)
+  );
+  const hydratedQuotes = quotes.map((quote) => ({
+    ...quote,
+    commercialOrder: commercialContext.orderByQuoteId[quote.id] || null,
+  }));
   let jobs = (jobsRes.data || []) as SnapshotJob[];
   if (jobsRes.error) {
     const fallbackJobsRes = await supabase
@@ -374,7 +388,8 @@ export async function fetchBackofficeSnapshot(): Promise<BackofficeSnapshot> {
 
   return {
     leads: hydratedLeads,
-    quotes,
+    quotes: hydratedQuotes,
+    commercialReceiverEntities: commercialContext.receiverEntities,
     jobs,
     productionReviewQueue: hydratedProductionReviewQueue,
     escalations,
