@@ -70,6 +70,51 @@ function isOnCustomerHold(bundle = {}) {
   );
 }
 
+function isPaymentCleared(bundle = {}) {
+  if (typeof bundle.payment_cleared === "boolean") {
+    return bundle.payment_cleared;
+  }
+
+  return paymentUnlocksProduction(bundle.payment_terms, bundle.payment_status);
+}
+
+function requiresCommercialDocument(bundle = {}) {
+  return Boolean(bundle.required_document_type) && bundle.required_document_type !== "quote";
+}
+
+function isCommercialGateSatisfied(bundle = {}) {
+  if (bundle.commercial_gate_status === "ready" || bundle.commercial_gate_status === "not_required") {
+    return true;
+  }
+
+  if (bundle.commercial_gate_status === "pending" || bundle.commercial_gate_status === "blocked") {
+    return false;
+  }
+
+  if (bundle.commercial_review_required) {
+    return false;
+  }
+
+  if (!requiresCommercialDocument(bundle)) {
+    return true;
+  }
+
+  return bundle.required_document_issued === true;
+}
+
+function isCommercialGatePending(bundle = {}) {
+  if (isCommercialGateSatisfied(bundle)) {
+    return false;
+  }
+
+  return (
+    bundle.commercial_review_required === true ||
+    requiresCommercialDocument(bundle) ||
+    bundle.commercial_gate_status === "pending" ||
+    bundle.commercial_gate_status === "blocked"
+  );
+}
+
 function getWorkflowSummary() {
   const policy = loadWorkflowPolicy();
 
@@ -108,6 +153,10 @@ function getQuotePageActions(bundle = {}) {
     allowedActions.push(...quotePolicy.paymentGateCtas);
     recommendedCtas = cloneArray(quotePolicy.paymentGateCtas);
     uiIntent = policy.policies.reasons.paymentGate;
+  } else if (bundle.quote_status === "approved" && isCommercialGatePending(bundle)) {
+    allowedActions.push(...cloneArray(quotePolicy.commercialGateCtas));
+    recommendedCtas = cloneArray(quotePolicy.commercialGateCtas);
+    uiIntent = policy.policies.reasons.commercialGate;
   } else if (
     cloneArray(quotePolicy.decisionWindowStatuses).includes(bundle.quote_status)
   ) {
@@ -129,6 +178,10 @@ function getQuotePageActions(bundle = {}) {
     (action) => {
       if (isWaitingPaymentBundle(bundle) && action === "approve_quote") {
         return policy.policies.reasons.paymentGate;
+      }
+
+      if (bundle.quote_status === "approved" && isCommercialGatePending(bundle)) {
+        return policy.policies.reasons.commercialGate;
       }
 
       if (isClosedQuoteStatus(bundle.quote_status)) {
@@ -177,6 +230,8 @@ function getStatusPageActions(bundle = {}) {
       "contact_admin",
     ];
     uiIntent = policy.policies.reasons.holdResolution;
+  } else if (isCommercialGatePending(bundle)) {
+    uiIntent = policy.policies.reasons.commercialGate;
   }
 
   const blockedActions = buildBlockedActions(
@@ -219,14 +274,40 @@ function getStatusPageActions(bundle = {}) {
 
 function getAdminDashboardActions() {
   const policy = loadWorkflowPolicy();
-  const baseAllowedActions =
+  const adminPolicy =
     policy.policies.surfacePolicies.admin_dashboard.admin.baseAllowedActions;
+  const commercialGateActions =
+    policy.policies.surfacePolicies.admin_dashboard.admin.commercialGateActions;
+  const bundle = arguments[0] || {};
+  let allowedActions = cloneArray(adminPolicy);
+  let recommendedCtas = cloneArray(adminPolicy);
+  let uiIntent = "admin can drive quote, payment, design, and job operations";
+
+  if (bundle.commercial_review_required || (isPaymentCleared(bundle) && isCommercialGatePending(bundle))) {
+    allowedActions = allowedActions.filter((action) => action !== "move_to_production");
+    allowedActions.push(...cloneArray(commercialGateActions));
+    recommendedCtas = cloneArray(commercialGateActions);
+    uiIntent = policy.policies.reasons.commercialGate;
+  }
 
   return {
-    allowed_actions: cloneArray(baseAllowedActions),
-    blocked_actions: [],
-    recommended_ctas: cloneArray(baseAllowedActions),
-    ui_intent: "admin can drive quote, payment, design, and job operations",
+    allowed_actions: unique(allowedActions),
+    blocked_actions: buildBlockedActions(
+      policy.surfaces.admin_dashboard.ctaCatalog,
+      allowedActions,
+      (action) => {
+        if (
+          action === "move_to_production" &&
+          (bundle.commercial_review_required || (isPaymentCleared(bundle) && isCommercialGatePending(bundle)))
+        ) {
+          return policy.policies.reasons.commercialBlock;
+        }
+
+        return "Action is outside the current admin workflow scope.";
+      }
+    ),
+    recommended_ctas: unique(recommendedCtas),
+    ui_intent: uiIntent,
   };
 }
 
@@ -255,7 +336,7 @@ function getAllowedActions(input = {}) {
   }
 
   if (actor === "admin" && surface === "admin_dashboard") {
-    return getAdminDashboardActions();
+    return getAdminDashboardActions(workflowBundle);
   }
 
   if (actor === "dev_ai" && surface === "flow_page") {
@@ -663,12 +744,8 @@ function validateJobTransition(action, fromState = {}, context = {}) {
   }
 
   if (inferredTarget === "IN_PRODUCTION") {
-    const paymentCleared =
-      context.payment_cleared ??
-      paymentUnlocksProduction(
-        context.payment_terms ?? fromState.payment_terms,
-        context.payment_status ?? fromState.payment_status
-      );
+    const workflowBundle = { ...fromState, ...context };
+    const paymentCleared = isPaymentCleared(workflowBundle);
 
     if (!paymentCleared) {
       return makeResult(
@@ -692,6 +769,16 @@ function validateJobTransition(action, fromState = {}, context = {}) {
         null,
         [],
         ["design_status must be approved or not_started"]
+      );
+    }
+
+    if (!isCommercialGateSatisfied(workflowBundle)) {
+      return makeResult(
+        "blocked",
+        "Job cannot move to production until the commercial document gate is cleared.",
+        null,
+        [],
+        ["required commercial document must be issued or explicitly waived"]
       );
     }
   }
@@ -768,6 +855,16 @@ function getUiContract(input = {}) {
         tone: "instructional",
       };
       notes.push("Quote page should emphasize payment follow-up over quote approval.");
+    } else if (
+      workflowBundle.quote_status === "approved" &&
+      isCommercialGatePending(workflowBundle)
+    ) {
+      showSections.push(surfaceConfig.conditionalSections.commercialGate);
+      copyGuidance = {
+        headline: "ทีมงานกำลังออกเอกสารหลังรับชำระเงิน",
+        tone: "informational",
+      };
+      notes.push("Commercial document gate is still pending after payment confirmation.");
     } else if (workflowBundle.quote_status === "sent") {
       showSections.push(surfaceConfig.conditionalSections.decision);
       copyGuidance = {
@@ -821,14 +918,28 @@ function getUiContract(input = {}) {
       };
       notes.push("Status page is read-only when there is no active customer response required.");
     }
+
+    if (isCommercialGatePending(workflowBundle)) {
+      showSections.push(surfaceConfig.conditionalSections.commercialGate);
+      notes.push("Status page should explain when payment is complete but the commercial document gate is still pending.");
+    }
   }
 
   if (surface === "admin_dashboard") {
-    copyGuidance = {
-      headline: "ทีมงานควบคุม workflow จากหน้านี้",
-      tone: "operational",
-    };
-    notes.push("Admin dashboard exposes internal operational controls.");
+    if (isCommercialGatePending(workflowBundle) || workflowBundle.commercial_review_required) {
+      showSections.push(surfaceConfig.conditionalSections.commercialGate);
+      copyGuidance = {
+        headline: "ต้องเคลียร์ commercial gate ก่อนเริ่มผลิต",
+        tone: "operational",
+      };
+      notes.push("Admin dashboard should prioritize receiver, document, and issuer blockers before production.");
+    } else {
+      copyGuidance = {
+        headline: "ทีมงานควบคุม workflow จากหน้านี้",
+        tone: "operational",
+      };
+      notes.push("Admin dashboard exposes internal operational controls.");
+    }
   }
 
   if (surface === "flow_page") {

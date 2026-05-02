@@ -31,6 +31,7 @@
     "notes": [
       "Quote approval does not always create a job.",
       "WAITING_PAYMENT is a payment gate, not a customer quote-decision state.",
+      "Commercial document gate can remain active after payment confirmation and must clear before production.",
       "revision_requested returns the next step to the team until a new preview is sent.",
       "COMPLETED and CANCELLED are terminal conversation states."
     ]
@@ -238,6 +239,7 @@
       "conditionalSections": {
         "decision": "quote_decision_panel",
         "waitingPayment": "waiting_payment_panel",
+        "commercialGate": "commercial_gate_panel",
         "closed": "quote_closed_notice"
       }
     },
@@ -256,7 +258,8 @@
       "conditionalSections": {
         "preview": "design_preview_gallery",
         "responseBox": "customer_response_box",
-        "teamOwned": "team_follow_up_notice"
+        "teamOwned": "team_follow_up_notice",
+        "commercialGate": "commercial_gate_notice"
       }
     },
     "admin_dashboard": {
@@ -264,15 +267,21 @@
         "lead_pipeline",
         "quote_controls",
         "payment_controls",
+        "commercial_controls",
         "job_controls"
       ],
       "ctaCatalog": [
         "send_quote",
         "record_payment",
+        "review_commercial_gate",
+        "issue_commercial_document",
         "send_preview",
         "move_to_production",
         "cancel_job"
-      ]
+      ],
+      "conditionalSections": {
+        "commercialGate": "commercial_gate_queue"
+      }
     },
     "flow_page": {
       "baseSections": [
@@ -300,6 +309,8 @@
       "quoteAlreadyApproved": "Quote is already approved and the customer should move to payment or delivery of required input.",
       "quoteClosed": "Quote is no longer open for customer decision.",
       "paymentGate": "Customer should move toward payment confirmation, not quote approval.",
+      "commercialGate": "Payment is complete, but the commercial document gate is still pending before the next operational step.",
+      "commercialBlock": "Commercial gate is not clear yet, so production must stay blocked.",
       "designWaiting": "Customer can respond to the current preview.",
       "teamOwnedRevision": "The team owns the next step until a new preview is sent.",
       "holdResolution": "Customer can provide missing input to clear the hold.",
@@ -327,6 +338,9 @@
             "view_payment_instruction",
             "contact_admin",
             "rescope_quote"
+          ],
+          "commercialGateCtas": [
+            "contact_admin"
           ],
           "decisionCtas": [
             "approve_quote",
@@ -361,6 +375,10 @@
             "send_preview",
             "move_to_production",
             "cancel_job"
+          ],
+          "commercialGateActions": [
+            "review_commercial_gate",
+            "issue_commercial_document"
           ]
         }
       },
@@ -375,6 +393,7 @@
     },
     "guardRails": [
       "Do not offer approve_quote once the bundle is already payment-gated.",
+      "Do not allow move_to_production while the commercial document gate is pending or blocked.",
       "Treat revision_requested as team-owned until preview_sent appears again.",
       "Do not reuse terminal conversations for new customer intake work."
     ]
