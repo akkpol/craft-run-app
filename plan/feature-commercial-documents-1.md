@@ -6,7 +6,7 @@
 
 ![Status: In Progress](https://img.shields.io/badge/status-In%20Progress-yellow)
 
-This packet is the scoped implementation holder for FOGUS commercial documents. It must use [../docs/COMMERCIAL_DOCUMENT_POLICY_V1.md](../docs/COMMERCIAL_DOCUMENT_POLICY_V1.md) as the source-of-truth policy.
+This packet is the scoped implementation holder for FOGUS commercial documents. It must use [../docs/COMMERCIAL_DOCUMENT_POLICY_V1.md](../docs/COMMERCIAL_DOCUMENT_POLICY_V1.md) as the source-of-truth policy and [../docs/COMMERCIAL_DOCUMENT_BUSINESS_FLOW_V1_FREEZE.md](../docs/COMMERCIAL_DOCUMENT_BUSINESS_FLOW_V1_FREEZE.md) as the v1 business-flow freeze.
 
 Do not implement this packet until the active launch gate is closed or explicitly paused, and do not mix it with R2, staff roles, admin table compaction, or AI provider work.
 
@@ -72,7 +72,6 @@ Known Facts
 
 Unknowns
 
-- Whether first release issues all document types or starts with billing note + receipt while keeping tax invoice blocked until data is complete.
 - Which seller entities and bank/payment channels are active for the first production rollout.
 
 Decisions made in current slice (2026-05-02)
@@ -81,12 +80,22 @@ Decisions made in current slice (2026-05-02)
 - `commercial_orders` is the policy anchor for receiver selection lock and customer tax profile lock.
 - Existing quote/payment/job flow is unchanged; the migration is additive only.
 
+Decisions locked in business-flow freeze (2026-05-03)
+
+- v1 runtime issuance starts after payment confirmation and issues only `RECEIPT` or `TAX_INVOICE_RECEIPT`.
+- `BILLING_NOTE`, `INVOICE`, standalone `TAX_INVOICE`, and commercial `QUOTATION` replacement are deferred to follow-up packets.
+- If the customer requests a tax invoice but the selected receiver cannot issue one, the app must block before payment instructions are used.
+- Commercial unlock occurs after the required receipt/tax document is issued, not merely after payment confirmation.
+- `VOID`, `CREDIT_NOTE`, and `DEBIT_NOTE` correction flows are out of v1 runtime scope.
+- VAT-capable tax documents default to `EXCLUSIVE`; non-VAT/personal receivers use `NO_VAT`.
+
 Assumptions
 
 - Existing workflow states remain canonical unless `docs/workflow-policy.json` is updated in the same change.
 - HTML print is preferred for v1 runtime documents unless there is an explicit PDF generation requirement.
 - Tax invoice remains blocked unless all policy checks pass.
 - Accounting/legal claims are not made automatically by the app UI.
+- Business-flow decisions are locked by `docs/COMMERCIAL_DOCUMENT_BUSINESS_FLOW_V1_FREEZE.md`; changing them requires a new decision update before dev work.
 
 Out of Scope
 
@@ -164,4 +173,4 @@ Open follow-up to close packet cleanly
 
 - Sync this packet plan with the GitHub issue body and milestone notes.
 - Add deeper integration coverage for document-number conflict allocation and issued-document immutability behavior.
-- Decide whether `VOID` remains explicitly out of v1 scope or gets a follow-up packet.
+- Implement or explicitly schedule commercial unlock gating after document issue.
