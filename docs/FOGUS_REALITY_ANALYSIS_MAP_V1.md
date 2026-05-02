@@ -497,11 +497,14 @@ The next catalog contract should decide form behavior and automation safety:
 | Catalog decision | Why LIFF needs it | Example |
 | --- | --- | --- |
 | `pricing_model` | Determines which price fields matter | `per_sqm`, `per_piece`, `fixed`, `manual` |
+| `pricing_profile_id` | Connects product to configurable formula/settings | standard vinyl formula, sticker tier formula |
+| `formula_status` | Determines whether auto quote is safe | `active`, `draft`, `manual_review` |
 | `requires_size` | Controls whether width/height appear | vinyl requires size, logo design may not |
 | `requires_qty` | Controls quantity requirement | stickers need qty |
 | `requires_fulfillment` | Controls pickup/delivery/install section | some digital/design work may skip delivery |
 | `requires_design_brief` | Controls design questions | custom sign, logo, mockup |
 | `image_url` | Helps customer pick correctly | product picker visual |
+| `customer_adjustable_inputs` | Lets customer change safe variables, not formula | size, qty, material option |
 | `allow_auto_quote` | Determines whether LIFF can create sent quote | standard vinyl yes, custom install no |
 | `requires_admin_review` | Forces lead review before quote | manual install, special material |
 
@@ -510,12 +513,23 @@ Strict rule:
 ```text
 Catalog does not only display products.
 Catalog tells LIFF which questions to ask and tells workflow whether auto quote is safe.
+Catalog points to a pricing formula/profile; LIFF must not hardcode product-specific price math.
+```
+
+Formula rule:
+
+```text
+If pricing formula is active and versioned, the system may auto quote when all other gates pass.
+If pricing formula is draft/manual/unclear, the CRM row goes to admin review.
+End customers can adjust input variables such as size, qty, material, and fulfillment.
+Business owner/admin adjusts formulas through settings with audit.
 ```
 
 Temporary v1 import stance:
 
 - Google Sheet can be the business editing surface.
 - CSV remains the import path until the column contract is stable.
+- If the formula cannot be locked yet, import the product as manual/admin-review instead of pretending auto price is safe.
 - External `image_url` is acceptable for prototype UI, but images hosted on Facebook/LINE should not be treated as durable canonical assets.
 - Product images are optional for quoting; pricing and policy fields are mandatory for automation.
 

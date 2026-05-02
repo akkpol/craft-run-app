@@ -386,6 +386,107 @@ Readiness states:
 
 ## Product And Quote Automation
 
+### Pricing Formula Strategy
+
+Current reality is simple: the runtime product catalog has `per_sqm` and `min_charge`, and `calculateProductCatalogPrice` computes area-based pricing. That is enough for vinyl-like products, but not enough for all product types.
+
+Strict rule:
+
+```text
+Product catalog chooses the pricing model.
+Pricing profile defines the formula and variables.
+Quote stores the formula snapshot used at the time of pricing.
+End customers adjust inputs/options, not the business formula.
+Business owner/admin adjusts formulas through versioned settings with audit.
+```
+
+Pricing model examples:
+
+| Pricing model | Formula shape | Customer inputs | Auto quote safety |
+| --- | --- | --- | --- |
+| `fixed` | fixed price | selected product/options | safe if product/options locked |
+| `per_sqm` | area * rate, then min charge | width, height, qty | safe for standard flat print/signage |
+| `per_piece` | qty * unit price, then min charge | qty | safe for standard pieces |
+| `linear_meter` | length * rate | length, qty | safe for rolls/trim/linear material |
+| `area_tier` | area chooses tier rate | width, height, qty | safe only if tiers are locked |
+| `qty_tier` | qty chooses tier unit price | qty | safe only if tiers are locked |
+| `material_addon` | base formula + material/finish add-ons | material, finish, options | amber unless all add-ons are locked |
+| `delivery_install` | base + distance/site/labor rules | fulfillment details | review for install/site risk |
+| `manual` | staff-defined price | request details | never auto-send |
+| `composite` | multiple line formulas | multiple products/options | review until stable |
+
+What to add on top of the current catalog contract:
+
+| Field | Why |
+| --- | --- |
+| `pricing_model` | tells LIFF/admin which inputs matter |
+| `pricing_profile_id` | points to reusable formula/profile settings |
+| `pricing_formula_version` | makes quote snapshots auditable |
+| `formula_status` | `draft`, `active`, `deprecated`, `manual_review` |
+| `base_price` / `unit_price` / `rate` / `min_charge` | simple formula parameters |
+| `tier_rules` | JSON/preset rows for area or quantity tiers |
+| `addon_rules` | material, finish, rush, delivery, install add-ons |
+| `required_inputs` | controls LIFF/admin required fields |
+| `customer_adjustable_inputs` | fields end customer can change safely |
+| `allow_auto_quote` | green-zone quote automation gate |
+| `requires_admin_review` | blocks auto-send when formula is not locked |
+| `manual_override_allowed` | lets staff override price with reason/audit |
+
+Do not implement arbitrary raw formula strings first. Use a safe formula builder/preset model before allowing custom expressions.
+
+Safe formula builder idea:
+
+```text
+price = base
+	+ area_component
+	+ quantity_component
+	+ selected_addons
+	+ fulfillment_component
+	+ rush_component
+then apply min_charge / rounding / tax display rules
+```
+
+Formula edit ownership:
+
+| Actor | Can edit formula? | Can edit inputs? | Notes |
+| --- | --- | --- | --- |
+| end customer | no | yes | can change size, qty, material choice, fulfillment mode, deadline |
+| admin/staff | no or limited | yes | can override price only with reason and permission |
+| owner/manager | yes | yes | can publish active pricing profiles |
+| system/AI | suggest only | no final authority | can propose formula/profile but cannot publish |
+| developer | migration/tools only | no business decision | builds safe formula engine and validation |
+
+If the formula cannot be locked now:
+
+- Set `pricing_model = manual` or `formula_status = manual_review`.
+- Set `allow_auto_quote = false`.
+- Set `requires_admin_review = true`.
+- Let admin/owner create a quote draft manually.
+- Store any manual override reason in audit.
+- Keep the customer-facing flow light: customer provides variables/options, not formula decisions.
+
+Formula lifecycle:
+
+| Stage | Meaning | Allowed action |
+| --- | --- | --- |
+| draft | owner/admin is still designing formula | test only, no auto quote |
+| test | formula is run against sample jobs | compare, tune, no customer auto-send |
+| active | approved for selected products | auto quote allowed if other gates pass |
+| snapshot | quote captured formula version/result | immutable for quote/payment/document trace |
+| deprecated | no longer used for new quotes | existing quote snapshots remain valid |
+
+Audit events to add later:
+
+- `pricing.profile_created`
+- `pricing.profile_updated`
+- `pricing.profile_approved`
+- `pricing.profile_deprecated`
+- `pricing.quote_calculated`
+- `pricing.manual_override_applied`
+- `pricing.auto_quote_blocked`
+
+The practical answer: yes, formulas must be configurable, but by business owner/admin with versioning and audit. End customers should only adjust the variables that feed the formula.
+
 ### Catalog-Driven Smart Intake
 
 Catalog should control questions and auto quote safety.
