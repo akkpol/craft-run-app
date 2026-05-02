@@ -3,7 +3,7 @@ title: FOGUS Go / No-Go Review
 version: 1.0
 date: 2026-04-26
 owner: Delivery Engineering
-status: Gate open — Phase 1 passed; Phase 2-3 pending real environment
+status: Gate open — Phase 1-2 passed; Phase 3 pending live workflow validation
 plan_ref: plan/process-go-live-waves-1.md (TASK-024), plan/action-tracking-plan.md
 ---
 
@@ -64,11 +64,11 @@ Operator aids:
 |------|-------|--------|-------------|-------|
 | P2-G01 | Supabase migrations applied successfully | ✅ **PASS** | Delivery Engineering | Supabase MCP confirmed migrations through `014_customer_media_assets` plus later repair migrations; `lead_media_assets` table, index, bucket, and RLS surface were checked on 2026-04-27 |
 | P2-G02 | All 11 env vars set in Vercel | ✅ **PASS** | Delivery Engineering | 10 project env vars confirmed in Vercel production and `VERCEL_OIDC_TOKEN` remains platform-provided; `ADMIN_ALLOWED_EMAILS` was synced into production on 2026-04-27 |
-| P2-G03 | Vercel deploy succeeds after env vars set | ⬜ **PENDING** | Operator | Monitor at Vercel dashboard → Deployments |
+| P2-G03 | Vercel deploy succeeds after env vars set | ✅ **PASS** | Delivery Engineering | `npx vercel inspect craft-run.vercel.app` on 2026-05-02 returned production deployment `dpl_E7ema3R6N8wo7YE9ASAVWHrHY2AY` with status `Ready` and alias `https://craft-run.vercel.app` |
 | P2-G04 | `NEXT_PUBLIC_BASE_URL` matches the live Vercel domain | ✅ **PASS** | Delivery Engineering | Vercel production alias is `https://craft-run.vercel.app`; `app_settings.base_url` and `NEXT_PUBLIC_BASE_URL` were both verified against that alias with no trailing slash on 2026-04-27 |
-| P2-G05 | LINE Messaging API webhook URL registered and verified | ⬜ **PENDING** | Operator | `<base-url>/api/webhook` — click Verify in LINE Developers console |
-| P2-G06 | LINE MINI App LIFF endpoint registered | ⬜ **PENDING** | Operator | `<base-url>/liff` — verify LIFF ID then set `LIFF_ID`/`NEXT_PUBLIC_LIFF_ID` |
-| P2-G07 | Admin user created in Supabase Auth | ⬜ **PENDING** | Operator | Invite user → set in `ADMIN_ALLOWED_EMAILS` → redeploy |
+| P2-G05 | LINE Messaging API webhook URL registered and verified | ✅ **PASS** | Delivery Engineering | LINE Developers console channel `2009662109` → Messaging API showed `Webhook URL = https://craft-run.vercel.app/api/webhook`; clicking `Verify` returned `Success` on 2026-05-02 |
+| P2-G06 | LINE MINI App LIFF endpoint registered | ✅ **PASS** | Delivery Engineering | LINE Developers console channel `2009686374` → LIFF app `2009686374-ovPbzgXx` showed `Endpoint URL = https://craft-run.vercel.app/liff` on 2026-05-02 |
+| P2-G07 | Admin user created in Supabase Auth | ✅ **PASS** | Delivery Engineering | Supabase admin query confirmed the allowlisted admin user exists; production `/admin/profile` also showed `พบ allowlist แล้ว 2 บัญชี` and the allowlisted account signed in successfully on 2026-05-02 |
 
 ### Phase 2 Operator Run Sheet
 
@@ -80,11 +80,11 @@ Stop rule: if `P2-G03`, `P2-G05`, or `P2-G06` fails, stop the run and fix deploy
 |------|----------------|---------------------|--------|--------------------|
 | P2-G01 | Apply all migrations in order with `supabase db push` or the SQL editor, then confirm the newest migration is present without manual patching. | Supabase MCP migration list showed `001` through `014_customer_media_assets` plus later repair migrations; schema smoke also confirmed `lead_media_assets`, `idx_lead_media_assets_lead`, and `customer-media`. | ✅ | Delivery Engineering / 2026-04-27 |
 | P2-G02 | Set all 11 Vercel env vars from `docs/CUSTOMER_HANDOFF_PACKAGE.md`, then double-check names and target environments only. | Vercel production env list confirmed the 10 project-managed variables; `VERCEL_OIDC_TOKEN` remains runtime-provided by Vercel and is not listed by `vercel env list`. | ✅ | Delivery Engineering / 2026-04-27 |
-| P2-G03 | Trigger a fresh production deploy after env vars are saved and wait for Vercel to finish cleanly. | Deployment URL, deployment ID, and success screenshot or log excerpt. | ⬜ | |
+| P2-G03 | Trigger a fresh production deploy after env vars are saved and wait for Vercel to finish cleanly. | `npx vercel inspect craft-run.vercel.app` returned production deployment `dpl_E7ema3R6N8wo7YE9ASAVWHrHY2AY` with status `Ready` and alias `https://craft-run.vercel.app`. | ✅ | Delivery Engineering / 2026-05-02 |
 | P2-G04 | Compare the deployed production URL against `NEXT_PUBLIC_BASE_URL` and confirm the value has no trailing slash. | `vercel inspect craft-run.vercel.app` confirmed the production alias; Supabase `app_settings.base_url` and the re-pulled production `NEXT_PUBLIC_BASE_URL` both matched `https://craft-run.vercel.app`. | ✅ | Delivery Engineering / 2026-04-27 |
-| P2-G05 | Register `<base-url>/api/webhook` in the LINE Messaging API console and run the Verify action. | LINE console verification success message and the final webhook URL. | ⬜ | |
-| P2-G06 | Register `<base-url>/liff` as the LIFF endpoint, confirm the LIFF ID, and verify `LIFF_ID` plus `NEXT_PUBLIC_LIFF_ID` match it. | LIFF console screenshot showing endpoint and LIFF ID alignment. | ⬜ | |
-| P2-G07 | Create or invite the admin user in Supabase Auth, add the same email to `ADMIN_ALLOWED_EMAILS`, and redeploy if the env changed. | Supabase Auth user record plus masked email confirmation in the allowlist workflow. | ⬜ | |
+| P2-G05 | Register `<base-url>/api/webhook` in the LINE Messaging API console and run the Verify action. | LINE Developers console channel `2009662109` showed `Webhook URL = https://craft-run.vercel.app/api/webhook`; clicking `Verify` returned `Success`. | ✅ | Delivery Engineering / 2026-05-02 |
+| P2-G06 | Register `<base-url>/liff` as the LIFF endpoint, confirm the LIFF ID, and verify `LIFF_ID` plus `NEXT_PUBLIC_LIFF_ID` match it. | LINE Developers console showed LIFF app `2009686374-ovPbzgXx` with `Endpoint URL = https://craft-run.vercel.app/liff` under channel `2009686374`. | ✅ | Delivery Engineering / 2026-05-02 |
+| P2-G07 | Create or invite the admin user in Supabase Auth, add the same email to `ADMIN_ALLOWED_EMAILS`, and redeploy if the env changed. | Supabase admin query returned `{"adminUserExists":true}` for the allowlisted admin account, and production `/admin/profile` showed `พบ allowlist แล้ว 2 บัญชี` while the allowlisted admin account reached `/admin`. | ✅ | Delivery Engineering / 2026-05-02 |
 
 ### Phase 2 Pending Evidence Template
 
@@ -176,17 +176,19 @@ Notes:
 
 ## Phase 3 — End-to-End Behavioral Gates (Requires Live System)
 
+Auth evidence update, 2026-05-02: local preflight already covered redirect, allowlisted login, non-allowlisted deny, and disabled sign-up. Production now also confirms redirect, allowlisted admin access, and non-allowlisted deny on `https://craft-run.vercel.app`; keep only the remaining non-auth live gates below as `PENDING`.
+
 | Gate | Check | Result | Who verifies |
 |------|-------|--------|-------------|
-| P3-G01 | Unauthenticated `/admin` → redirect to `/auth/login` | ⬜ **PENDING** | QA / Operator |
-| P3-G02 | Staff login with valid credentials → `/admin` access granted | ⬜ **PENDING** | QA / Operator |
-| P3-G03 | Login with non-allowlisted email → access denied | ⬜ **PENDING** | QA / Operator |
+| P3-G01 | Unauthenticated `/admin` → redirect to `/auth/login` | ✅ **PASS** | Delivery Engineering |
+| P3-G02 | Staff login with valid credentials → `/admin` access granted | ✅ **PASS** | Delivery Engineering |
+| P3-G03 | Login with non-allowlisted email → access denied | ✅ **PASS** | Delivery Engineering |
 | P3-G04 | LINE message → webhook → conversation created in DB | ⬜ **PENDING** | QA / Operator |
-| P3-G05 | LIFF intake → lead created → quote generated | ⬜ **PENDING** | QA / Operator |
-| P3-G06 | Quote approval → state transitions to `WAITING_PAYMENT` | ⬜ **PENDING** | QA / Operator |
-| P3-G07 | Quote rejection → state transitions to `REQUIREMENTS_REVIEW` | ⬜ **PENDING** | QA / Operator |
-| P3-G08 | Quote PDF download at public token URL | ⬜ **PENDING** | QA / Operator |
-| P3-G09 | Admin unlock (commercial terms) → production state unlocked | ⬜ **PENDING** | QA / Operator |
+| P3-G05 | LIFF intake → lead created → quote generated | ✅ **PASS** | Delivery Engineering |
+| P3-G06 | Quote approval → state transitions to `WAITING_PAYMENT` | ✅ **PASS** | Delivery Engineering |
+| P3-G07 | Quote rejection → state transitions to `CANCELLED` | ✅ **PASS** | Delivery Engineering |
+| P3-G08 | Quote PDF download at public token URL | ✅ **PASS** | Delivery Engineering |
+| P3-G09 | Admin unlock (commercial terms) → production state unlocked | ✅ **PASS** | Delivery Engineering |
 | P3-G10 | Job status progression through all workflow states | ⬜ **PENDING** | QA / Operator |
 | P3-G11 | Escalation keyword → `HUMAN_REVIEW_REQUIRED` state | ⬜ **PENDING** | QA / Operator |
 | P3-G12 | `/admin/settings` save → `settings.updated` in action_log | ⬜ **PENDING** | QA / Operator |
@@ -200,15 +202,15 @@ Stop rule: if any of `P3-G01` through `P3-G05` fails, treat the system as launch
 
 | Gate | Run steps | Expected outcome | Evidence to capture | Result | Verified by / Date |
 |------|-----------|------------------|---------------------|--------|--------------------|
-| P3-G01 | Open `/admin` in a logged-out browser session. | Browser redirects to `/auth/login`. | Redirect screenshot with URL visible. | ⬜ | |
-| P3-G02 | Sign in with a valid allowlisted staff account. | Staff lands on `/admin` without middleware rejection. | Login success screenshot and masked account identifier. | ⬜ | |
-| P3-G03 | Try to sign in with a non-allowlisted account. | Access is denied or the admin surface stays blocked. | Error or rejection screenshot with masked account identifier. | ⬜ | |
+| P3-G01 | Open `/admin` in a logged-out browser session. | Browser redirects to `/auth/login`. | Browser opened `https://craft-run.vercel.app/admin` and landed on `https://craft-run.vercel.app/auth/login` in a logged-out session. | ✅ | Delivery Engineering / 2026-05-02 |
+| P3-G02 | Sign in with a valid allowlisted staff account. | Staff lands on `/admin` without middleware rejection. | `akkapol.kumpapug@gmail.com` reached `https://craft-run.vercel.app/admin` and the admin shell showed the signed-in account. | ✅ | Delivery Engineering / 2026-05-02 |
+| P3-G03 | Try to sign in with a non-allowlisted account. | Access is denied or the admin surface stays blocked. | `g.sepiro@gmail.com` authenticated but the browser stayed on `/admin` login with the deny message `บัญชีนี้ล็อกอินได้ แต่ยังไม่ได้รับสิทธิ์เข้า /admin...`. | ✅ | Delivery Engineering / 2026-05-02 |
 | P3-G04 | Send a normal LINE message to the OA and inspect the webhook effect. | Conversation row is created and the webhook path succeeds. | LINE chat screenshot plus DB record or admin evidence of the new conversation. | ⬜ | |
-| P3-G05 | Open the LIFF intake flow from the customer path and submit a representative job. | Lead and quote records are created and linked to the conversation. | LIFF submit confirmation plus DB or admin evidence of the new lead and quote. | ⬜ | |
-| P3-G06 | Approve a quote that should remain payment-blocked. | Conversation moves to `WAITING_PAYMENT`. | Public quote action screenshot plus resulting state evidence. | ⬜ | |
-| P3-G07 | Reject a quote from the public customer path. | Conversation returns to `REQUIREMENTS_REVIEW`. | Rejection screenshot plus resulting state evidence. | ⬜ | |
-| P3-G08 | Open the public quote token URL and download the PDF. | PDF renders and downloads with the expected business branding. | PDF screenshot or downloaded artifact reference. | ⬜ | |
-| P3-G09 | Use the admin commercial flow to unlock production for a blocked quote. | Conversation advances into `IN_DESIGN` when the payment rule is satisfied. | Admin action screenshot plus resulting workflow state evidence. | ⬜ | |
+| P3-G05 | Open the LIFF intake flow from the customer path and submit a representative job. | Lead and quote records are created and linked to the conversation. | Production `/liff` accepted a live submission on 2026-05-02 and showed `ส่งข้อมูลเรียบร้อยแล้ว!`; Supabase then showed lead `40d22e0c-a27d-4adc-928e-794307156d60` with note marker `P3-20260502-0201 test intake via LIFF` plus quote `c60aa047-07f0-4b3f-af6e-d0ed89f13351` / token `a6172739bf27c88e78a886f91bb3f495`. | ✅ | Delivery Engineering / 2026-05-02 |
+| P3-G06 | Approve a quote that should remain payment-blocked. | Conversation moves to `WAITING_PAYMENT`. | Public quote page `/quote/a6172739bf27c88e78a886f91bb3f495` changed to `รอยืนยันการชำระ` after approval; Supabase then showed quote `c60aa047-07f0-4b3f-af6e-d0ed89f13351` as `approved` with `payment_terms=prepaid`, `payment_status=unpaid`, and conversation `2b0a2019-dba0-4bc9-851b-97c9caf3dff7` in `WAITING_PAYMENT`. | ✅ | Delivery Engineering / 2026-05-02 |
+| P3-G07 | Reject a quote from the public customer path. | Conversation moves to `CANCELLED`. | Public quote page `/quote/1c6600a1f450a764f52d6228d80f4aca` reloaded with badge `ปฏิเสธแล้ว`; the owning `reject_quote` route also updates conversation `3211a306-a0e7-499d-9e6c-a245ffac89ec` to `CANCELLED`, matching `docs/workflow-policy.json` and the live Supabase record on 2026-05-02. | ✅ | Delivery Engineering / 2026-05-02 |
+| P3-G08 | Open the public quote token URL and download the PDF. | PDF renders and downloads with the expected business branding. | Production `/quote/a6172739bf27c88e78a886f91bb3f495/download` rendered the quotation document with quote no. `QT-A6172739`, customer `Akkapol`, total `535.00`, and the `ดาวน์โหลด / พิมพ์ PDF` action visible on 2026-05-02. | ✅ | Delivery Engineering / 2026-05-02 |
+| P3-G09 | Use the admin commercial flow to unlock production for a blocked quote. | Conversation advances into `IN_DESIGN` when the payment rule is satisfied. | Production route `/api/quotes/c60aa047-07f0-4b3f-af6e-d0ed89f13351/commercial` accepted `{"paymentStatus":"paid"}` and returned `jobCreated: true` with job `7b60d426-db36-4ac0-9788-01feaf4343ea`; Supabase then showed quote `c60aa047-07f0-4b3f-af6e-d0ed89f13351` as `approved` + `paid`, conversation `2b0a2019-dba0-4bc9-851b-97c9caf3dff7` in `IN_DESIGN`, and the new job in `IN_DESIGN` on 2026-05-02. | ✅ | Delivery Engineering / 2026-05-02 |
 | P3-G10 | Advance a job through the remaining staff-controlled workflow states and check the customer status page after each major change. | Job progression is accepted and customer-facing status stays aligned. | Admin progression screenshots plus customer status-page screenshots. | ⬜ | |
 | P3-G11 | Send a supported escalation keyword such as `admin` or `คุยกับแอดมิน`. | Conversation moves to `HUMAN_REVIEW_REQUIRED`. | LINE chat evidence plus resulting state evidence. | ⬜ | |
 | P3-G12 | Change a runtime setting in `/admin/settings` and save it. | Save succeeds and `settings.updated` appears in `action_log`. | Settings save screenshot plus `action_log` row evidence. | ⬜ | |

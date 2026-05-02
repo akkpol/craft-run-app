@@ -6,9 +6,12 @@ import { formatBangkokDateTime } from "@/lib/bangkok-date-time";
 import { resolveProductCatalogLabel } from "@/lib/product-catalog";
 import {
   DESIGN_STATUS_LABELS,
+  FULFILLMENT_MODE_LABELS,
   designStatusNeedsCustomerResponse,
+  isFulfillmentMode,
   isDesignStatus,
   type DesignStatus,
+  type FulfillmentMode,
 } from "@/lib/types";
 import CustomerStatusActions from "./customer-status-actions";
 import CopyTrackingCodeButton from "./copy-tracking-code-button";
@@ -24,6 +27,37 @@ const STATUS_DISPLAY: Record<string, { label: string; color: string; icon: strin
 };
 
 const THAI_NUMBER_FORMATTER = new Intl.NumberFormat("th-TH-u-nu-latn");
+
+function getStatusDisplayForFulfillment(
+  status: string | null | undefined,
+  fulfillmentMode: FulfillmentMode | null
+) {
+  if (status === "READY_FOR_FULFILLMENT") {
+    if (fulfillmentMode === "pickup") {
+      return { label: "พร้อมให้รับงาน", color: "bg-blue-100 text-blue-700", icon: "📦" };
+    }
+
+    if (fulfillmentMode === "install") {
+      return { label: "พร้อมเข้าติดตั้ง", color: "bg-blue-100 text-blue-700", icon: "🛠️" };
+    }
+  }
+
+  if (status === "COMPLETED") {
+    if (fulfillmentMode === "pickup") {
+      return { label: "รับงานแล้ว", color: "bg-green-100 text-green-700", icon: "✅" };
+    }
+
+    if (fulfillmentMode === "install") {
+      return { label: "ติดตั้งแล้ว", color: "bg-green-100 text-green-700", icon: "✅" };
+    }
+  }
+
+  return STATUS_DISPLAY[status || ""] || {
+    label: status || "ไม่ระบุ",
+    color: "bg-gray-100 text-gray-700",
+    icon: "📋",
+  };
+}
 
 export default async function StatusPage(props: { params: Promise<{ token: string }> }) {
   const { token } = await props.params;
@@ -51,7 +85,10 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
     productType: lead?.product_type,
     productLabelSnapshot: lead?.product_label_snapshot,
   });
-  const statusInfo = STATUS_DISPLAY[job?.status] || { label: job?.status || "ไม่ระบุ", color: "bg-gray-100 text-gray-700", icon: "📋" };
+  const fulfillmentMode: FulfillmentMode | null = isFulfillmentMode(lead?.fulfillment_mode || "")
+    ? (lead?.fulfillment_mode as FulfillmentMode)
+    : null;
+  const statusInfo = getStatusDisplayForFulfillment(job?.status, fulfillmentMode);
   const designStatus: DesignStatus | null = isDesignStatus(lead?.design_status || "")
     ? (lead.design_status as DesignStatus)
     : null;
@@ -111,6 +148,7 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
           <div className="space-y-1 text-sm">
             <p><span className="text-gray-500">ลูกค้า:</span> {customer?.display_name || "ไม่ระบุ"}</p>
             <p><span className="text-gray-500">ประเภท:</span> {productLabel}</p>
+            <p><span className="text-gray-500">การรับงาน:</span> {fulfillmentMode ? FULFILLMENT_MODE_LABELS[fulfillmentMode] : "ไม่ระบุ"}</p>
             {lead && <p><span className="text-gray-500">ขนาด:</span> {(lead.width_mm / 10).toFixed(1)} × {(lead.height_mm / 10).toFixed(1)} ซม.</p>}
             {lead?.qty && <p><span className="text-gray-500">จำนวน:</span> {lead.qty} ชิ้น</p>}
             <p><span className="text-gray-500">ราคารวม:</span> <span className="font-medium">฿{THAI_NUMBER_FORMATTER.format(Number(quote.total))}</span></p>

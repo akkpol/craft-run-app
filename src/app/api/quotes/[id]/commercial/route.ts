@@ -114,8 +114,11 @@ export async function POST(
       id: quote.id,
       lead_id: quote.lead_id,
       public_token: quote.public_token,
+      total: Number(quote.total || 0),
+      status: quote.status,
       payment_terms: paymentTerms,
       payment_status: paymentStatus,
+      payment_profile_snapshot: paymentProfileSnapshot,
       leads: quote.leads,
     });
 

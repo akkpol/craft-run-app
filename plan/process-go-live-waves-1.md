@@ -139,14 +139,14 @@ Wave 1 is no longer a greenfield hardening wave. The access lock, sign-up disabl
 
 | Check ID | Scope | Expected Result | Evidence To Capture | Status |
 |---|---|---|---|---|
-| W1-VAL-001 | Valid staff login at `/auth/login` | Allowed staff account reaches the intended protected destination without loop or error state | Screenshot or short note with staff test identity used | Pending |
-| W1-VAL-002 | Unauthorized authenticated user at `/admin` | Non-allowlisted authenticated user is blocked from admin access | Screenshot or short note showing rejection behavior | Pending |
+| W1-VAL-001 | Valid staff login at `/auth/login` | Allowed staff account reaches the intended protected destination without loop or error state | Local browser check on `http://localhost:3001`: allowlisted account `akkapol.kumpapug@gmail.com` reached `/admin` after login on 2026-05-02 | Done |
+| W1-VAL-002 | Unauthorized authenticated user at `/admin` | Non-allowlisted authenticated user is blocked from admin access | Local browser check on `http://localhost:3001`: `g.sepiro@gmail.com` authenticated but was blocked from admin access with the allowlist-deny message on 2026-05-02 | Done |
 | W1-VAL-003 | Protected route continuity at `/protected` | Normal authenticated user can still reach non-admin protected content if intended by current auth model | Short note confirming route outcome | Pending |
-| W1-VAL-004 | Public sign-up posture | Public sign-up is removed or clearly disabled for production use | Screenshot of current sign-up surface | Pending |
+| W1-VAL-004 | Public sign-up posture | Public sign-up is removed or clearly disabled for production use | Local browser check on `http://localhost:3001/auth/sign-up`: page shows `Backoffice Sign-Up Disabled` and sends staff back to login on 2026-05-02 | Done |
 | W1-VAL-005 | App shell compile health | `npm run build` completes successfully after the auth changes | Terminal output summary or exit-code note | Done — exit 0, compiled in 60s, 22 static pages, 2026-04-26 |
 | W1-VAL-006 | Lint health after auth changes | `npm run lint` completes successfully after the auth changes | Terminal output summary or exit-code note | Done — 0 errors, 1 non-blocking Node module-type advisory, 2026-04-26 |
 
-Latest local signal: `npm run build` exited with code `0`, `npm run lint` exited with code `0`, and `node scripts/workflow-policy-smoke.mjs` exited with code `0` on 2026-04-26. TASK-005 is satisfied locally; keep the remaining Wave 1 focus on preserving evidence for login, rejection, and redirect behavior.
+Latest local signal: `npm run build` exited with code `0`, `npm run lint` exited with code `0`, and `node scripts/workflow-policy-smoke.mjs` exited with code `0` on 2026-04-26. Local browser checks on 2026-05-02 also reconfirmed allowlisted login success, non-allowlisted admin rejection, and disabled public sign-up. Keep the remaining Wave 1 focus on `/protected` continuity evidence.
 
 #### Parallel-Safe Prep While Waiting For Wave 1 Sign-Off
 

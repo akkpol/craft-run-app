@@ -40,3 +40,5 @@ pnpm-debug.log*
 .env*
 .flaskenv*
 !.env.project
+.vercel
+.env*.local

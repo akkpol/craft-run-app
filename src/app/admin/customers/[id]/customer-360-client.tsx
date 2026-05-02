@@ -5,8 +5,10 @@ import { formatBangkokDate } from "@/lib/bangkok-date-time";
 import {
   BILLING_ENTITY_TYPE_LABELS,
   DOCUMENT_REQUEST_TYPE_LABELS,
+  FULFILLMENT_MODE_LABELS,
   type BillingEntityType,
   type DocumentRequestType,
+  type FulfillmentMode,
 } from "@/lib/types";
 
 const STATE_LABELS: Record<string, string> = {
@@ -145,6 +147,7 @@ type Lead = {
   billing_name?: string | null;
   tax_id?: string | null;
   billing_address?: string | null;
+  fulfillment_mode?: FulfillmentMode | null;
   liff_profile_snapshot?: Record<string, unknown> | null;
   liff_context_snapshot?: Record<string, unknown> | null;
   created_at: string;
@@ -312,6 +315,9 @@ export default function Customer360Client({
                 <p>
                   ประเภทลูกค้า: {latestBillingEntityType ? BILLING_ENTITY_TYPE_LABELS[latestBillingEntityType] : "—"}
                 </p>
+                <p>
+                  การรับงาน: {latestLead.fulfillment_mode ? FULFILLMENT_MODE_LABELS[latestLead.fulfillment_mode] : "—"}
+                </p>
                 <p>{latestLead.billing_name || "ยังไม่ได้ระบุชื่อออกเอกสาร"}</p>
                 <p>{latestLead.tax_id || "ยังไม่ได้ระบุ Tax ID"}</p>
                 <p className="wrap-break-word">
@@ -409,6 +415,7 @@ export default function Customer360Client({
                   <tr className="border-b border-slate-100 text-left text-xs font-medium text-slate-500">
                     <th className="pb-2 pr-4">ประเภทงาน</th>
                     <th className="pb-2 pr-4">เอกสาร / บิล</th>
+                    <th className="pb-2 pr-4">การรับงาน</th>
                     <th className="pb-2 pr-4">ขนาด</th>
                     <th className="pb-2 pr-4">จำนวน</th>
                     <th className="pb-2 pr-4">สถานะ</th>
@@ -432,6 +439,9 @@ export default function Customer360Client({
                             {lead.billing_name || "ยังไม่ระบุชื่อออกเอกสาร"}
                           </p>
                         </div>
+                      </td>
+                      <td className="py-2.5 pr-4 text-slate-600">
+                        {lead.fulfillment_mode ? FULFILLMENT_MODE_LABELS[lead.fulfillment_mode] : "—"}
                       </td>
                       <td className="py-2.5 pr-4 text-slate-600">
                         {lead.width_mm && lead.height_mm
