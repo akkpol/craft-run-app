@@ -10,6 +10,7 @@ export type IssueDocumentErrorCode =
   | "PAYMENT_RECEIVER_NOT_SELECTED"
   | "DOCUMENT_ISSUER_MISMATCH"
   | "CUSTOMER_TAX_PROFILE_REQUIRED"
+  | "CUSTOMER_TAX_PROFILE_CUSTOMER_MISMATCH"
   | "RECEIVER_ENTITY_INACTIVE";
 
 export type IssueDocumentResult<T = void> =
@@ -24,7 +25,9 @@ export interface CommercialDocumentIssuePlanInput {
   paymentReceiverEntityId: string;
   selectedReceiverEntityId: string | null;
   paymentReceiverLockedAt: string | null;
+  customerId: string;
   customerTaxProfileId: string | null;
+  customerTaxProfileCustomerId: string | null;
   customerRequestsTaxInvoice: boolean;
   quoteSubtotal: number;
   quoteDiscount: number;
@@ -117,6 +120,18 @@ export function buildCommercialDocumentIssuePlan(
     };
   }
 
+  if (
+    input.customerTaxProfileId &&
+    input.customerTaxProfileCustomerId !== null &&
+    input.customerTaxProfileCustomerId !== input.customerId
+  ) {
+    return {
+      ok: false,
+      error: "CUSTOMER_TAX_PROFILE_CUSTOMER_MISMATCH",
+      detail: `Customer tax profile ${input.customerTaxProfileId} does not belong to customer ${input.customerId}.`,
+    };
+  }
+
   const issuedAt = input.issuedAt ?? new Date().toISOString();
   const vatMode: DocumentVatMode =
     input.receiverEntity.isVatRegistered && input.quoteVat > 0
@@ -137,7 +152,7 @@ export function buildCommercialDocumentIssuePlan(
       vatAmount: vatMode === "EXCLUSIVE" ? input.quoteVat : 0,
       grandTotal: input.quoteTotal,
       issuedAt,
-      lockedAt: issuedAt,
+      lockedAt: input.paymentReceiverLockedAt,
     },
   };
 }

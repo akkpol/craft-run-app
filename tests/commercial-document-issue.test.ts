@@ -15,7 +15,9 @@ const baseInput = {
   paymentReceiverEntityId: "entity-main",
   selectedReceiverEntityId: "entity-main",
   paymentReceiverLockedAt: "2026-05-02T12:00:00.000Z",
+  customerId: "customer-1",
   customerTaxProfileId: "tax-profile-1",
+  customerTaxProfileCustomerId: "customer-1",
   customerRequestsTaxInvoice: true,
   quoteSubtotal: 1000,
   quoteDiscount: 100,
@@ -36,6 +38,7 @@ test("buildCommercialDocumentIssuePlan returns a tax invoice receipt plan for a 
     assert.equal(result.value.vatMode, "EXCLUSIVE");
     assert.equal(result.value.vatRate, 0.07);
     assert.equal(result.value.vatAmount, 63);
+    assert.equal(result.value.lockedAt, "2026-05-02T12:00:00.000Z");
   }
 });
 
@@ -106,11 +109,25 @@ test("buildCommercialDocumentIssuePlan requires a customer tax profile for tax d
   const result = buildCommercialDocumentIssuePlan({
     ...baseInput,
     customerTaxProfileId: null,
+    customerTaxProfileCustomerId: null,
   });
 
   assert.equal(result.ok, false);
   if (!result.ok) {
     assert.equal(result.error, "CUSTOMER_TAX_PROFILE_REQUIRED");
+  }
+});
+
+test("buildCommercialDocumentIssuePlan rejects a tax profile owned by another customer", () => {
+  const result = buildCommercialDocumentIssuePlan({
+    ...baseInput,
+    customerTaxProfileCustomerId: "customer-2",
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error, "CUSTOMER_TAX_PROFILE_CUSTOMER_MISMATCH");
+    assert.match(result.detail, /customer-1/);
   }
 });
 

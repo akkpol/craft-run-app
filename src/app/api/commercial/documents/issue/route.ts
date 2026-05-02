@@ -158,12 +158,45 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
 
+  let customerTaxProfile: Record<string, unknown> | null = null;
+
+  if (order.customer_tax_profile_id) {
+    const { data: taxProfile, error: taxProfileError } = await supabase
+      .from("customer_tax_profiles")
+      .select(
+        "id, customer_id, legal_name, tax_id, branch_type, branch_code, branch_name, address, email, phone"
+      )
+      .eq("id", order.customer_tax_profile_id)
+      .maybeSingle();
+
+    if (taxProfileError) {
+      return NextResponse.json(
+        { error: taxProfileError.message || "Failed to read customer tax profile" },
+        { status: 500 }
+      );
+    }
+
+    if (!taxProfile) {
+      return NextResponse.json(
+        { error: "Customer tax profile not found" },
+        { status: 404 }
+      );
+    }
+
+    customerTaxProfile = taxProfile;
+  }
+
   const issuePlan = buildCommercialDocumentIssuePlan({
     paymentStatus: payment.status,
     paymentReceiverEntityId: payment.receiver_entity_id,
     selectedReceiverEntityId: order.selected_receiver_entity_id,
     paymentReceiverLockedAt: order.payment_receiver_locked_at,
+    customerId: order.customer_id,
     customerTaxProfileId: order.customer_tax_profile_id,
+    customerTaxProfileCustomerId:
+      customerTaxProfile && typeof customerTaxProfile.customer_id === "string"
+        ? customerTaxProfile.customer_id
+        : null,
     customerRequestsTaxInvoice: lead.requested_document_type === "tax_invoice",
     quoteSubtotal: Number(quote.subtotal || 0),
     quoteDiscount: Number(quote.discount || 0),
@@ -192,34 +225,6 @@ export async function POST(request: NextRequest) {
       },
       { status: statusCode }
     );
-  }
-
-  let customerTaxProfile: Record<string, unknown> | null = null;
-
-  if (order.customer_tax_profile_id) {
-    const { data: taxProfile, error: taxProfileError } = await supabase
-      .from("customer_tax_profiles")
-      .select(
-        "id, legal_name, tax_id, branch_type, branch_code, branch_name, address, email, phone"
-      )
-      .eq("id", order.customer_tax_profile_id)
-      .maybeSingle();
-
-    if (taxProfileError) {
-      return NextResponse.json(
-        { error: taxProfileError.message || "Failed to read customer tax profile" },
-        { status: 500 }
-      );
-    }
-
-    if (!taxProfile) {
-      return NextResponse.json(
-        { error: "Customer tax profile not found" },
-        { status: 404 }
-      );
-    }
-
-    customerTaxProfile = taxProfile;
   }
 
   const { data: allocationData, error: allocationError } = await supabase.rpc(
