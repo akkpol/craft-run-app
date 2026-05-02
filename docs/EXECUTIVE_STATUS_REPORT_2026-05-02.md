@@ -102,10 +102,10 @@ source_refs:
 
 | ลำดับ | รายการ | Owner ที่ควรรับผิดชอบ | เกณฑ์ผ่าน |
 |---|---|---|---|
-| 1 | `LIFF-VAL-006` returning-customer prefill | Operator + Delivery Engineering | เปิด LIFF ด้วยลูกค้าที่เคยมีข้อมูล แล้ว phone/document/billing defaults prefill ถูกต้อง |
-| 2 | `LIFF-VAL-007` company tax-document validation | Operator + Delivery Engineering | ไม่ใส่ branch code แล้วขึ้น error ภาษาไทย, ใส่ branch code แล้ว submit ผ่าน |
-| 3 | `LIFF-VAL-008` runtime catalog path | Operator + Delivery Engineering | LIFF picker โหลด catalog จริง และ quote/status/download แสดง product label ไม่ fallback เป็น slug |
-| 4 | Final sign-off | Business Owner + Operator Lead + Delivery Engineering | เติม sign-off ใน [docs/GO_NOGO_REVIEW.md](GO_NOGO_REVIEW.md) |
+| 1 | `LIFF-VAL-006` returning-customer prefill | Akkapol / Business Owner + Delivery Engineering | เปิด LIFF ด้วยลูกค้าที่เคยมีข้อมูล แล้ว phone/document/billing defaults prefill ถูกต้อง |
+| 2 | `LIFF-VAL-007` company tax-document validation | Akkapol / Business Owner + Delivery Engineering | ไม่ใส่ branch code แล้วขึ้น error ภาษาไทย, ใส่ branch code แล้ว submit ผ่าน |
+| 3 | `LIFF-VAL-008` runtime catalog path | Akkapol / Business Owner + Delivery Engineering | LIFF picker โหลด catalog จริง และ quote/status/download แสดง product label ไม่ fallback เป็น slug |
+| 4 | Final sign-off | Business Owner / Akkapol + Operator Lead + Delivery Engineering | เติม sign-off ใน [docs/GO_NOGO_REVIEW.md](GO_NOGO_REVIEW.md) |
 | 5 | Close `TASK-024` | Delivery Engineering | ปิดหลัง sign-off ครบเท่านั้น |
 
 ### 4.2 งาน residue ที่ควรแยก slice ต่อไป
@@ -127,7 +127,7 @@ source_refs:
 | 2 | แยก owner/admin/production role | `feature-staff-roles-ownership-1` | ตอนนี้เป็น allowlist + free-text ownership ยังไม่ใช่ role model จริง |
 | 3 | Admin table แสดงหนึ่งบรรทัดและเปิด detail | `feature-admin-table-detail-mode-1` | ลดความแน่นของ dashboard และทำ desktop scan mode ให้เร็วขึ้น |
 | 4 | Customer profile เป็นหน้า detail หลัก | `feature-customer-profile-ops-1` | ให้ข้อมูลลูกค้า, leads, quotes, prompts, media, history รวมอยู่ในที่เดียว |
-| 5 | เอกสารวางบิล / invoice / receipt / tax-ready | `feature-commercial-documents-1` | quote มีแล้ว แต่ invoice/billing/tax document flow ยังไม่ครบ |
+| 5 | เอกสารวางบิล / invoice / receipt / tax-ready | `feature-commercial-documents-1` | policy v1 ถูกกำหนดแล้วใน [docs/COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md); implementation ยังไม่ครบ |
 | 6 | R2/media delivery | `feature-r2-media-delivery-1` | R2 env มีแล้ว แต่ customer upload/proof image delivery ยังไม่พิสูจน์ครบ |
 | 7 | Prompt management system | `feature-ai-prompt-operations-1` | prompt capture/visibility มีแล้ว แต่ยังไม่มี operation surface เต็มรูปแบบ |
 | 8 | Fulfillment model | follow-up fulfillment packet | ตอนนี้ยังแค่ pickup/delivery ต้องแยกขนส่ง, ส่งเอง, ติดตั้งหน้างาน |
@@ -138,7 +138,7 @@ source_refs:
 |---|---|---|
 | ประกาศ GO ก่อน LIFF 3 checks สุดท้าย | สูง | ห้าม sign-off จนกว่า `LIFF-VAL-006/007/008` ผ่านหรือมี waiver เป็นลายลักษณ์อักษร |
 | รวม runtime/test residue กับ docs หรือ feature work | กลาง | ทำ commit/PR แยก slice ตาม anti-loop plan |
-| เอกสาร tax invoice ถูกเข้าใจว่า compliance ครบแล้ว | สูง | ใช้คำว่า tax-ready จนกว่าจะมีเลขเอกสาร, seller tax identity, branch/VAT/receipt policy ครบ |
+| เอกสาร tax invoice ถูกเข้าใจว่า compliance ครบแล้ว | สูง | ใช้ [docs/COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md) เป็น source-of-truth: เงินเข้าใคร เอกสารออกชื่อนั้น, จด VAT เท่านั้นจึงออกใบกำกับภาษีได้ |
 | Staff roles ยังไม่ first-class | กลาง | รักษา allowlist fail-closed เป็น fallback จนกว่าจะมี role migration ที่ผ่าน validation |
 | R2/media path ยังไม่ prove end-to-end | กลาง | ทำ R2 packet แบบ server-controlled access และไม่เปิด secret ฝั่ง browser |
 
@@ -158,18 +158,30 @@ source_refs:
 
 | รายการ | ค่า |
 |---|---|
-| Current branch | `docs/worktree-repair-savepoint-20260502` |
-| Remote branch | `origin/docs/worktree-repair-savepoint-20260502` |
-| Latest checkpoint commit | `45af1bf docs: repair runbook plans and add recovery matrix` |
+| Current branch | `feature/google-ai-studio-image-gen` |
+| Remote branch | `origin/feature/google-ai-studio-image-gen` after this policy update is pushed |
+| Prior docs checkpoint commit | `25c2ed4 docs: add executive status report` |
 | Base main | `f549c4d Merge pull request #27 from akkpol/fix/ci-node24-tailwind-cleanup` |
-| Deferred unstaged files | `src/app/api/settings/route.ts`, `tests/line-and-production-review.test.ts`, `tests/workflow-transitions.test.ts`, `vitest.config.ts` |
+| New policy source | [docs/COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md) |
+| Deferred unstaged files | `src/app/api/settings/route.ts`, `src/lib/ai-images.ts`, `src/lib/app-settings.ts`, `tests/line-and-production-review.test.ts`, `tests/workflow-transitions.test.ts`, `vitest.config.ts` |
 
-## 9. Executive Decision Needed
+## 9. Executive Decisions Recorded
 
-ต้องการการตัดสินใจ/มอบหมาย 3 เรื่อง:
+บันทึกคำตอบจากผู้บริหาร / business owner วันที่ 2026-05-02:
 
-1. ใครเป็น operator ที่จะปิด `LIFF-VAL-006/007/008` ด้วย LINE จริง
-2. ใครเป็นผู้ sign-off ฝั่ง business/operator หลัง evidence ครบ
-3. เอกสาร commercial document จะใช้คำและ policy อย่างไร: billing note, invoice, receipt, tax-ready/tax invoice, เลขเอกสาร, branch, VAT, และ payment-to-receipt behavior
+| Decision | Answer | Execution meaning |
+|---|---|---|
+| ใครเป็น operator ที่จะปิด `LIFF-VAL-006/007/008` ด้วย LINE จริง | Akkapol / Business Owner | ผู้บริหารรับเป็น operator สำหรับ live LINE/LIFF evidence ทั้ง 3 checks |
+| ใครเป็นผู้ sign-off ฝั่ง business/operator หลัง evidence ครบ | Akkapol / Business Owner | sign-off owner ชัดเจนแล้ว แต่ต้องรอ evidence ครบก่อนลงชื่อ GO |
+| commercial document policy | [docs/COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md) | policy v1 เป็น source-of-truth สำหรับ billing note, invoice, receipt, tax-ready/tax invoice, numbering, branch, VAT, และ payment-to-receipt behavior |
 
-จนกว่าสามข้อนี้จะชัด ระบบอยู่ในสถานะ **พร้อมเชิงเทคนิคเป็นส่วนใหญ่ แต่ยังไม่ GO เชิงบริหาร**.
+Core invariant ที่ห้ามหลุด:
+
+```text
+เงินเข้าใคร → เอกสารออกชื่อนั้น
+จด VAT เท่านั้น → ออกใบกำกับภาษีได้
+ออกแล้ว → ห้ามแก้เงียบ
+ผิด → void / credit note / debit note
+```
+
+หลังบันทึก decision นี้ ระบบยังอยู่ในสถานะ **พร้อมเชิงเทคนิคเป็นส่วนใหญ่ แต่ยังไม่ GO เชิงบริหาร** จนกว่า `LIFF-VAL-006/007/008` จะมี evidence ครบและมี sign-off จริงใน go/no-go document.

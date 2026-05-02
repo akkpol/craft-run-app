@@ -71,7 +71,7 @@ Local State Decision
 
 | Gap | Current Status | Existing Evidence | Next Packet | Primary Files | Acceptance Evidence | Stop Rule |
 |---|---|---|---|---|---|---|
-| Missing document coverage: quotation vs billing note, invoice, receipt, tax invoice | Partial. Quote download exists; requested document type is captured; invoice/billing/tax invoice runtime issuance is not implemented. | `src/app/quote/[token]/download/page.tsx`, `src/lib/types.ts`, `docs/INVOICE_FLOW_PATCH.md`, `plan/feature-payment-record-and-accounting-export-1.md` | `feature-commercial-documents-1` | `supabase/migrations/*`, `src/lib/types.ts`, `src/lib/quote-workflow.ts`, `src/app/quote/[token]/download/page.tsx`, new invoice/billing routes | Runtime can issue/download quote and invoice/billing documents from quote data; tax invoice is clearly labeled tax-ready unless legal fields/numbering are implemented. | Stop if product cannot decide numbering, seller tax identity, branch rules, or payment-to-receipt behavior. |
+| Missing document coverage: quotation vs billing note, invoice, receipt, tax invoice | Policy decided; implementation not started. Quote download exists; requested document type is captured; invoice/billing/tax invoice runtime issuance is not implemented. | `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md`, `src/app/quote/[token]/download/page.tsx`, `src/lib/types.ts`, `docs/INVOICE_FLOW_PATCH.md`, `plan/feature-payment-record-and-accounting-export-1.md` | `feature-commercial-documents-1` | `supabase/migrations/*`, `src/lib/types.ts`, `src/lib/quote-workflow.ts`, `src/app/quote/[token]/download/page.tsx`, new invoice/billing routes | Runtime enforces `เงินเข้าใคร → เอกสารออกชื่อนั้น`, issues/downloads allowed commercial documents, locks issued snapshots, and blocks tax invoice issuance unless entity/VAT/customer-tax rules pass. | Stop if implementation violates payment receiver = issuer, tries to issue company tax invoice for personal-account payment, or claims tax compliance without required legal/accounting fields. |
 | R2 / one image / media path | Planned, not complete. Supabase metadata exists; R2 env exists in production; final customer-facing R2 delivery path is not proven. | `plan/feature-liff-media-r2-1.md`, `plan/process-drive-to-r2-rollout-1.md`, `supabase/migrations/014_customer_media_assets.sql`, `src/lib/customer-media*`, production R2 env present | `feature-r2-media-delivery-1` | `src/lib/customer-media.ts`, `src/lib/customer-media-storage.ts`, `src/lib/production-media.ts`, `src/app/api/*media*`, `src/app/liff/intake/*` | One customer upload and one production proof image can be stored, previewed, and safely opened through signed/server-controlled access. | Stop if direct browser-to-R2 upload is required in v1 or if R2 secret exposure would be needed. |
 | Prompt management system | Partial. Prompt fields are captured and visible; operational prompt management is not first-class. | `plan/feature-liff-ai-prompt-inputs-1.md`, `plan/feature-admin-ai-prompt-source-visibility-1.md`, `src/app/admin/lead-prompt-actions.tsx`, `src/app/admin/lead-ai-preview-actions.tsx` | `feature-ai-prompt-operations-1` | `src/app/admin/lead-prompt-actions.tsx`, `src/app/admin/customers/[id]/customer-360-client.tsx`, `src/lib/ai-images.ts`, `src/app/api/leads/[id]/prompt/route.ts` | Staff can see source prompt, edit prepared prompt, copy/local handoff command, and trace who changed prompt without changing provider architecture. | Stop if implementation would replace deployed OpenAI/server provider with local `gpt-image-2`; local workflow must remain handoff-only unless explicitly requested. |
 | Admin table should be one-line rows with detail modal/page | Partial. Dashboard table exists but rows are card-like and dense; desktop scan mode is overloaded. | `src/app/admin/admin-dashboard-sections.tsx` / `OverviewCombinedQueueTable`, `AdminOperationalTable` | `feature-admin-table-detail-mode-1` | `src/app/admin/admin-dashboard-sections.tsx`, possible detail modal component or row detail page | Desktop shows compact one-line rows with essential columns; detail opens in a modal or dedicated page; mobile shows a reduced subset without losing primary action path. | Stop if adding modal/page requires mixing customer profile, role model, and commercial document implementation in the same pass. |
@@ -103,8 +103,9 @@ Local State Decision
    - Strengthen Customer 360 as the detail surface for customer, documents, prompts, media, payments, and action history.
 
 6. `feature-commercial-documents-1`
-   - Implement invoice/billing document flow from `docs/INVOICE_FLOW_PATCH.md` and the document-design skill guardrails.
-   - Keep tax invoice as tax-ready until legal requirements are complete.
+   - Implement invoice/billing/receipt/tax-ready document flow from `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md` and the document-design skill guardrails.
+   - Preserve the invariant: `เงินเข้าใคร → เอกสารออกชื่อนั้น`.
+   - Keep tax invoice blocked unless issuer is VAT registered, issuer equals payment receiver, customer tax profile passes validation, and immutable numbering/snapshot rules exist.
 
 7. `feature-r2-media-delivery-1`
    - Deliver the safe R2 media path using Supabase metadata as canonical registry.
@@ -122,7 +123,6 @@ Known Facts
 - Current audit logging exists but does not consistently use real admin identity.
 
 Unknowns
-- Final legal document names and numbering policy for invoice, billing note, receipt, and tax invoice.
 - Exact role names and permission split for owner/admin/production.
 - Whether dashboard row detail should be modal-first, page-first, or profile-link-first.
 - Whether R2 upload is staff-only first or customer upload first.
@@ -131,6 +131,7 @@ Assumptions
 - Desktop backoffice scan speed is higher priority than mobile completeness for admin tables.
 - Mobile admin can show reduced queue fields and link to detail.
 - Tax invoice should not be claimed legally compliant until seller tax identity, branch, numbering, receipt, and VAT fields are complete.
+- `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md` is the canonical commercial document policy for implementation planning.
 - Local `gpt-image-2` remains a Studio/local design-assist path, not a runtime provider.
 
 Out of Scope
@@ -140,7 +141,7 @@ Out of Scope
 
 Decision Owner
 - Delivery Engineering chooses packet sequencing.
-- Product/operator decides legal/commercial document policy and role names before schema work.
+- Product/operator supplied commercial document policy v1; Product/operator still decides final role names before role schema work.
 
 ## Validation Strategy
 
