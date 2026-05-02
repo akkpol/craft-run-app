@@ -18,6 +18,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatBangkokDate } from "@/lib/bangkok-date-time";
 import { resolveProductCatalogLabel } from "@/lib/product-catalog";
+import { fetchCommercialAdminContextForQuoteIds } from "@/lib/commercial-admin-context";
+import { getUiContract } from "@/lib/workflow-policy";
 import {
   BILLING_BRANCH_TYPE_LABELS,
   BILLING_ENTITY_TYPE_LABELS,
@@ -222,6 +224,29 @@ export default async function QuotePage(props: { params: Promise<{ token: string
       : "แจ้งชำระเงิน: ส่งสลิปหรือหลักฐานการโอนกลับมาใน LINE แชตนี้เพื่อให้ทีมงานตรวจสอบได้เร็วขึ้น";
   const requestedDocumentType =
     (lead?.requested_document_type as DocumentRequestType | undefined) || "quote";
+  const commercialContext = await fetchCommercialAdminContextForQuoteIds([quote.id]);
+  const commercialOrder = commercialContext.orderByQuoteId[quote.id] || null;
+  const requiredCommercialDocumentType =
+    productionReady || waitingPayment
+      ? requestedDocumentType === "tax_invoice"
+        ? "tax_invoice"
+        : "receipt"
+      : null;
+  const commercialUiContract = getUiContract({
+    actor: "customer",
+    surface: "quote_page",
+    workflow_bundle: {
+      quote_status: quote.status,
+      payment_terms: paymentTerms,
+      payment_status: paymentStatus,
+      required_document_type: requiredCommercialDocumentType,
+      required_document_issued: Boolean(commercialOrder?.issuedDocumentId),
+      commercial_review_required:
+        Boolean(requiredCommercialDocumentType) &&
+        (!commercialOrder?.selectedReceiverEntityId || !commercialOrder?.paymentReceiverLockedAt),
+      payment_receiver_locked: Boolean(commercialOrder?.paymentReceiverLockedAt),
+    },
+  });
   const requestedDocumentLabel =
     DOCUMENT_REQUEST_TYPE_LABELS[requestedDocumentType] || requestedDocumentType;
   const billingEntityType =
@@ -434,6 +459,50 @@ export default async function QuotePage(props: { params: Promise<{ token: string
             </div>
           </div>
         </div>
+
+        {commercialUiContract.show_sections.includes("commercial_gate_panel") ? (
+          <div className="bg-white px-6 py-4 border-b border-gray-100">
+            <div className="overflow-hidden rounded-[24px] border border-emerald-200 bg-emerald-50/80">
+              <div className="flex flex-col gap-3 p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 ring-1 ring-emerald-200/80">
+                    <ShieldCheck className="size-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-emerald-950">
+                      {commercialUiContract.copy_guidance.headline || "ทีมงานกำลังตรวจสอบเอกสารหลังรับชำระ"}
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-emerald-900/80">
+                      {commercialOrder?.paymentReceiverLockedAt
+                        ? "ทีมงานยืนยันผู้รับเงินแล้ว และกำลังออกเอกสารจากชื่อเดียวกับบัญชีที่รับชำระ"
+                        : "ทีมงานกำลังตรวจสอบผู้รับเงินและเงื่อนไขเอกสารก่อนปลดล็อกขั้นตอนถัดไป"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-white/80 px-4 py-3 text-xs leading-relaxed text-emerald-950 ring-1 ring-emerald-200/70">
+                  {commercialOrder?.issuedDocumentNumber
+                    ? `เอกสารออกแล้วเลขที่ ${commercialOrder.issuedDocumentNumber}`
+                    : requiredCommercialDocumentType === "tax_invoice"
+                      ? "หากคุณขอใบกำกับภาษี ระบบจะออกใบเสร็จรับเงิน/ใบกำกับภาษีหลังทีมงานตรวจสอบครบแล้ว"
+                      : "หลังทีมงานยืนยันรับชำระครบ ระบบจะออกใบเสร็จรับเงินตาม policy ของบริษัท"}
+                </div>
+
+                {commercialUiContract.show_ctas.includes("contact_admin") ? (
+                  <div>
+                    <Link
+                      href={`/status/${token}`}
+                      prefetch={false}
+                      className="inline-flex rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800"
+                    >
+                      ดูสถานะล่าสุด
+                    </Link>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {quote.valid_until && (
           <div className="bg-white px-6 py-3 border-b border-gray-100">

@@ -4,6 +4,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { formatBangkokDateTime } from "@/lib/bangkok-date-time";
 import { resolveProductCatalogLabel } from "@/lib/product-catalog";
+import { fetchCommercialAdminContextForQuoteIds } from "@/lib/commercial-admin-context";
+import { getUiContract } from "@/lib/workflow-policy";
 import {
   DESIGN_STATUS_LABELS,
   FULFILLMENT_MODE_LABELS,
@@ -92,6 +94,33 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
   const designStatus: DesignStatus | null = isDesignStatus(lead?.design_status || "")
     ? (lead.design_status as DesignStatus)
     : null;
+  const commercialContext = await fetchCommercialAdminContextForQuoteIds([quote.id]);
+  const commercialOrder = commercialContext.orderByQuoteId[quote.id] || null;
+  const paymentCleared = quote.payment_status === "paid" || quote.payment_status === "partial" || quote.payment_status === "not_required";
+  const requiredCommercialDocumentType = paymentCleared
+    ? lead?.requested_document_type === "tax_invoice"
+      ? "tax_invoice"
+      : "receipt"
+    : null;
+  const commercialUiContract = getUiContract({
+    actor: "customer",
+    surface: "status_page",
+    workflow_bundle: {
+      quote_status: quote.status,
+      payment_terms: quote.payment_terms,
+      payment_status: quote.payment_status,
+      design_status: designStatus,
+      conversation_state: job?.status || undefined,
+      job_status: job?.status || undefined,
+      hold_reason: lead?.hold_reason || null,
+      required_document_type: requiredCommercialDocumentType,
+      required_document_issued: Boolean(commercialOrder?.issuedDocumentId),
+      commercial_review_required:
+        Boolean(requiredCommercialDocumentType) &&
+        (!commercialOrder?.selectedReceiverEntityId || !commercialOrder?.paymentReceiverLockedAt),
+      payment_receiver_locked: Boolean(commercialOrder?.paymentReceiverLockedAt),
+    },
+  });
   const showDesignActions = designStatusNeedsCustomerResponse(designStatus);
   const showHoldResolution =
     job?.status === "ON_HOLD_CUSTOMER_INPUT" &&
@@ -141,6 +170,23 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
             </Link>
           </div>
         </div>
+
+        {commercialUiContract.show_sections.includes("commercial_gate_notice") ? (
+          <div className="bg-white px-6 py-4 border-b border-gray-100">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+              <p className="text-sm font-semibold text-emerald-950">
+                {commercialUiContract.copy_guidance.headline || "ทีมงานกำลังดูแลเอกสารหลังรับชำระ"}
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-emerald-900/80">
+                {commercialOrder?.paymentReceiverLockedAt
+                  ? commercialOrder?.issuedDocumentNumber
+                    ? `เอกสารออกแล้วเลขที่ ${commercialOrder.issuedDocumentNumber}`
+                    : "ทีมงานยืนยันผู้รับเงินแล้ว และกำลังออกเอกสารตามขั้นตอนของบริษัทก่อนเริ่มผลิตหรือส่งมอบ"
+                  : "ระบบกำลังรอตรวจสอบผู้รับเงินและเงื่อนไขเอกสาร เพื่อให้เอกสารออกชื่อเดียวกับผู้รับชำระ"}
+              </p>
+            </div>
+          </div>
+        ) : null}
 
         {/* Job details */}
         <div className="bg-white px-6 py-4 border-b border-gray-100">

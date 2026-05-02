@@ -76,7 +76,7 @@ export default function AdminQuoteActions({
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<AdminToastState | null>(null);
   const [panel, setPanel] = useState<
-    "commercial" | "deposit" | "paid" | "receiver" | "reject" | "rescope" | null
+    "commercial" | "deposit" | "paid" | "receiver" | "issueDocument" | "reject" | "rescope" | null
   >(null);
   const [paymentTermsDraft, setPaymentTermsDraft] = useState(paymentTerms);
   const [paymentStatusDraft, setPaymentStatusDraft] = useState(paymentStatus);
@@ -95,6 +95,10 @@ export default function AdminQuoteActions({
       (entity) => entity.id === commercialOrder?.selectedReceiverEntityId
     ) || null;
   const receiverLocked = Boolean(commercialOrder?.paymentReceiverLockedAt);
+  const confirmedPaymentId = commercialOrder?.confirmedPaymentId || null;
+  const issuedDocumentId = commercialOrder?.issuedDocumentId || null;
+  const issuedDocumentType = commercialOrder?.issuedDocumentType || null;
+  const issuedDocumentNumber = commercialOrder?.issuedDocumentNumber || null;
   const receiverWarnings = getCommercialReceiverWarnings({
     selectedEntity: selectedReceiverEntity,
     requestedDocumentType,
@@ -252,6 +256,39 @@ export default function AdminQuoteActions({
     }
   }
 
+  async function issueCommercialDocument() {
+    if (!confirmedPaymentId) {
+      setToast({
+        tone: "warning",
+        title: "ยังไม่มี payment ที่ยืนยันแล้ว",
+        description: "ต้องยืนยันรับชำระก่อน จึงจะออกเอกสารเชิงพาณิชย์ได้",
+      });
+      return;
+    }
+
+    try {
+      const payload = await callApi(
+        "/api/commercial/documents/issue",
+        { paymentId: confirmedPaymentId },
+        "ออกเอกสารเชิงพาณิชย์ไม่สำเร็จ"
+      );
+      setToast({
+        tone: "success",
+        title: "ออกเอกสารหลังรับชำระแล้ว",
+        description:
+          payload?.documentNumber || payload?.documentType || "Commercial document issued",
+      });
+      router.refresh();
+      closePanel();
+    } catch (error) {
+      setToast({
+        tone: "error",
+        title: "ออกเอกสารเชิงพาณิชย์ไม่สำเร็จ",
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+  }
+
   const canEditTerms = !hasJob && (quoteStatus === "sent" || quoteStatus === "approved");
   const canCapturePayment = !hasJob && quoteStatus === "approved" && paymentTerms !== "credit";
   const canRejectQuote = !hasJob && quoteStatus === "sent";
@@ -259,6 +296,10 @@ export default function AdminQuoteActions({
   const canShowReceiverAction =
     commercialReceiverEntities.length > 0 &&
     (receiverLocked || (!hasJob && (quoteStatus === "sent" || quoteStatus === "approved")));
+  const canIssueCommercialDocument =
+    Boolean(confirmedPaymentId) &&
+    !issuedDocumentId &&
+    requestedDocumentType !== "quote";
   const receiverStatusTone = receiverLocked
     ? "locked"
     : commercialOrder?.selectedReceiverEntityId
@@ -284,6 +325,16 @@ export default function AdminQuoteActions({
           description: receiverLocked
             ? getCommercialReceiverLabel(savedReceiverEntity)
             : "ใช้ก่อนยืนยัน payment เพื่อให้เอกสารออกชื่อเดียวกับผู้รับเงิน",
+        }
+      : null,
+    canIssueCommercialDocument
+      ? {
+          key: "issueDocument",
+          label: "ออกเอกสารหลังรับชำระ",
+          description:
+            requestedDocumentType === "tax_invoice"
+              ? "สร้างใบเสร็จรับเงิน/ใบกำกับภาษีจาก receiver ที่ถูก lock แล้ว"
+              : "สร้างใบเสร็จรับเงินจาก receiver ที่ถูก lock แล้ว",
         }
       : null,
     canEditTerms
@@ -332,6 +383,14 @@ export default function AdminQuoteActions({
             {receiverStatusLabel}
           </span>
         ) : null}
+        {issuedDocumentId ? (
+          <span
+            className="max-w-52 truncate rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium leading-none text-emerald-800"
+            title={issuedDocumentNumber || issuedDocumentType || "issued"}
+          >
+            ออกเอกสารแล้ว{issuedDocumentNumber ? `: ${issuedDocumentNumber}` : ""}
+          </span>
+        ) : null}
         <AdminActionMenu
           actions={actions}
           onSelect={(key) => openPanel(key as typeof panel)}
@@ -340,6 +399,49 @@ export default function AdminQuoteActions({
           label={effectiveButtonLabel}
           buttonVariant={buttonVariant}
         />
+
+        <AdminActionSheet
+          open={panel === "issueDocument"}
+          onClose={closePanel}
+          title="ออกเอกสารหลังรับชำระ"
+          description="ใช้ confirmed payment และ receiver ที่ถูก lock เพื่อสร้างเอกสารตาม policy v1"
+          badge="Commercial"
+          footer={
+            <div className="flex items-center justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={closePanel}>
+                ยกเลิก
+              </Button>
+              <Button type="button" onClick={issueCommercialDocument} disabled={loading || !confirmedPaymentId}>
+                {loading ? "กำลังออกเอกสาร..." : "ออกเอกสารตอนนี้"}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3 text-sm text-slate-700">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p>
+                เอกสารที่จะออก: <span className="font-semibold text-slate-950">
+                  {requestedDocumentType === "tax_invoice"
+                    ? "ใบเสร็จรับเงิน/ใบกำกับภาษี"
+                    : "ใบเสร็จรับเงิน"}
+                </span>
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                ระบบจะใช้ receiver ที่ถูกล็อกหลังยืนยัน payment เท่านั้น
+              </p>
+            </div>
+
+            {receiverWarnings.length > 0 ? (
+              <div className="space-y-2">
+                {receiverWarnings.map((warning) => (
+                  <div key={`${warning.tone}-${warning.message}`} className={receiverWarningClass(warning)}>
+                    {warning.message}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </AdminActionSheet>
       </div>
 
       <AdminActionSheet

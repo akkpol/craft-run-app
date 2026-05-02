@@ -14,6 +14,12 @@ export type CommercialOrderReceiverState = {
   selectedReceiverEntityId: string | null;
   paymentReceiverLockedAt: string | null;
   customerTaxProfileId: string | null;
+  confirmedPaymentId?: string | null;
+  confirmedPaymentStatus?: string | null;
+  issuedDocumentId?: string | null;
+  issuedDocumentType?: string | null;
+  issuedDocumentNumber?: string | null;
+  issuedDocumentStatus?: string | null;
 };
 
 export type CommercialReceiverWarning = {
