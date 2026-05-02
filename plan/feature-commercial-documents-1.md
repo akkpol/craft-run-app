@@ -131,7 +131,7 @@ Decision Owner
 | Task | Description | Status | Completed Date |
 | --- | --- | --- | --- |
 | TASK-011 | Add audit events from policy v1 for receiver selection, payment confirmation, mismatch, document issue/void, numbering, VAT/branch failures, and tax invoice blocking. | Partial (receiver selection, payment confirmation, mismatch, numbering, and tax-document blocking are covered; `VOID` flow is not implemented in v1) | 2026-05-02 |
-| TASK-012 | Add tests for receiver mismatch, VAT restrictions, branch validation, document number uniqueness, and issued-document immutability. | Partial (service/helper/print/audit coverage exists; route-level uniqueness and immutability coverage is still thin) | 2026-05-02 |
+| TASK-012 | Add tests for receiver mismatch, VAT restrictions, branch validation, document number uniqueness, and issued-document immutability. | Partial (service/helper/print/audit coverage exists and route/page flow confirmation now covers confirm → issue guard → download snapshot; document-number conflict and immutability still need deeper integration coverage) | 2026-05-03 |
 | TASK-013 | Run focused tests, workflow policy smoke if workflow surfaces changed, then run build/lint before release. | Yes (`npm run test:node` and `npm run build` passed for the packet slices that changed workflow-adjacent commercial behavior) | 2026-05-02 |
 
 ## Stop Rules
@@ -163,5 +163,5 @@ Packet state (2026-05-03)
 Open follow-up to close packet cleanly
 
 - Sync this packet plan with the GitHub issue body and milestone notes.
-- Add narrower route/integration coverage for document-number conflict and issued-document immutability behavior.
+- Add deeper integration coverage for document-number conflict allocation and issued-document immutability behavior.
 - Decide whether `VOID` remains explicitly out of v1 scope or gets a follow-up packet.
