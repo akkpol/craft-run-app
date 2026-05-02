@@ -3,7 +3,7 @@ title: FOGUS Go / No-Go Review
 version: 1.0
 date: 2026-04-26
 owner: Delivery Engineering
-status: Gate open - all Phase 3 gates pass; remaining blockers are LIFF-VAL-006/007/008 plus final sign-off
+status: Gate open - all Phase 3 gates pass; remaining blockers are LIFF-VAL-006/007/008, commercial document decision, and final sign-off
 plan_ref: plan/process-go-live-waves-1.md (TASK-024), plan/action-tracking-plan.md
 ---
 
@@ -21,8 +21,9 @@ If the goal is to get through launch readiness with the least confusion, execute
 2. Complete Phase 2 gates from `P2-G01` through `P2-G07` in order.
 3. Do not start Phase 3 until every Phase 2 gate is marked PASS.
 4. Complete Phase 3 gates from `P3-G01` through `P3-G13` in order.
-5. If any gate fails, stop the run, record evidence, and resolve the failure before continuing.
-6. Only after all gates PASS, fill the Sign-Off table and update the overall verdict to **GO**.
+5. Confirm the Commercial Document Policy Guard below before sign-off.
+6. If any gate fails, stop the run, record evidence, and resolve the failure before continuing.
+7. Only after all gates PASS and required policy deferrals are recorded, fill the Sign-Off table and update the overall verdict to **GO**.
 
 This document is the live run sheet. Do not split the same verification run across multiple plan files while executing.
 
@@ -33,6 +34,7 @@ Operator aids:
 - Use [LIFF_LIVE_VALIDATION_RUNBOOK.md](LIFF_LIVE_VALIDATION_RUNBOOK.md) to execute live LIFF checks after Phase 2 passes.
 - Use [OPERATOR_HANDOFF_MESSAGE_TH.md](OPERATOR_HANDOFF_MESSAGE_TH.md) when you need a copy-paste Thai handoff message for the operator.
 - Use [OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md](OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md) when the operator needs exact screenshot/log capture points per gate.
+- Use [COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md) before interpreting quote PDFs, payment unlocks, billing notes, invoices, receipts, tax-ready labels, or tax invoices.
 
 ## Plan Linkback
 
@@ -98,7 +100,7 @@ Stop rule: if `P2-G03`, `P2-G05`, or `P2-G06` fails, stop the run and fix deploy
 
 Auth evidence update, 2026-05-02: local preflight already covered redirect, allowlisted login, non-allowlisted deny, and disabled sign-up. Production now also confirms redirect, allowlisted admin access, and non-allowlisted deny.
 
-Current launch blockers on 2026-05-02: all Phase 3 gates are PASS. The remaining no-go items are LIFF live checks `LIFF-VAL-006`, `LIFF-VAL-007`, `LIFF-VAL-008`, plus final sign-off. Production desktop access to `/liff` currently stays at `กำลังเปิดฟอร์มใน LINE...`, and the non-LIFF bypass is intentionally disabled outside localhost/non-production, so those remaining LIFF checks still require real operator/device evidence.
+Current launch blockers on 2026-05-02: all Phase 3 gates are PASS. The remaining no-go items are LIFF live checks `LIFF-VAL-006`, `LIFF-VAL-007`, `LIFF-VAL-008`, the commercial document defer-or-block decision, plus final sign-off. Production desktop access to `/liff` currently stays at `กำลังเปิดฟอร์มใน LINE...`, and the non-LIFF bypass is intentionally disabled outside localhost/non-production, so those remaining LIFF checks still require real operator/device evidence.
 
 | Gate | Check | Result | Who verifies |
 |---|---|---|---|
@@ -148,6 +150,20 @@ These checks remain launch blockers because they require real LINE/LIFF device e
 | LIFF-VAL-007 | Company tax-document validation | ⬜ **PENDING** | Submit one company tax-invoice case without branch code and confirm Thai validation error, then submit with branch code and confirm intake succeeds. |
 | LIFF-VAL-008 | Runtime catalog path | ⬜ **PENDING** | Confirm LIFF picker loads runtime catalog items from `/api/intake/product-catalog` and quote/status/download pages render the imported product label instead of a slug fallback. |
 
+## Commercial Document Policy Guard
+
+This guard keeps the launch runbook honest about what the current system proves and what remains a separate commercial-document implementation packet.
+
+| Item | Status | Launch meaning |
+|---|---|---|
+| Policy source | ✅ **RECORDED** | [COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md) is the source of truth. Core rule: `เงินเข้าใคร → เอกสารออกชื่อนั้น`. |
+| Implementation packet | ⬜ **DEFERRED / NOT IMPLEMENTED** | [../plan/feature-commercial-documents-1.md](../plan/feature-commercial-documents-1.md) must be opened before building billing note, invoice, receipt, tax-ready, or tax-invoice issuance. |
+| `P3-G08` quote download | ✅ **PASS AS QUOTATION ONLY** | This proves the current quotation download route, not invoice, receipt, tax invoice, or tax compliance. |
+| `P3-G09` commercial unlock | ✅ **PASS AS PAYMENT UNLOCK ONLY** | This proves payment status can unlock production under workflow rules, not that a receipt or tax invoice was issued. |
+| `LIFF-VAL-007` tax-document validation | ⬜ **PENDING AS INTAKE VALIDATION** | This validates Thai branch-code intake behavior only; it does not prove tax invoice issuance. |
+
+Sign-off rule: if go-live requires billing note, invoice, receipt, tax-ready, or tax-invoice issuance, the current verdict stays **NO-GO** until `feature-commercial-documents-1` is implemented and validated. If launch can proceed without those documents, the business owner must explicitly sign off that commercial documents are deferred.
+
 ## Final Verdict
 
 | Area | Verdict | Notes |
@@ -156,9 +172,10 @@ These checks remain launch blockers because they require real LINE/LIFF device e
 | Phase 2 - environment | ✅ PASS | Production Vercel, LINE webhook, LIFF endpoint, and admin access evidence recorded. |
 | Phase 3 - live behavior | ✅ PASS | End-to-end customer and operator workflow gates are recorded as passing. |
 | Remaining LIFF focused checks | ⬜ PENDING | `LIFF-VAL-006`, `LIFF-VAL-007`, and `LIFF-VAL-008` still require operator/device evidence. |
+| Commercial document policy | ⬜ DECISION REQUIRED | Policy v1 is recorded; implementation is deferred unless the business owner marks it required before launch. |
 | Sign-off | ⬜ PENDING | Customer/operator acceptance is not recorded yet. |
 
-**Current overall verdict: NO-GO until the remaining LIFF focused checks and final sign-off are completed.**
+**Current overall verdict: NO-GO until the remaining LIFF focused checks, commercial document defer-or-block decision, and final sign-off are completed.**
 
 ## Sign-Off
 
@@ -167,6 +184,8 @@ These checks remain launch blockers because they require real LINE/LIFF device e
 | Delivery Engineering |  |  |  |  |
 | Operator / Admin Owner |  |  |  |  |
 | Customer / Business Owner |  |  |  |  |
+
+Commercial document sign-off must state one of these decisions in the notes column: `Deferred after launch` or `Required before GO`.
 
 ## Rollback Decision Authority
 

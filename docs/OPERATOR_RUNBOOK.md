@@ -18,6 +18,7 @@ This runbook covers day-to-day incident triage, scheduled maintenance, and emerg
 - **Platform**: Next.js 16 on Vercel, Supabase (DB + Auth + Storage), LINE Messaging API, LINE MINI App (LIFF)
 - **Deployment trigger**: `git push` to main branch → Vercel auto-deploy
 - **Workflow state machine**: `docs/workflow-policy.json` — do not modify without a full smoke test
+- **Commercial document policy**: `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md` — source of truth for billing note, invoice, receipt, tax-ready, and tax-invoice behavior
 - **Action log**: all significant events write to `action_log` table with `action_ref` format `ACT-YYYYMMDD-NNNN`
 
 ---
@@ -237,6 +238,39 @@ When sending the issue onward, include all of the following:
 3. If the message shows upstream/provider failure, stop repeated retries and escalate.
 4. If the provider call works but storage fails, treat it as a Supabase Storage incident.
 5. If one lead fails but others work, inspect the lead prompt/context rather than treating it as a platform outage.
+
+### 2h. Commercial Document / Tax Invoice Request Or Dispute
+
+Use this flow when staff or a customer asks whether the current system can issue a billing note, invoice, receipt, tax-ready document, tax invoice, or combined receipt/tax invoice.
+
+#### Policy source
+
+- Open `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md` first.
+- Core rule: `เงินเข้าใคร → เอกสารออกชื่อนั้น`.
+- Payment receiver entity must equal document issuer entity.
+- Tax invoice can only be issued by a VAT-registered entity that is also the payment receiver.
+- Issued documents must be immutable; corrections require void, credit note, or debit note behavior.
+
+#### Current production boundary
+
+1. The existing quote PDF route proves quotation download only.
+2. The existing admin commercial unlock proves workflow/payment unlock only.
+3. LIFF tax-document validation proves intake validation only.
+4. Do not tell staff or customers that invoice, receipt, or tax invoice issuance is production-complete until `plan/feature-commercial-documents-1.md` is implemented and validated.
+
+#### Operator action
+
+1. If the request is only for a quotation, use the existing quote page and download flow.
+2. If the request is for invoice, receipt, tax-ready, or tax invoice output, escalate to Delivery Engineering and Business Owner with the quote ID, payment receiver, requested document type, and customer tax profile details.
+3. If receiver/issuer mismatch is present, block issuance and record the mismatch.
+4. If non-VAT entity is selected for a tax invoice, block issuance.
+5. If launch sign-off is in progress, record the decision in `docs/GO_NOGO_REVIEW.md` as either `Deferred after launch` or `Required before GO`.
+
+Escalation owner:
+
+- Delivery Engineering for implementation and data validation.
+- Business Owner / Akkapol for seller entity, receiver channel, and commercial wording decisions.
+- Accounting/legal reviewer for any claim beyond `tax-ready`.
 
 ---
 

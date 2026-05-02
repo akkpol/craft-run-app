@@ -33,6 +33,7 @@ This plan defines the current runbook-entry decision, launch-readiness matrix, a
 | Phase 3 | `P3-G11` | Complete | `docs/GO_NOGO_REVIEW.md` | Signed production webhook simulation proves escalation routing into `HUMAN_REVIEW_REQUIRED`. |
 | Phase 3 | `P3-G12` | Complete | `docs/GO_NOGO_REVIEW.md` | Runtime settings save plus audit event evidence is proven. |
 | Phase 3 | `P3-G13` | Complete | `docs/GO_NOGO_REVIEW.md` | Recent production `action_log` rows all carried non-empty `action_ref` values. |
+| Commercial documents | Policy v1 handoff | Recorded / implementation deferred | `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md` | `P3-G08` proves the current quotation download only; billing note, invoice, receipt, tax-ready, and tax-invoice implementation must follow `feature-commercial-documents-1`. |
 | LIFF live checks | `LIFF-VAL-005` | Complete via `P3-G05` evidence | `docs/LIFF_LIVE_VALIDATION_RUNBOOK.md` | First-time customer path has matching live evidence. |
 | LIFF live checks | `LIFF-VAL-006` | Open | `docs/LIFF_LIVE_VALIDATION_RUNBOOK.md` | Returning-customer prefill still needs focused evidence. |
 | LIFF live checks | `LIFF-VAL-007` | Open | `docs/LIFF_LIVE_VALIDATION_RUNBOOK.md` | Tax-document validation still needs fail and pass evidence. |
@@ -46,8 +47,9 @@ This plan defines the current runbook-entry decision, launch-readiness matrix, a
 | 1 | Run `LIFF-VAL-006` | Stop if prefill shows wrong customer data or no production prefill. | Add focused evidence to `docs/GO_NOGO_REVIEW.md` and note scenario result. |
 | 2 | Run `LIFF-VAL-007` | Stop if Thai validation logic or retry success path disagrees with the runbook. | Add focused evidence to `docs/GO_NOGO_REVIEW.md`. |
 | 3 | Run `LIFF-VAL-008` | Stop if runtime catalog fails to load or imported labels regress to slug fallback. | Add focused evidence to `docs/GO_NOGO_REVIEW.md`. |
-| 4 | Complete sign-off | Do not close sign-off if any required gate above remains open. | Record sign-off in `docs/GO_NOGO_REVIEW.md`. |
-| 5 | Close `TASK-024` last | Do not close `TASK-024` before sign-off is recorded. | Update `plan/process-go-live-waves-1.md`. |
+| 4 | Confirm commercial document handoff | Stop if anyone treats quote PDF, payment unlock, or LIFF tax-document validation as proof that invoice/receipt/tax invoice issuance is production-complete. | Record the policy boundary in `docs/GO_NOGO_REVIEW.md`: source is `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md`, implementation is `feature-commercial-documents-1`, and launch sign-off must decide whether to defer it. |
+| 5 | Complete sign-off | Do not close sign-off if any required gate above remains open or if commercial document implementation is required for this launch but not implemented. | Record sign-off in `docs/GO_NOGO_REVIEW.md`. |
+| 6 | Close `TASK-024` last | Do not close `TASK-024` before sign-off is recorded. | Update `plan/process-go-live-waves-1.md`. |
 
 ## No-Chat Completion Contract
 
@@ -56,7 +58,7 @@ Use this contract to finish the work without reopening design discussion. Execut
 | Wave | Objective | Required actions | Completion output | Stop rule |
 |---|---|---|---|---|
 | CLOSE-001 | Finish live runbook evidence | Run `LIFF-VAL-006`, `LIFF-VAL-007`, and `LIFF-VAL-008` in the minimal execution order above. | `docs/GO_NOGO_REVIEW.md` has complete result, verifier, date, evidence, and notes for each still-open LIFF gate. | Stop immediately if any gate fails and record the exact failed gate, evidence, and rollback or triage path. |
-| CLOSE-002 | Close sign-off | Complete the sign-off section in `docs/GO_NOGO_REVIEW.md`, then close the remaining Wave 4 tasks, then close `TASK-024` last in `plan/process-go-live-waves-1.md`. | Go/no-go package is signed and Wave 4 closure is recorded. | Stop if any required gate is still open or waived without written launch reasoning. |
+| CLOSE-002 | Close sign-off | Complete the sign-off section in `docs/GO_NOGO_REVIEW.md`, confirm the commercial document policy handoff is recorded, then close the remaining Wave 4 tasks, then close `TASK-024` last in `plan/process-go-live-waves-1.md`. | Go/no-go package is signed, commercial document scope is explicitly deferred or required, and Wave 4 closure is recorded. | Stop if any required gate is still open, waived without written launch reasoning, or if billing/invoice/receipt/tax invoice issuance is required for this launch but still unimplemented. |
 | CLOSE-003 | Integrate local test-fix residue | After live runbook closure only, isolate `tests/line-and-production-review.test.ts`, `tests/workflow-transitions.test.ts`, and `vitest.config.ts` as a separate test-resolution slice. | `npm test` passes and the test-fix slice is ready for commit or PR. | Stop if unrelated doc/runbook files are still mixed into the test-fix diff. |
 | CLOSE-004 | Final repository handoff | Run final `git status --short --branch`, verify no unintended files are mixed, then prepare the commit or PR package by slice. | One clean live-runbook package and one separate test-fix package, or a documented reason for combining them. | Stop if the worktree spans unrelated surfaces without an explicit package split. |
 
@@ -134,6 +136,7 @@ Notes:
 - **DONE-003**: `plan/process-go-live-waves-1.md` closes `TASK-024` only after sign-off is fully recorded.
 - **DONE-004**: The local test-fix slice is integrated separately after launch evidence closure, with `npm test` passing.
 - **DONE-005**: Final handoff contains either one clean combined PR package with written reason, or two separate packages: live runbook evidence and test-fix resolution.
+- **DONE-006**: Commercial document policy handoff is recorded in `docs/GO_NOGO_REVIEW.md`; sign-off explicitly says whether `feature-commercial-documents-1` is deferred or required before launch.
 
 ## 1. Requirements & Constraints
 
@@ -222,6 +225,8 @@ Notes:
 - **DEP-003**: `docs/OPERATOR_RUNBOOK.md` - incident, redeploy, reconfiguration, and hypercare procedures.
 - **DEP-004**: `plan/process-go-live-waves-1.md` - Wave 3/Wave 4 execution and closure rules.
 - **DEP-005**: `plan/process-anti-loop-execution-1.md` - unstable worktree guardrails.
+- **DEP-006**: `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md` - commercial document policy and sign-off boundary.
+- **DEP-007**: `plan/feature-commercial-documents-1.md` - deferred implementation packet for billing note, invoice, receipt, tax-ready, and tax-invoice behavior.
 
 ## 5. Files
 
@@ -230,6 +235,8 @@ Notes:
 - **FILE-003**: `docs/LIFF_LIVE_VALIDATION_RUNBOOK.md` - detailed LIFF live validation checklist.
 - **FILE-004**: `docs/OPERATOR_RUNBOOK.md` - operational incident and redeploy runbook.
 - **FILE-005**: `plan/process-go-live-waves-1.md` - wave mapping and final closure rule.
+- **FILE-006**: `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md` - source-of-truth policy for commercial documents.
+- **FILE-007**: `plan/feature-commercial-documents-1.md` - implementation packet to open only after launch gate closure or explicit pause.
 
 ## 6. Testing
 
@@ -243,6 +250,7 @@ Notes:
 - **RISK-001**: Mixing local test-fix work with live operator validation can reintroduce context drift and invalidate evidence ordering.
 - **RISK-002**: A fresh deploy or console reconfiguration can invalidate previously captured Phase 2 evidence and require rerun.
 - **RISK-003**: Leaving `LIFF-VAL-006`, `LIFF-VAL-007`, or `LIFF-VAL-008` open blocks final launch sign-off even though Phase 3 now passes.
+- **RISK-004**: Treating the current quote PDF or payment unlock as invoice/receipt/tax-invoice compliance can create a business/legal false-ready signal. Mitigation: use `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md` as the policy boundary and require explicit defer-or-block sign-off.
 - **ASSUMPTION-001**: The production alias remains `https://craft-run.vercel.app` during the active runbook pass.
 - **ASSUMPTION-002**: The current evidence already recorded in `docs/GO_NOGO_REVIEW.md` is trustworthy unless a new production change occurs.
 
@@ -251,5 +259,7 @@ Notes:
 - `docs/GO_NOGO_REVIEW.md`
 - `docs/LIFF_LIVE_VALIDATION_RUNBOOK.md`
 - `docs/OPERATOR_RUNBOOK.md`
+- `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md`
+- `plan/feature-commercial-documents-1.md`
 - `plan/process-go-live-waves-1.md`
 - `plan/process-anti-loop-execution-1.md`

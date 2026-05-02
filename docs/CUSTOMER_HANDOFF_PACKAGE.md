@@ -133,9 +133,12 @@ All changes to these settings are recorded in the `action_log` table with `actio
 ## 8. PDF / Quote Document Access
 
 - Quote PDF is publicly accessible at `<base-url>/quote/<token>/download` using the token embedded in LINE messages.
+- The current quote PDF is a quotation document only. It must not be presented as an invoice, receipt, tax invoice, or legal/compliance-complete tax document.
 - No login is required — the token itself is the authorization credential.
 - Tokens are UUIDs generated at quote creation and do not expire by default.
 - Business logo and company details come from runtime settings at `/admin/settings`.
+
+Commercial document policy source: [COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md). Implementation for billing note, invoice, receipt, tax-ready, and tax-invoice issuance belongs to [../plan/feature-commercial-documents-1.md](../plan/feature-commercial-documents-1.md).
 
 ---
 

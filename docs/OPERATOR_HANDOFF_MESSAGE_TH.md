@@ -9,6 +9,7 @@ source_refs:
   - docs/PHASE2_OPERATOR_GATE_CHECKLIST.md
   - docs/LIFF_LIVE_VALIDATION_RUNBOOK.md
   - docs/GO_NOGO_REVIEW.md
+  - docs/COMMERCIAL_DOCUMENT_POLICY_V1.md
 ---
 
 # Operator Handoff Message TH
@@ -24,6 +25,7 @@ source_refs:
 docs/OPERATOR_LAUNCH_ONE_PAGE.md
 
 ทำตามลำดับในนั้น และส่งผลกลับตาม format เดียวกันทุกข้อ
+ก่อน sign-off ให้ตอบ `COMMERCIAL-POLICY-HANDOFF` ด้วยว่า commercial documents defer หลัง launch ได้หรือเป็น required before GO
 ถ้าข้อไหน fail หรืออยากรู้ว่าต้องแคปหน้าจอจากหน้าไหน ค่อยเปิดเอกสารอ้างอิงที่ลิงก์อยู่ในหน้านั้นต่อ
 ```
 
@@ -34,7 +36,29 @@ Use this single doc for the operator run:
 docs/OPERATOR_LAUNCH_ONE_PAGE.md
 
 Follow the order in that file and send every result back using the same reply format.
+Before sign-off, answer `COMMERCIAL-POLICY-HANDOFF` as either deferred after launch or required before GO.
 Open the deeper docs only if a step fails or you need exact capture points.
+```
+
+## Message 0A — Current Runbook + Commercial Policy Handoff
+
+```text
+ตอนนี้ Phase 2 และ Phase 3 หลักมี evidence แล้ว เหลือ operator/device evidence และ sign-off:
+
+1) LIFF-VAL-006 returning-customer prefill
+2) LIFF-VAL-007 company tax-document validation
+3) LIFF-VAL-008 runtime catalog path
+4) COMMERCIAL-POLICY-HANDOFF: ตอบว่า commercial documents defer หลัง launch ได้ หรือ required before GO
+5) Final sign-off ใน docs/GO_NOGO_REVIEW.md
+
+สำคัญ: quote PDF ที่ผ่านแล้วคือ quotation เท่านั้น ไม่ใช่ invoice/receipt/tax invoice
+payment unlock ที่ผ่านแล้วคือ workflow/payment gate เท่านั้น ไม่ใช่การออกเอกสารรับเงิน
+
+Commercial document policy source:
+docs/COMMERCIAL_DOCUMENT_POLICY_V1.md
+
+Implementation packet ถ้าต้องทำก่อน GO:
+plan/feature-commercial-documents-1.md
 ```
 
 ## Message 0 — Ultra Short
@@ -107,8 +131,11 @@ docs/OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md
 2) LIFF-VAL-006 ลูกค้าเดิม: เปิด LIFF ใหม่แล้วต้องเห็น prefill ของ phone, document type, billing defaults และถ้ามีให้ reuse width/height/qty
 3) LIFF-VAL-007 company tax document: เคสไม่กรอก branch code ต้อง fail ด้วยข้อความไทย และเมื่อกรอก branch code แล้วต้อง submit ผ่าน
 4) LIFF-VAL-008 runtime catalog: product picker ต้องโหลด runtime catalog ได้ และหน้า quote/status/download ต้องแสดง product label แบบอ่านได้ ไม่ใช่ slug ดิบ
+5) COMMERCIAL-POLICY-HANDOFF: ยืนยันว่า commercial documents defer หลัง launch ได้ หรือ required before GO
 
 ถ้า LIFF พังก่อน submit หรือไม่แน่ใจว่า request ไปถึง server หรือไม่ ให้เช็ก /admin/liff-monitor ก่อนเป็นจุดแรก
+
+หมายเหตุ commercial documents: quote PDF ไม่ใช่ invoice/receipt/tax invoice และ LIFF-VAL-007 เป็นแค่ intake validation ไม่ใช่การออกใบกำกับภาษีจริง
 
 ให้เก็บ evidence ต่อ scenario ดังนี้:
 - เวลาไทย
@@ -122,6 +149,7 @@ docs/OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md
 docs/OPERATOR_LAUNCH_ONE_PAGE.md
 docs/LIFF_LIVE_VALIDATION_RUNBOOK.md
 docs/OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md
+docs/COMMERCIAL_DOCUMENT_POLICY_V1.md
 ```
 
 ## Message 3 — Combined Short Version
@@ -132,7 +160,8 @@ docs/OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md
 ลำดับที่ต้องทำ:
 1) ปิด P2-G03, P2-G05, P2-G06, P2-G07
 2) ถ้าผ่านครบ ค่อยรัน LIFF-VAL-005 ถึง LIFF-VAL-008
-3) กรอก evidence กลับเข้า docs/GO_NOGO_REVIEW.md
+3) ตอบ COMMERCIAL-POLICY-HANDOFF ว่า defer หลัง launch ได้ หรือ required before GO
+4) กรอก evidence กลับเข้า docs/GO_NOGO_REVIEW.md
 
 คู่มือใช้งาน:
 - docs/OPERATOR_LAUNCH_ONE_PAGE.md
@@ -140,4 +169,5 @@ docs/OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md
 - docs/LIFF_LIVE_VALIDATION_RUNBOOK.md
 - docs/OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md
 - docs/GO_NOGO_REVIEW.md
+- docs/COMMERCIAL_DOCUMENT_POLICY_V1.md
 ```

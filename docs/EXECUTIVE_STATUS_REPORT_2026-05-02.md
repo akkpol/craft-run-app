@@ -127,7 +127,7 @@ source_refs:
 | 2 | แยก owner/admin/production role | `feature-staff-roles-ownership-1` | ตอนนี้เป็น allowlist + free-text ownership ยังไม่ใช่ role model จริง |
 | 3 | Admin table แสดงหนึ่งบรรทัดและเปิด detail | `feature-admin-table-detail-mode-1` | ลดความแน่นของ dashboard และทำ desktop scan mode ให้เร็วขึ้น |
 | 4 | Customer profile เป็นหน้า detail หลัก | `feature-customer-profile-ops-1` | ให้ข้อมูลลูกค้า, leads, quotes, prompts, media, history รวมอยู่ในที่เดียว |
-| 5 | เอกสารวางบิล / invoice / receipt / tax-ready | `feature-commercial-documents-1` | policy v1 ถูกกำหนดแล้วใน [docs/COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md); implementation ยังไม่ครบ |
+| 5 | เอกสารวางบิล / invoice / receipt / tax-ready | `feature-commercial-documents-1` | policy v1 ถูกกำหนดแล้วใน [docs/COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md) และถูกผูกเข้า runbook/handoff แล้ว; implementation ยังไม่ครบ |
 | 6 | R2/media delivery | `feature-r2-media-delivery-1` | R2 env มีแล้ว แต่ customer upload/proof image delivery ยังไม่พิสูจน์ครบ |
 | 7 | Prompt management system | `feature-ai-prompt-operations-1` | prompt capture/visibility มีแล้ว แต่ยังไม่มี operation surface เต็มรูปแบบ |
 | 8 | Fulfillment model | follow-up fulfillment packet | ตอนนี้ยังแค่ pickup/delivery ต้องแยกขนส่ง, ส่งเอง, ติดตั้งหน้างาน |
@@ -138,7 +138,7 @@ source_refs:
 |---|---|---|
 | ประกาศ GO ก่อน LIFF 3 checks สุดท้าย | สูง | ห้าม sign-off จนกว่า `LIFF-VAL-006/007/008` ผ่านหรือมี waiver เป็นลายลักษณ์อักษร |
 | รวม runtime/test residue กับ docs หรือ feature work | กลาง | ทำ commit/PR แยก slice ตาม anti-loop plan |
-| เอกสาร tax invoice ถูกเข้าใจว่า compliance ครบแล้ว | สูง | ใช้ [docs/COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md) เป็น source-of-truth: เงินเข้าใคร เอกสารออกชื่อนั้น, จด VAT เท่านั้นจึงออกใบกำกับภาษีได้ |
+| เอกสาร tax invoice ถูกเข้าใจว่า compliance ครบแล้ว | สูง | ใช้ [docs/COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md) เป็น source-of-truth และบังคับ commercial policy guard ใน [docs/GO_NOGO_REVIEW.md](GO_NOGO_REVIEW.md): เงินเข้าใคร เอกสารออกชื่อนั้น, จด VAT เท่านั้นจึงออกใบกำกับภาษีได้ |
 | Staff roles ยังไม่ first-class | กลาง | รักษา allowlist fail-closed เป็น fallback จนกว่าจะมี role migration ที่ผ่าน validation |
 | R2/media path ยังไม่ prove end-to-end | กลาง | ทำ R2 packet แบบ server-controlled access และไม่เปิด secret ฝั่ง browser |
 
@@ -148,11 +148,12 @@ source_refs:
 
 1. ให้ operator ใช้ LINE จริงปิด `LIFF-VAL-006`, `LIFF-VAL-007`, `LIFF-VAL-008`.
 2. เติม evidence ลง [docs/GO_NOGO_REVIEW.md](GO_NOGO_REVIEW.md).
-3. ให้ Business Owner / Operator Lead / Delivery Engineering sign-off.
-4. ปิด `TASK-024` ใน [plan/process-go-live-waves-1.md](../plan/process-go-live-waves-1.md).
-5. ทำ runtime fix slice สำหรับ [src/app/api/settings/route.ts](../src/app/api/settings/route.ts).
-6. ทำ test-resolution slice สำหรับ test imports และ `vitest.config.ts`.
-7. เริ่ม feature packet แรก: `feature-real-actor-audit-1`.
+3. ตอบ `COMMERCIAL-POLICY-HANDOFF` ว่า commercial documents `Deferred after launch` หรือ `Required before GO`.
+4. ให้ Business Owner / Operator Lead / Delivery Engineering sign-off.
+5. ปิด `TASK-024` ใน [plan/process-go-live-waves-1.md](../plan/process-go-live-waves-1.md).
+6. ทำ runtime fix slice สำหรับ [src/app/api/settings/route.ts](../src/app/api/settings/route.ts).
+7. ทำ test-resolution slice สำหรับ test imports และ `vitest.config.ts`.
+8. เริ่ม feature packet แรก: `feature-real-actor-audit-1`.
 
 ## 8. สถานะ Git / GitHub ล่าสุด
 

@@ -34,6 +34,8 @@ Execution aids for the current pending operator work:
 - [../docs/PHASE2_OPERATOR_GATE_CHECKLIST.md](../docs/PHASE2_OPERATOR_GATE_CHECKLIST.md) for `P2-G03`, `P2-G05`, `P2-G06`, `P2-G07`
 - [../docs/LIFF_LIVE_VALIDATION_RUNBOOK.md](../docs/LIFF_LIVE_VALIDATION_RUNBOOK.md) for `LIFF-VAL-005` through `LIFF-VAL-008`
 - [../docs/OPERATOR_HANDOFF_MESSAGE_TH.md](../docs/OPERATOR_HANDOFF_MESSAGE_TH.md) for a copy-paste operator handoff message in Thai
+- [../docs/COMMERCIAL_DOCUMENT_POLICY_V1.md](../docs/COMMERCIAL_DOCUMENT_POLICY_V1.md) for the commercial document sign-off boundary before `TASK-024` closes
+- [feature-commercial-documents-1.md](feature-commercial-documents-1.md) for the deferred implementation packet if commercial documents are required before GO
 
 ## Safe Path
 
@@ -43,7 +45,8 @@ If the goal is to get through go-live with the least confusion, follow this path
 2. Use `docs/GO_NOGO_REVIEW.md` only when a step requires live environment evidence, gate status, or sign-off.
 3. Use `plan/2026-04-25-main-landing-consolidated-plan.md` only for branch overlap, merge hygiene, and landing context.
 4. If the customer LIFF intake surface is functionally ready and local validation is green, treat LIFF completion as a deploy-first launch-path item; do not hold that deploy for Wave 5 follow-up architecture such as R2, Studio, AI-provider expansion, or broader backoffice polish.
-5. Do not start Wave 5 while TASK-024 is still open, except for LIFF-specific stabilization work that is explicitly required to make the customer intake path deployable.
+5. Before closing `TASK-024`, record whether commercial documents are `Deferred after launch` or `Required before GO` in `docs/GO_NOGO_REVIEW.md`.
+6. Do not start Wave 5 while TASK-024 is still open, except for LIFF-specific stabilization work that is explicitly required to make the customer intake path deployable.
 
 ### LIFF Deploy-First Slice
 
@@ -67,7 +70,7 @@ Treat LIFF as complete only when all items below are complete. If any item is st
 | LIFF-VAL-004 | LIFF endpoint contract | Confirm the registered LINE MINI App endpoint is `<base-url>/liff`, not `/liff/intake`, and `LIFF_ID` matches `NEXT_PUBLIC_LIFF_ID`. | Complete via Phase 2 evidence on 2026-05-02 |
 | LIFF-VAL-005 | First-time customer path | Run one real LINE -> LIFF -> intake submission and confirm customer, lead, and quote rows are created with product snapshot fields. | Complete via P3-G05 evidence on 2026-05-02 |
 | LIFF-VAL-006 | Returning-customer prefill path | Reopen LIFF with a customer who already has leads and confirm phone plus last document/billing defaults prefill correctly. | Pending focused operator run |
-| LIFF-VAL-007 | Company tax-document validation | Submit one company tax-invoice case without branch code and confirm the Thai validation error is shown, then submit the same case with branch code and confirm intake succeeds. | Pending focused operator run |
+| LIFF-VAL-007 | Company tax-document validation | Submit one company tax-invoice case without branch code and confirm the Thai validation error is shown, then submit the same case with branch code and confirm intake succeeds. This proves intake validation only, not tax-invoice issuance. | Pending focused operator run |
 | LIFF-VAL-008 | Runtime catalog path | Confirm the LIFF picker loads runtime catalog items from `/api/intake/product-catalog` and that quote/status/download pages render the imported product label instead of a slug fallback. | Pending focused operator run |
 | LIFF-VAL-009 | Local non-LIFF smoke | Use localhost or `devNoLiff=1` only for form-behavior smoke, and record it explicitly as non-production evidence. | Complete as a dev-only path, not sufficient for launch |
 
@@ -90,6 +93,7 @@ Not complete yet:
 - `docs/GO_NOGO_REVIEW.md` now records Phase 2 and Phase 3 as PASS, but launch sign-off is still blocked by `LIFF-VAL-006`, `LIFF-VAL-007`, and `LIFF-VAL-008`.
 - the current automated test set does not replace live proof for returning-customer prefill, company tax-document validation, or runtime product-catalog rendering in the production LIFF session.
 - local success alone is not enough because localhost/dev bypass skips the production LIFF identity and console-registration path by design.
+- commercial document policy v1 is recorded, but billing note, invoice, receipt, tax-ready, and tax-invoice issuance are not implemented; sign-off must explicitly defer them or keep launch blocked.
 
 Execution rule for the current landing candidate: do not expand LIFF scope again until LIFF-VAL-006 through LIFF-VAL-008 are either completed or explicitly waived with written launch reasoning.
 
@@ -209,11 +213,11 @@ Wave 3 execution rule: execute the live run directly from `docs/GO_NOGO_REVIEW.m
 | TASK-021 | Capture build, lint, workflow-smoke, quote PDF, and manual UAT evidence and map it to `plan/process-customer-handoff-1.md` and `plan/action-tracking-plan.md`. | Yes | 2026-04-26 |
 | TASK-022 | Produce customer handoff package including deployed URL, admin URL, env ownership, rotation notes, rollback trigger, and PDF/document access notes. | Yes | 2026-04-26 |
 | TASK-023 | Create operator runbook covering incident triage, redeploy steps, LINE/LIFF reconfiguration, and hypercare support window. | Yes | 2026-04-26 |
-| TASK-024 | Finalize the Go/No-Go review package in `docs/GO_NOGO_REVIEW.md` and collect operator plus customer acceptance sign-off before customer launch. |  |  |
+| TASK-024 | Finalize the Go/No-Go review package in `docs/GO_NOGO_REVIEW.md`, record the commercial document defer-or-block decision, and collect operator plus customer acceptance sign-off before customer launch. |  |  |
 
-Wave 4 note: the review package document exists as of 2026-04-26. As of 2026-05-02, all Phase 3 gates are PASS; TASK-024 still stays open until LIFF-VAL-006, LIFF-VAL-007, LIFF-VAL-008, and the sign-off section in `docs/GO_NOGO_REVIEW.md` are completed.
+Wave 4 note: the review package document exists as of 2026-04-26. As of 2026-05-02, all Phase 3 gates are PASS; TASK-024 still stays open until LIFF-VAL-006, LIFF-VAL-007, LIFF-VAL-008, the commercial document defer-or-block decision, and the sign-off section in `docs/GO_NOGO_REVIEW.md` are completed.
 
-Wave 4 completion rule: once the live run is complete, update TASK-013 through TASK-019 first, then close TASK-024 last after the Sign-Off table in `docs/GO_NOGO_REVIEW.md` is fully recorded.
+Wave 4 completion rule: once the live run is complete, update TASK-013 through TASK-019 first, then close TASK-024 last after the Sign-Off table and commercial document decision in `docs/GO_NOGO_REVIEW.md` are fully recorded.
 
 ### Implementation Phase 5 — Wave 5 / Controlled Follow-Up
 
@@ -222,7 +226,7 @@ Wave 4 completion rule: once the live run is complete, update TASK-013 through T
 | Task | Description | Completed | Date |
 |---|---|---|---|
 | TASK-025 | Add first-class staff ownership model to replace free-text `assigned_to` and `assigned_designer` across `src/lib/backoffice-snapshot.ts`, `src/lib/studio-view.ts`, and related admin surfaces. |  |  |
-| TASK-026 | Implement downloadable invoice and billing document flow based on `docs/INVOICE_FLOW_PATCH.md` and `docs/COMMERCIAL_DOCUMENT_DESIGN_REFERENCE.md`, including `invoices`, `billing_slips`, token pages, payment-driven release behavior, and a shared commercial-document shell that can later extend to receipt and tax-ready document surfaces. |  |  |
+| TASK-026 | Implement commercial document flow from `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md` and `plan/feature-commercial-documents-1.md`, using `docs/COMMERCIAL_DOCUMENT_DESIGN_REFERENCE.md` for visual structure, including billing note, invoice, receipt, tax-ready/tax-invoice validation, receiver/issuer locking, immutable snapshots, document numbering, and token/print surfaces. |  |  |
 | TASK-027 | Design and implement accounting export tables and downloadable export format so finance data can be handed to an external accountant at period end. |  |  |
 | TASK-028 | Refactor AI image generation into a provider adapter by updating `src/lib/ai-images.ts`, `src/lib/app-settings.ts`, `src/app/api/settings/route.ts`, and related schema constraints so `gemini` can be added later without changing workflow logic. |  |  |
 | TASK-029 | Implement `/studio` scene-first operations refactor in `src/app/studio/studio-surface.tsx`, `src/app/globals.css`, and `src/lib/studio-view.ts` after ownership data becomes trustworthy. |  |  |
@@ -239,7 +243,7 @@ Wave 5 implementation note as of 2026-04-27:
 - `/studio` remains a deferred internal surface under TASK-029 and is now intentionally hidden from the main admin navigation until the ownership model and scene-first operations view are ready.
 - Hiding `/studio` does not disable workflow automation. The live automation path still runs through webhook, LIFF intake, quote approval/payment gates, job routes, and the shared backoffice snapshot data layer; `/studio` is only a presentation surface on top of those records.
 - The product-catalog migration path under TASK-030 is no longer theoretical. The branch already contains `product_catalog_items`, a public intake catalog route, an admin CSV import route, and a runtime fallback store; the next execution slice is wiring LIFF/admin surfaces to that runtime path and replacing remaining hardcoded product-label fallbacks with lead snapshots.
-- The commercial-document prep under TASK-026 also has an active schema slice now: requested document type, billing entity, billing address, tax ID, and branch fields are being captured in intake and rendered on quote surfaces, but invoice/billing/receipt document flows remain open work.
+- The commercial-document prep under TASK-026 now has a canonical policy source in `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md`. Requested document type, billing entity, billing address, tax ID, and branch fields are being captured in intake and rendered on quote surfaces, but billing note, invoice, receipt, tax-ready, and tax-invoice issuance remain open work under `plan/feature-commercial-documents-1.md`.
 - Current execution priority inside Wave 5 is not uniform. Finish the LIFF customer intake path first and deploy it as soon as the customer-facing flow is stable; do not bundle that release behind R2 rollout design, Studio work, accounting export planning, or broader post-launch refactors.
 - Fulfillment modeling is still too coarse for real-world operations. The current branch only distinguishes `pickup` vs `delivery`, but the launch backlog now needs a richer handoff model that separates customer pickup, third-party platform shipment (for example Flash), in-house delivery, and on-site installation so pricing, scheduling, proof-of-delivery, and customer instructions do not get mixed together.
 - Delivery/install data is still missing as first-class business data. A follow-up slice should add normalized shipping and service fields on the lead or a dedicated fulfillment record: recipient name, delivery phone, address lines, province/district/sub-district/postcode, delivery notes, platform/provider, tracking or booking reference, requested install date/time window, and site-contact details. Billing/document address must stay separate from delivery/install address.
