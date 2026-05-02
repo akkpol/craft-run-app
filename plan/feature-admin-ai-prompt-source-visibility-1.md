@@ -42,7 +42,7 @@ Definition of Done
 Complete this gate before starting implementation tasks.
 
 | Field | Required content |
-|------|------------------|
+|---|---|
 | Known Facts | Admin must show `design_brief`, `ai_image_prompt`, and `ai_prompt_snapshot` as separate read-only values with clear Thai labels. |
 | Unknowns | Whether queue-level dashboard summary is mandatory in this slice or handled as follow-up. |
 | Assumptions | Customer 360 is the mandatory first surface; dashboard expansion is optional unless product explicitly requests same-slice delivery. |
@@ -73,7 +73,7 @@ Unknown handling rule:
 - **GOAL-001**: Extend the data path for Customer 360.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
+|---|---|---|---|
 | TASK-001 | Update the lead select list in `src/app/admin/customers/[id]/page.tsx` to include `design_brief`, `ai_image_prompt`, and `ai_prompt_snapshot`. | Yes | 2026-04-27 |
 | TASK-002 | Extend the local `Lead` type in `src/app/admin/customers/[id]/customer-360-client.tsx` with `design_brief`, `ai_image_prompt`, and `ai_prompt_snapshot`. | Yes | 2026-04-27 |
 
@@ -82,7 +82,7 @@ Unknown handling rule:
 - **GOAL-002**: Add a read-only AI prompt source panel to Customer 360.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
+|---|---|---|---|
 | TASK-003 | Add a new section or card in `src/app/admin/customers/[id]/customer-360-client.tsx` labeled in Thai to show the latest lead's prompt-source data. | Yes | 2026-04-27 |
 | TASK-004 | Render three separate rows or blocks for `design_brief`, `ai_image_prompt`, and `ai_prompt_snapshot`, each with clear labels describing origin and purpose. | Yes | 2026-04-27 |
 | TASK-005 | Add empty-state text for each field so staff can distinguish between missing customer input and missing prepared snapshot. | Yes | 2026-04-27 |
@@ -92,16 +92,16 @@ Unknown handling rule:
 - **GOAL-003**: Decide whether the dashboard detail panel is a follow-up or part of the same slice.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-006 | Evaluate whether `src/app/admin/admin-dashboard-sections.tsx` needs a compact raw-source summary in an existing detail surface after Customer 360 is complete. Keep this as a follow-up unless product explicitly requests queue-level visibility. | | |
-| TASK-007 | If queue-level visibility is requested, reuse the same labels and data semantics instead of introducing a second interpretation of the prompt fields. | | |
+|---|---|---|---|
+| TASK-006 | Evaluate whether `src/app/admin/admin-dashboard-sections.tsx` needs a compact raw-source summary in an existing detail surface after Customer 360 is complete. Keep this as a follow-up unless product explicitly requests queue-level visibility. |  |  |
+| TASK-007 | If queue-level visibility is requested, reuse the same labels and data semantics instead of introducing a second interpretation of the prompt fields. |  |  |
 
 ### Implementation Phase 4
 
 - **GOAL-004**: Validate the admin visibility behavior.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
+|---|---|---|---|
 | TASK-008 | Verify Customer 360 shows the raw fields for a lead containing any combination of `design_brief`, `ai_image_prompt`, and `ai_prompt_snapshot`. | Yes | 2026-04-27 |
 | TASK-009 | Run a focused lint/typecheck or equivalent editor validation on the touched admin files. | Yes | 2026-04-27 |
 

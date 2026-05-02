@@ -19,7 +19,7 @@ This plan defines the exact work required to capture AI prompt-source inputs fro
 Complete this gate before starting implementation tasks.
 
 | Field | Required content |
-|------|------------------|
+|---|---|
 | Known Facts | `designBrief` is customer-facing, `aiImagePrompt` remains supported in payload path, and workflow state behavior must remain unchanged. |
 | Unknowns | Any unresolved product decision about exposing advanced prompt controls in LIFF UI. |
 | Assumptions | Default to non-destructive behavior: capture fields safely, preserve existing status semantics, and avoid implicit AI generation triggers. |
@@ -51,7 +51,7 @@ Unknown handling rule:
 - **GOAL-001**: Wire the missing prompt-source fields through the LIFF form state and submit payload.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
+|---|---|---|---|
 | TASK-001 | Update `src/app/liff/intake/intake-form.tsx` to define `designBrief` state next to existing note/reference inputs and keep `aiImagePrompt` state available for payload wiring. | Yes | 2026-04-27 |
 | TASK-002 | Add a customer-facing textarea in `src/app/liff/intake/intake-form.tsx` for `designBrief` near the existing creative requirement fields, using the current LIFF panel field patterns and Thai-first copy. | Yes | 2026-04-27 |
 | TASK-003 | Append `designBrief` and `aiImagePrompt` in the `FormData` submit block in `src/app/liff/intake/intake-form.tsx`. The current payload block already appends `note` and `referenceInfo`; extend this same block. | Yes | 2026-04-27 |
@@ -61,7 +61,7 @@ Unknown handling rule:
 - **GOAL-002**: Parse and persist the new inputs in the intake route.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
+|---|---|---|---|
 | TASK-004 | Update request parsing in `src/app/api/intake/route.ts` to read `designBrief` in addition to the existing `aiImagePrompt` parsing. | Yes | 2026-04-27 |
 | TASK-005 | Update the lead insert block in `src/app/api/intake/route.ts` to persist `design_brief: data.designBrief || null` and continue persisting `ai_image_prompt: data.aiImagePrompt || null`. | Yes | 2026-04-27 |
 | TASK-006 | Keep `ai_image_status` behavior unchanged: it should remain driven by `aiImagePrompt`, not by `designBrief` alone, unless product explicitly changes that rule in a later packet. | Yes | 2026-04-27 |
@@ -71,7 +71,7 @@ Unknown handling rule:
 - **GOAL-003**: Validate the flow and guard against regression.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
+|---|---|---|---|
 | TASK-007 | Add or update tests covering intake payload parsing and persistence of `designBrief` and `aiImagePrompt`. Prefer the closest existing LIFF/intake coverage rather than creating a broad new suite. | Yes | 2026-04-29 |
 | TASK-008 | Run a focused validation pass on the touched slice, including the relevant test file(s) and a narrow typecheck or lint step if JSX/TS structure changes materially. | Yes | 2026-04-27 |
 

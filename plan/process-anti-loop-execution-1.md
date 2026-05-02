@@ -106,52 +106,52 @@ Stop immediately and split work into a new packet when one of these happens:
 - **GOAL-000**: Convert unknown business detail into explicit implementation constraints before coding starts.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
+|---|---|---|---|
 | TASK-000D | Run a mandatory worktree drift check before packet selection. If more than one slice is present, stop and isolate one slice before coding. | Yes | 2026-04-30 |
-| TASK-000 | Create a Discovery Gate note for the packet with 5 required fields: `Known Facts`, `Unknowns`, `Assumptions`, `Out of Scope`, `Decision Owner`. | | |
-| TASK-000A | Define acceptance in user language first: what must be true in UI/ops when the packet is done, and what failure is acceptable fallback. | | |
-| TASK-000B | For each unknown, choose one action: `decide now`, `defer with fallback`, or `block and escalate`. Do not start coding while unknowns are unlabeled. | | |
-| TASK-000C | If user/domain owner is unsure, default to non-destructive behavior and observability-first output (clear status, error capture, and manual fallback). | | |
+| TASK-000 | Create a Discovery Gate note for the packet with 5 required fields: `Known Facts`, `Unknowns`, `Assumptions`, `Out of Scope`, `Decision Owner`. |  |  |
+| TASK-000A | Define acceptance in user language first: what must be true in UI/ops when the packet is done, and what failure is acceptable fallback. |  |  |
+| TASK-000B | For each unknown, choose one action: `decide now`, `defer with fallback`, or `block and escalate`. Do not start coding while unknowns are unlabeled. |  |  |
+| TASK-000C | If user/domain owner is unsure, default to non-destructive behavior and observability-first output (clear status, error capture, and manual fallback). |  |  |
 
 ### Implementation Phase 1
 
 - **GOAL-001**: Enforce packet contract before implementation starts.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-001 | Add a mandatory Packet Contract block at the top of every active packet file: `Goal`, `In Scope`, `Out of Scope`, `Definition of Done`, `Owner`. | | |
-| TASK-002 | For AI preview scope, require packet references to `plan/feature-liff-ai-prompt-inputs-1.md` and `plan/feature-admin-ai-prompt-source-visibility-1.md` before edits begin. | | |
-| TASK-003 | Require one-line decision log for every mid-packet scope change. If the change crosses packet boundaries, stop and create a new packet instead of silently extending the current one. | | |
+|---|---|---|---|
+| TASK-001 | Add a mandatory Packet Contract block at the top of every active packet file: `Goal`, `In Scope`, `Out of Scope`, `Definition of Done`, `Owner`. |  |  |
+| TASK-002 | For AI preview scope, require packet references to `plan/feature-liff-ai-prompt-inputs-1.md` and `plan/feature-admin-ai-prompt-source-visibility-1.md` before edits begin. |  |  |
+| TASK-003 | Require one-line decision log for every mid-packet scope change. If the change crosses packet boundaries, stop and create a new packet instead of silently extending the current one. |  |  |
 
 ### Implementation Phase 2
 
 - **GOAL-002**: Replace full restart behavior with impacted-surface validation.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-004 | Define packet test tiers: Tier A (unit/logic for touched helpers), Tier B (route/UI slice checks), Tier C (release-gate full suite). | | |
-| TASK-005 | Require each packet to record exact commands run and reason for each command. No generic "tested" statement allowed. | | |
-| TASK-006 | Block "start over" behavior unless Tier A and Tier B both fail with incompatible root causes. Otherwise continue from latest stable commit point. | | |
+|---|---|---|---|
+| TASK-004 | Define packet test tiers: Tier A (unit/logic for touched helpers), Tier B (route/UI slice checks), Tier C (release-gate full suite). |  |  |
+| TASK-005 | Require each packet to record exact commands run and reason for each command. No generic "tested" statement allowed. |  |  |
+| TASK-006 | Block "start over" behavior unless Tier A and Tier B both fail with incompatible root causes. Otherwise continue from latest stable commit point. |  |  |
 
 ### Implementation Phase 3
 
 - **GOAL-003**: Synchronize plan status and operational docs with real execution state.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-007 | Add a status consistency pass at packet close: check packet status, `plan/README.md`, and related docs for mismatch (`Ready` vs unfinished tasks). | | |
-| TASK-008 | For AI incident materials, keep `docs/OPERATOR_RUNBOOK.md`, SOP draft, and handoff package section in lock-step with one source-of-truth delta note per update. | | |
-| TASK-009 | Do not mark any handoff artifact as final if acceptance gates in go/no-go are still open. | | |
+|---|---|---|---|
+| TASK-007 | Add a status consistency pass at packet close: check packet status, `plan/README.md`, and related docs for mismatch (`Ready` vs unfinished tasks). |  |  |
+| TASK-008 | For AI incident materials, keep `docs/OPERATOR_RUNBOOK.md`, SOP draft, and handoff package section in lock-step with one source-of-truth delta note per update. |  |  |
+| TASK-009 | Do not mark any handoff artifact as final if acceptance gates in go/no-go are still open. |  |  |
 
 ### Implementation Phase 4
 
 - **GOAL-004**: Add closure and handoff rules that preserve context for the next executor.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-010 | At packet completion, add a Closure Record section containing: changed files, tests executed, blocked items, and next packet trigger. | | |
-| TASK-011 | Add a "Resume From Here" section with last known good commit/working tree assumptions and unresolved decisions. | | |
-| TASK-012 | If unresolved blockers remain, create exactly one follow-up packet and register it in `plan/README.md`; do not scatter blockers across multiple notes. | | |
+|---|---|---|---|
+| TASK-010 | At packet completion, add a Closure Record section containing: changed files, tests executed, blocked items, and next packet trigger. |  |  |
+| TASK-011 | Add a "Resume From Here" section with last known good commit/working tree assumptions and unresolved decisions. |  |  |
+| TASK-012 | If unresolved blockers remain, create exactly one follow-up packet and register it in `plan/README.md`; do not scatter blockers across multiple notes. |  |  |
 
 ## 3. Alternatives
 
