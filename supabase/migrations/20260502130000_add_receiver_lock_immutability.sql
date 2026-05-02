@@ -10,7 +10,6 @@
 create or replace function public.prevent_receiver_lock_overwrite()
 returns trigger
 language plpgsql
-security definer
 as $$
 begin
   -- Allow the initial lock (was null, now being set).
