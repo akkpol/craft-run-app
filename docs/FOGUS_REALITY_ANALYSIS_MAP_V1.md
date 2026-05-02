@@ -295,13 +295,156 @@ UI issue to lock:
 - Status page should be state-machine driven, not just job-driven.
 - Timeline should include quote/payment/document milestones, not only job timeline.
 
+## Connected Flow Spine
+
+The reality map should now be read as one connected operating spine, not as separate LINE, LIFF, catalog, payment, and production topics.
+
+```mermaid
+flowchart TD
+	A[Customer channel] --> B{Channel type}
+	B -->|LINE majority path| C[LINE OA context reply]
+	B -->|Walk-in / phone / social / email| D[Admin CRM intake]
+	B -->|Website / future form| E[Web intake]
+
+	C --> F[LIFF smart intake]
+	D --> G[Shared CRM lead draft]
+	E --> G
+	F --> G
+
+	G --> H[Identity + contactability]
+	H --> I[Product catalog selection]
+	I --> J{Catalog can drive form?}
+	J -->|pricing/model clear| K[Ask only required form fields]
+	J -->|manual/custom product| L[Admin review before quote]
+
+	K --> M[Fulfillment mode]
+	M -->|pickup| M1[Pickup branch/time/contact]
+	M -->|delivery| M2[Delivery address + map/location]
+	M -->|install| M3[Install address + map/location + site risk]
+
+	M1 --> N{Quote-ready?}
+	M2 --> N
+	M3 --> N
+	L --> N
+
+	N -->|not enough| O[Hold or human review]
+	N -->|safe auto quote| P[Quote sent]
+	N -->|admin quote needed| P
+
+	P --> Q[Customer quote decision]
+	Q -->|rescope / missing info| R[Return to shared CRM lead draft]
+	Q -->|approve| S[Payment + commercial gate]
+	Q -->|reject| T[Closed lost with reason]
+
+	S --> U{Receiver/document/payment safe?}
+	U -->|no| V[Admin/finance/owner review]
+	U -->|yes| W[Payment instruction / credit policy]
+	W --> X[Payment confirmation or approved credit]
+	X --> Y[Receiver lock + required document issue]
+	Y --> Z[Design / production / fulfillment / completion]
+
+	R -. may reopen .-> F
+	R -. or admin edits .-> G
+```
+
+Read the diagram this way:
+
+- LINE is the default customer path, but not the only CRM path.
+- LIFF is a smart intake surface, not the whole CRM.
+- Admin CRM intake and future web intake must normalize into the same lead draft shape as LIFF.
+- Product catalog drives which fields LIFF should ask and whether auto quote is safe.
+- Fulfillment mode changes required fields before quote readiness.
+- Payment/commercial gate is after quote approval, but its risk starts at catalog, tax request, payment profile, and receiver mapping.
+
+## Product Catalog To LIFF Decision Chain
+
+Current catalog import supports CSV with product identity, category, customer label, keywords, `per_sqm`, `min_charge`, active status, and sort order. That is enough for simple area-based auto quote, but not enough for a full smart form.
+
+The next catalog contract should decide form behavior and automation safety:
+
+| Catalog decision | Why LIFF needs it | Example |
+| --- | --- | --- |
+| `pricing_model` | Determines which price fields matter | `per_sqm`, `per_piece`, `fixed`, `manual` |
+| `requires_size` | Controls whether width/height appear | vinyl requires size, logo design may not |
+| `requires_qty` | Controls quantity requirement | stickers need qty |
+| `requires_fulfillment` | Controls pickup/delivery/install section | some digital/design work may skip delivery |
+| `requires_design_brief` | Controls design questions | custom sign, logo, mockup |
+| `image_url` | Helps customer pick correctly | product picker visual |
+| `allow_auto_quote` | Determines whether LIFF can create sent quote | standard vinyl yes, custom install no |
+| `requires_admin_review` | Forces lead review before quote | manual install, special material |
+
+Strict rule:
+
+```text
+Catalog does not only display products.
+Catalog tells LIFF which questions to ask and tells workflow whether auto quote is safe.
+```
+
+Temporary v1 import stance:
+
+- Google Sheet can be the business editing surface.
+- CSV remains the import path until the column contract is stable.
+- External `image_url` is acceptable for prototype UI, but images hosted on Facebook/LINE should not be treated as durable canonical assets.
+- Product images are optional for quoting; pricing and policy fields are mandatory for automation.
+
+## Fulfillment Decision Chain
+
+Fulfillment must be captured before quote readiness because it affects pricing, schedule, risk, and completion.
+
+| Mode | Required data | Quote risk | Completion meaning |
+| --- | --- | --- | --- |
+| pickup | pickup branch, preferred pickup date/time, pickup contact | low | customer picked up or staff marked pickup complete |
+| delivery | recipient, phone, Thai address, map pin/location when possible, delivery notes | medium | delivered or delivery evidence recorded |
+| install | site contact, phone, address, map pin/location, preferred time window, site photos, access notes, install constraints | high | installation completed with evidence |
+
+Strict rule:
+
+```text
+pickup does not require address.
+delivery requires contactable address.
+install requires address + location + site-risk information, or human review.
+```
+
+LIFF should open only the section needed for the selected fulfillment mode. Admin CRM intake must collect the same fields when the customer is walk-in, phone, social, email, or B2B.
+
+## LIFF Loopback Guards
+
+Many future fixes will naturally loop back to LIFF because LIFF is where most customer data enters. That is useful, but it can cause bad design if every missing downstream rule becomes another generic form field.
+
+Use these loopback rules:
+
+| Downstream problem | Loop back to LIFF? | Better action |
+| --- | --- | --- |
+| Missing product/size/qty/date | Yes | Ask only the missing work fields |
+| Missing delivery address | Yes | Reopen fulfillment section only |
+| Install site risk unclear | Maybe | Ask for photos/location, then human review |
+| Missing tax invoice customer data | Yes | Reopen document section only |
+| Receiver/payment profile not mapped | No | Admin/settings/commercial mapping fix |
+| VAT receiver mismatch | No | Admin/finance selects another receiver or blocks payment |
+| AI provider quota/billing | No | Owner/dev handles provider; design goes manual |
+| Product pricing model unclear | No | Catalog/admin review fix before auto quote |
+| Quote rescope | Maybe | Return to shared lead draft; use LIFF only if customer must edit structured fields |
+| Completion evidence missing | No | Admin/production fulfillment flow |
+
+The core anti-loop rule:
+
+```text
+Only send customer back to LIFF when the missing information belongs to the customer.
+Do not send customer back to LIFF to fix admin policy, catalog, payment, receiver, AI, or production setup.
+```
+
+This keeps LIFF easy for the LINE majority path while preventing the form from becoming a dumping ground for every unresolved backend policy decision.
+
 ## Policy Gates That Need To Be Strict
 
 | Gate | Current reality | Required strict rule | UI implication |
 | --- | --- | --- | --- |
 | LINE re-entry | Mostly implemented | No generic intake CTA for mid-flow customers | One primary action per state |
 | LIFF identity | Server blocks missing/invalid token in production | No anonymous production intake | Show identity readiness before submit |
+| Lead source/CRM intake | LINE is strongest path, other channels are manual/future | All channels normalize into shared customer + lead draft | Admin CRM intake must match LIFF fields |
+| Product catalog | CSV runtime exists with area pricing | Catalog must define smart-form and auto-quote safety | Product picker asks only fields needed by selected product |
 | Auto quote | Complete form can auto-create quote | Only trusted product/pricing paths should auto-send | Admin review lane for uncertain pricing |
+| Fulfillment | Pickup/delivery/install fields exist in LIFF | Mode controls required address/location/site-risk fields | No address for pickup; strict info for install |
 | Tax profile | Validates customer tax fields | Tax invoice still depends on receiver VAT capability | Show request captured, eligibility pending receiver |
 | Payment profile | Snapshot selected at quote creation | Profile must map to receiver entity before safe auto-pay | Settings readiness warning and quote payment guard |
 | Receiver lock | Admin receiver selection exists | Receiver selected before usable payment confirmation; locked after payment | Receiver badge/action before payment capture |
