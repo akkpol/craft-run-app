@@ -616,7 +616,17 @@ export default function IntakeForm({
   const previewUrlsRef = useRef<string[]>([]);
   const reportedLiffIncidentKeysRef = useRef<Set<string>>(new Set());
   const liffConsoleFingerprintRef = useRef(createLiffDebugFingerprint());
+  const latestLineUserIdRef = useRef(lineUserId);
+  const latestLiffContextSnapshotRef = useRef(liffContextSnapshot);
   const earliestDueDate = getBangkokTodayDateString();
+
+  useEffect(() => {
+    latestLineUserIdRef.current = lineUserId;
+  }, [lineUserId]);
+
+  useEffect(() => {
+    latestLiffContextSnapshotRef.current = liffContextSnapshot;
+  }, [liffContextSnapshot]);
 
   const reportLiffIncident = useCallback(
     (input: { stage: string; message?: string }) => {
@@ -639,11 +649,11 @@ export default function IntakeForm({
         userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
         sdkPresent: typeof window !== "undefined" && Boolean(window.liff),
         liffIdConfigured: Boolean(liffId),
-        lineUserId,
-        liffContextSnapshot,
+        lineUserId: latestLineUserIdRef.current,
+        liffContextSnapshot: latestLiffContextSnapshotRef.current,
       });
     },
-    [intakeMode, liffContextSnapshot, liffId, lineUserId]
+    [intakeMode, liffId]
   );
 
   const logIntakeLiffConsole = useCallback(
@@ -1090,20 +1100,27 @@ export default function IntakeForm({
       }
     }
 
+    let check: ReturnType<typeof setInterval> | null = null;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+
     if (typeof window !== "undefined" && window.liff) {
       logIntakeLiffConsole("sdk_present", { intakeMode });
       initLiff();
     } else {
       logIntakeLiffConsole("sdk_wait_start", { intakeMode });
-      const check = setInterval(() => {
+      check = setInterval(() => {
         if (typeof window !== "undefined" && window.liff) {
-          clearInterval(check);
+          if (check) {
+            clearInterval(check);
+          }
           logIntakeLiffConsole("sdk_present_after_wait", { intakeMode });
           initLiff();
         }
       }, 200);
-      setTimeout(() => {
-        clearInterval(check);
+      timeout = setTimeout(() => {
+        if (check) {
+          clearInterval(check);
+        }
         if (typeof window !== "undefined" && !window.liff && liffId) {
           logIntakeLiffConsole(
             "sdk_load_timeout",
@@ -1117,6 +1134,15 @@ export default function IntakeForm({
         setReady(true);
       }, 5000);
     }
+
+    return () => {
+      if (check) {
+        clearInterval(check);
+      }
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    };
   }, [intakeMode, liffId, logIntakeLiffConsole, reportLiffIncident]);
 
   const handleReferenceFileSelect = useCallback(async (files: FileList | null) => {
