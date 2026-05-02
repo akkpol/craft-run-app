@@ -770,7 +770,7 @@ Use these to stop repeated customer/admin loops.
 
 - Require payment profile to receiver mapping.
 - Show commercial readiness before payment instruction.
-- Add receiver lock on confirmed payment.
+- Keep existing receiver/account selection, then enforce receiver lock on confirmed payment.
 - Draft required receipt/tax document from locked receiver.
 
 ### Phase 4: AI Prompt And Design Assist

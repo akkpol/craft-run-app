@@ -44,7 +44,8 @@ Main risk:
 
 ```text
 System can move fast from LIFF -> quote -> payment instructions,
-but payment receiver, commercial document rules, and admin UI gates are not yet strict enough
+and admin already has receiver/account selection,
+but payment receiver enforcement, commercial document rules, and admin UI gates are not yet strict enough
 to guarantee every customer sees the right next action and every operator sees the right blocker.
 ```
 
