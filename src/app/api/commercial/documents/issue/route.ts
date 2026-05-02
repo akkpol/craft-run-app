@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { logHumanAction } from "@/lib/action-log";
+import { buildCommercialDocumentIssueFailureAudit } from "@/lib/commercial-audit";
 import { buildCommercialDocumentIssuePlan } from "@/lib/commercial-document-issue";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -218,6 +219,21 @@ export async function POST(request: NextRequest) {
         ? 409
         : 422;
 
+    await logHumanAction(supabase, {
+      entityType: "quote",
+      entityId: order.quote_id,
+      actorLabel: "Admin",
+      ...buildCommercialDocumentIssueFailureAudit({
+        error: issuePlan.error,
+        detail: issuePlan.detail,
+        paymentId: payment.id,
+        orderId: order.id,
+        quoteId: order.quote_id,
+        receiverEntityId: payment.receiver_entity_id,
+        requestedTaxInvoice: lead.requested_document_type === "tax_invoice",
+      }),
+    }).catch(() => null);
+
     return NextResponse.json(
       {
         error: issuePlan.error,
@@ -241,6 +257,25 @@ export async function POST(request: NextRequest) {
     const statusCode = allocationError.message?.includes("DOCUMENT_NUMBER_CONFLICT")
       ? 409
       : 500;
+
+    await logHumanAction(supabase, {
+      entityType: "quote",
+      entityId: order.quote_id,
+      actorLabel: "Admin",
+      ...buildCommercialDocumentIssueFailureAudit({
+        error: allocationError.message?.includes("DOCUMENT_NUMBER_CONFLICT")
+          ? "DOCUMENT_NUMBER_CONFLICT"
+          : "DOCUMENT_ALREADY_ISSUED",
+        detail: allocationError.message || "Failed to allocate document number",
+        paymentId: payment.id,
+        orderId: order.id,
+        quoteId: order.quote_id,
+        receiverEntityId: receiverEntity.id,
+        requestedTaxInvoice: lead.requested_document_type === "tax_invoice",
+        documentType: issuePlan.value.documentType,
+      }),
+    }).catch(() => null);
+
     return NextResponse.json(
       { error: allocationError.message || "Failed to allocate document number" },
       { status: statusCode }
@@ -353,6 +388,25 @@ export async function POST(request: NextRequest) {
 
   if (insertError) {
     const isConflict = insertError.code === "23505";
+
+    await logHumanAction(supabase, {
+      entityType: "quote",
+      entityId: order.quote_id,
+      actorLabel: "Admin",
+      ...buildCommercialDocumentIssueFailureAudit({
+        error: "DOCUMENT_ALREADY_ISSUED",
+        detail:
+          insertError.message || "Failed to issue commercial document",
+        paymentId: payment.id,
+        orderId: order.id,
+        quoteId: order.quote_id,
+        receiverEntityId: receiverEntity.id,
+        requestedTaxInvoice: lead.requested_document_type === "tax_invoice",
+        documentType: issuePlan.value.documentType,
+        documentNumber: allocation.document_number,
+      }),
+    }).catch(() => null);
+
     return NextResponse.json(
       {
         error: isConflict ? "DOCUMENT_ALREADY_ISSUED" : insertError.message || "Failed to issue commercial document",

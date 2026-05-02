@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { logHumanAction } from "@/lib/action-log";
+import { buildCommercialPaymentConfirmFailureAudit } from "@/lib/commercial-audit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   validatePaymentConfirm,
@@ -103,6 +104,23 @@ export async function POST(request: NextRequest) {
   if (!confirmValidation.ok) {
     const statusCode =
       confirmValidation.error === "PAYMENT_RECEIVER_LOCKED" ? 409 : 422;
+
+    await logHumanAction(supabase, {
+      entityType: "quote",
+      entityId: order.quote_id,
+      actorLabel: "Admin",
+      ...buildCommercialPaymentConfirmFailureAudit({
+        error: confirmValidation.error,
+        detail: confirmValidation.detail,
+        paymentId,
+        orderId: order.id,
+        quoteId: order.quote_id,
+        receiverEntityId: payment.receiver_entity_id,
+        selectedReceiverEntityId: order.selected_receiver_entity_id,
+        paymentReceiverLockedAt: order.payment_receiver_locked_at,
+      }),
+    }).catch(() => null);
+
     return NextResponse.json(
       {
         error: confirmValidation.error,
@@ -135,6 +153,22 @@ export async function POST(request: NextRequest) {
 
   const entityValidation = validateReceiverEntityActive(receiverEntity);
   if (!entityValidation.ok) {
+    await logHumanAction(supabase, {
+      entityType: "quote",
+      entityId: order.quote_id,
+      actorLabel: "Admin",
+      ...buildCommercialPaymentConfirmFailureAudit({
+        error: entityValidation.error,
+        detail: entityValidation.detail,
+        paymentId,
+        orderId: order.id,
+        quoteId: order.quote_id,
+        receiverEntityId: payment.receiver_entity_id,
+        selectedReceiverEntityId: order.selected_receiver_entity_id,
+        paymentReceiverLockedAt: order.payment_receiver_locked_at,
+      }),
+    }).catch(() => null);
+
     return NextResponse.json(
       {
         error: entityValidation.error,
@@ -181,6 +215,22 @@ export async function POST(request: NextRequest) {
       "[payments/confirm] Failed to lock receiver after payment confirmation:",
       orderLockError.message
     );
+    await logHumanAction(supabase, {
+      entityType: "quote",
+      entityId: order.quote_id,
+      actorLabel: "Admin",
+      ...buildCommercialPaymentConfirmFailureAudit({
+        error: "RECEIVER_LOCK_FAILED",
+        detail: orderLockError.message || "Failed to lock payment receiver. Retry is safe.",
+        paymentId,
+        orderId: order.id,
+        quoteId: order.quote_id,
+        receiverEntityId: payment.receiver_entity_id,
+        selectedReceiverEntityId: order.selected_receiver_entity_id,
+        paymentReceiverLockedAt: order.payment_receiver_locked_at,
+      }),
+    }).catch(() => null);
+
     return NextResponse.json(
       { error: "Failed to lock payment receiver. Retry is safe." },
       { status: 500 }
