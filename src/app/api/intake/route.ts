@@ -48,6 +48,10 @@ import {
   parseMultipartIntakeFormData,
   parseOptionalNumber,
 } from "@/lib/intake-payload";
+import {
+  formatTaxDocumentIntakeErrors,
+  validateTaxDocumentIntake,
+} from "@/lib/tax-document-intake";
 
 const THAI_SUMMARY_NUMBER_FORMATTER = new Intl.NumberFormat("th-TH-u-nu-latn");
 
@@ -261,14 +265,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (
-    billingEntityType === "company" &&
-    requestedDocumentType === "tax_invoice" &&
-    billingBranchType === "branch" &&
-    !billingBranchCode
-  ) {
+  const taxDocumentValidation = validateTaxDocumentIntake({
+    requestedDocumentType,
+    billingEntityType,
+    billingBranchType,
+    billingBranchCode,
+    billingName,
+    taxId,
+    billingAddress,
+  });
+
+  if (taxDocumentValidation.errors.length > 0) {
     return NextResponse.json(
-      { error: "กรุณาระบุเลขสาขาสำหรับใบกำกับภาษีของนิติบุคคล" },
+      { error: formatTaxDocumentIntakeErrors(taxDocumentValidation.errors) },
       { status: 400 }
     );
   }

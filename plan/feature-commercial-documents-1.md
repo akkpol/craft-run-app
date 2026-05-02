@@ -111,7 +111,7 @@ TaskDescriptionCompletedDateTASK-004Implement receiver selection validation befo
 
 ### Phase 3 - UI And Documents
 
-TaskDescriptionCompletedDateTASK-008Add admin UI for receiver/entity selection and blocked tax-invoice warnings.Yes2026-05-02TASK-009Add LIFF/customer tax-document data validation aligned to policy v1.TASK-010Add printable/downloadable commercial document surfaces using locked snapshots.
+TaskDescriptionCompletedDateTASK-008Add admin UI for receiver/entity selection and blocked tax-invoice warnings.Yes2026-05-02TASK-009Add LIFF/customer tax-document data validation aligned to policy v1.Yes2026-05-02TASK-010Add printable/downloadable commercial document surfaces using locked snapshots.
 
 ### Phase 4 - Audit And Tests
 

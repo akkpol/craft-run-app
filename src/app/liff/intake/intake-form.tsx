@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   BadgeCheck,
   CalendarDays,
@@ -34,6 +34,10 @@ import {
   type FulfillmentMode,
   type UnitType,
 } from "@/lib/types";
+import {
+  formatTaxDocumentIntakeErrors,
+  validateTaxDocumentIntake,
+} from "@/lib/tax-document-intake";
 import ProductTypePicker from "./product-type-picker";
 
 declare global {
@@ -718,6 +722,27 @@ export default function IntakeForm({
     billingBranchSummary,
     taxId ? `Tax ${taxId}` : null,
   ].filter(Boolean) as string[];
+  const taxDocumentValidation = useMemo(
+    () =>
+      validateTaxDocumentIntake({
+        requestedDocumentType,
+        billingEntityType,
+        billingBranchType,
+        billingBranchCode,
+        billingName,
+        taxId,
+        billingAddress,
+      }),
+    [
+      requestedDocumentType,
+      billingEntityType,
+      billingBranchType,
+      billingBranchCode,
+      billingName,
+      taxId,
+      billingAddress,
+    ]
+  );
 
   useEffect(() => {
     setSelectedProductLabel(productType ? resolveProductTypeLabel(productType) : "");
@@ -966,6 +991,10 @@ export default function IntakeForm({
                     ? lastRequestedDocumentType
                     : current
                 );
+                if (lastRequestedDocumentType === "tax_invoice") {
+                  setShowOptionalDetails(true);
+                  setShowDocumentDetails(true);
+                }
                 summary.push(DOCUMENT_REQUEST_TYPE_LABELS[lastRequestedDocumentType]);
               }
               if (lastBillingEntityType) {
@@ -1289,13 +1318,10 @@ export default function IntakeForm({
         setLoading(false);
         return;
       }
-      if (
-        billingEntityType === "company" &&
-        requestedDocumentType === "tax_invoice" &&
-        billingBranchType === "branch" &&
-        !billingBranchCode.trim()
-      ) {
-        setError("กรุณาระบุเลขสาขาสำหรับใบกำกับภาษีของนิติบุคคล");
+      if (taxDocumentValidation.errors.length > 0) {
+        setShowOptionalDetails(true);
+        setShowDocumentDetails(true);
+        setError(formatTaxDocumentIntakeErrors(taxDocumentValidation.errors));
         setLoading(false);
         return;
       }
@@ -1434,6 +1460,7 @@ export default function IntakeForm({
       billingName,
       taxId,
       billingAddress,
+      taxDocumentValidation.errors,
       designBrief,
       note,
       referenceInfo,
@@ -2048,6 +2075,24 @@ export default function IntakeForm({
                             <p className="text-xs leading-5 text-stone-600">ใบเสนอราคา</p>
                           )}
                         </div>
+                        <div className="mt-3 space-y-2" aria-live="polite">
+                          {taxDocumentValidation.errors.map((message) => (
+                            <p
+                              key={message}
+                              className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-800"
+                            >
+                              {message}
+                            </p>
+                          ))}
+                          {taxDocumentValidation.notices.map((message) => (
+                            <p
+                              key={message}
+                              className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-800"
+                            >
+                              {message}
+                            </p>
+                          ))}
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -2083,6 +2128,7 @@ export default function IntakeForm({
                                 ? "ชื่อบริษัท / ชื่อนิติบุคคล"
                                 : "ชื่อที่ต้องการให้ออกเอกสาร"
                             }
+                            required={taxDocumentValidation.requiresTaxProfile}
                           />
                           <input
                             id="billingName"
@@ -2101,7 +2147,11 @@ export default function IntakeForm({
                         {billingEntityType === "company" ? (
                           <>
                             <div className="md:col-span-2">
-                              <FieldLabel htmlFor="billingBranchType" label="ประเภทสาขา" />
+                              <FieldLabel
+                                htmlFor="billingBranchType"
+                                label="ประเภทสาขา"
+                                required={taxDocumentValidation.requiresTaxProfile}
+                              />
                               <div id="billingBranchType" className="grid grid-cols-2 gap-2">
                                 {BILLING_BRANCH_TYPES.map((type) => (
                                   <SelectorChip
@@ -2117,7 +2167,11 @@ export default function IntakeForm({
 
                             {billingBranchType === "branch" ? (
                               <div className="md:col-span-2">
-                                <FieldLabel htmlFor="billingBranchCode" label="เลขสาขา" />
+                                <FieldLabel
+                                  htmlFor="billingBranchCode"
+                                  label="เลขสาขา"
+                                  required={taxDocumentValidation.requiresTaxProfile}
+                                />
                                 <input
                                   id="billingBranchCode"
                                   type="text"
@@ -2133,7 +2187,11 @@ export default function IntakeForm({
                         ) : null}
 
                         <div className="md:col-span-2">
-                          <FieldLabel htmlFor="taxId" label="เลขผู้เสียภาษี / Tax ID" />
+                          <FieldLabel
+                            htmlFor="taxId"
+                            label="เลขผู้เสียภาษี / Tax ID"
+                            required={taxDocumentValidation.requiresTaxProfile}
+                          />
                           <input
                             id="taxId"
                             type="text"
@@ -2146,7 +2204,11 @@ export default function IntakeForm({
                         </div>
 
                         <div className="md:col-span-2">
-                          <FieldLabel htmlFor="billingAddress" label="ที่อยู่ออกเอกสาร" />
+                          <FieldLabel
+                            htmlFor="billingAddress"
+                            label="ที่อยู่ออกเอกสาร"
+                            required={taxDocumentValidation.requiresTaxProfile}
+                          />
                           <textarea
                             id="billingAddress"
                             placeholder="เช่น ที่อยู่บริษัทหรือที่อยู่สำหรับออกใบเสนอราคา / ใบกำกับภาษี"
