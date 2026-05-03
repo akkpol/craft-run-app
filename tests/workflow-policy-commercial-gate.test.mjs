@@ -70,11 +70,38 @@ test("job transition allows production once commercial document gate is clear", 
       payment_status: "paid",
       required_document_type: "tax_invoice",
       required_document_issued: true,
+      payment_receiver_entity_id: "entity-main",
+      document_issuer_entity_id: "entity-main",
     },
   });
 
   assert.equal(result.decision, "allowed");
   assert.equal(result.next_state?.job_status, "IN_PRODUCTION");
+});
+
+test("job transition blocks production when payment receiver and document issuer differ", () => {
+  const result = validateTransition({
+    entity: "job",
+    action: "move_to_production",
+    from_state: {
+      job_status: "IN_DESIGN",
+      design_status: "approved",
+      payment_terms: "prepaid",
+      payment_status: "paid",
+      required_document_type: "tax_invoice",
+      required_document_issued: true,
+      payment_receiver_entity_id: "entity-main",
+      document_issuer_entity_id: "entity-other",
+    },
+  });
+
+  assert.equal(result.decision, "blocked");
+  assert.match(result.reason, /payment receiver and document issuer/i);
+  assert.ok(
+    result.missing_requirements.includes(
+      "payment_receiver_entity_id must equal document_issuer_entity_id"
+    )
+  );
 });
 
 test("ui contract exposes a commercial gate section for admin when documents are pending", () => {
@@ -91,4 +118,21 @@ test("ui contract exposes a commercial gate section for admin when documents are
 
   assert.ok(result.show_sections.includes("commercial_gate_queue"));
   assert.ok(result.show_ctas.includes("issue_commercial_document"));
+});
+
+test("status page exposes commercial gate notice when receiver and issuer differ", () => {
+  const result = getUiContract({
+    actor: "customer",
+    surface: "status_page",
+    workflow_bundle: {
+      payment_terms: "prepaid",
+      payment_status: "paid",
+      required_document_type: "receipt",
+      required_document_issued: true,
+      payment_receiver_entity_id: "entity-main",
+      document_issuer_entity_id: "entity-other",
+    },
+  });
+
+  assert.ok(result.show_sections.includes("commercial_gate_notice"));
 });

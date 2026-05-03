@@ -1,0 +1,267 @@
+import { describe, expect, it } from "vitest";
+
+import { buildBackofficeAutomationSnapshot } from "../src/lib/backoffice-automation.ts";
+import type { BackofficeSnapshot } from "../src/lib/backoffice-snapshot.ts";
+
+function makeSnapshot(): BackofficeSnapshot {
+  return {
+    leads: [
+      {
+        id: "lead-new",
+        conversation_id: "conv-new",
+        product_type: "signage",
+        width_mm: 900,
+        height_mm: 450,
+        qty: 1,
+        status: "new",
+        created_at: "2026-05-03T09:00:00.000Z",
+        customers: { display_name: "New Lead", phone: null },
+      },
+      {
+        id: "lead-quote",
+        conversation_id: "conv-quote",
+        product_type: "signage",
+        width_mm: 1000,
+        height_mm: 500,
+        qty: 1,
+        status: "approved",
+        created_at: "2026-05-03T09:05:00.000Z",
+        customers: { display_name: "Quote Decision", phone: null },
+      },
+      {
+        id: "lead-payment",
+        conversation_id: "conv-payment",
+        product_type: "signage",
+        width_mm: 1100,
+        height_mm: 550,
+        qty: 1,
+        status: "approved",
+        created_at: "2026-05-03T09:10:00.000Z",
+        customers: { display_name: "Payment Ops", phone: null },
+      },
+      {
+        id: "lead-customer-waiting",
+        conversation_id: "conv-customer-waiting",
+        product_type: "signage",
+        width_mm: 1200,
+        height_mm: 600,
+        qty: 1,
+        status: "in_progress",
+        created_at: "2026-05-03T09:15:00.000Z",
+        design_status: "preview_sent",
+        hold_reason: "รอยืนยันไฟล์สุดท้าย",
+        customers: { display_name: "Customer Waiting", phone: null },
+      },
+      {
+        id: "lead-design",
+        conversation_id: "conv-design",
+        product_type: "signage",
+        width_mm: 1300,
+        height_mm: 650,
+        qty: 1,
+        status: "in_progress",
+        created_at: "2026-05-03T09:20:00.000Z",
+        design_status: "drafting",
+        customers: { display_name: "Design Ops", phone: null },
+      },
+      {
+        id: "lead-commercial",
+        conversation_id: "conv-commercial",
+        product_type: "signage",
+        width_mm: 1400,
+        height_mm: 700,
+        qty: 1,
+        status: "approved",
+        created_at: "2026-05-03T09:25:00.000Z",
+        requested_document_type: "tax_invoice",
+        customers: { display_name: "Commercial Gate", phone: null },
+      },
+      {
+        id: "lead-production",
+        conversation_id: "conv-production",
+        product_type: "signage",
+        width_mm: 1500,
+        height_mm: 750,
+        qty: 1,
+        status: "in_progress",
+        created_at: "2026-05-03T09:30:00.000Z",
+        customers: { display_name: "Production Ops", phone: null },
+      },
+    ],
+    quotes: [
+      {
+        id: "quote-quote-decision",
+        lead_id: "lead-quote",
+        status: "sent",
+        total: 1200,
+        public_token: "quote-token",
+        created_at: "2026-05-03T09:35:00.000Z",
+        payment_terms: "prepaid",
+        payment_status: "unpaid",
+        leads: {
+          id: "lead-quote",
+          conversation_id: "conv-quote",
+          product_type: "signage",
+          width_mm: 1000,
+          height_mm: 500,
+          qty: 1,
+          status: "approved",
+          created_at: "2026-05-03T09:05:00.000Z",
+          customers: { display_name: "Quote Decision", phone: null },
+        },
+        quote_items: [],
+        jobs: [],
+        commercialOrder: null,
+      },
+      {
+        id: "quote-commercial-gate",
+        lead_id: "lead-commercial",
+        status: "approved",
+        total: 2400,
+        public_token: "commercial-token",
+        created_at: "2026-05-03T09:40:00.000Z",
+        payment_terms: "prepaid",
+        payment_status: "paid",
+        leads: {
+          id: "lead-commercial",
+          conversation_id: "conv-commercial",
+          product_type: "signage",
+          width_mm: 1400,
+          height_mm: 700,
+          qty: 1,
+          status: "approved",
+          created_at: "2026-05-03T09:25:00.000Z",
+          requested_document_type: "tax_invoice",
+          customers: { display_name: "Commercial Gate", phone: null },
+        },
+        quote_items: [],
+        jobs: [],
+        commercialOrder: {
+          id: "order-1",
+          selectedReceiverEntityId: "entity-1",
+          paymentReceiverLockedAt: "2026-05-03T09:45:00.000Z",
+          customerTaxProfileId: "tax-1",
+          confirmedPaymentId: "payment-1",
+          confirmedPaymentStatus: "CONFIRMED",
+          issuedDocumentId: null,
+          issuedDocumentType: null,
+          issuedDocumentNumber: null,
+          issuedDocumentStatus: null,
+        },
+      },
+    ],
+    commercialReceiverEntities: [],
+    jobs: [
+      {
+        id: "job-production",
+        lead_id: "lead-production",
+        status: "IN_PRODUCTION",
+        assigned_to: "factory-1",
+        created_at: "2026-05-03T09:50:00.000Z",
+        quotes: null,
+      },
+    ],
+    productionReviewQueue: [
+      {
+        id: "event-proof",
+        job_id: "job-production",
+        production_link_id: "plink-1",
+        event_type: "proof",
+        note: "รอตรวจ proof",
+        submitted_by_label: "ทีมผลิต",
+        review_status: "pending",
+        review_note: null,
+        reviewed_by: null,
+        reviewed_at: null,
+        sent_to_customer_at: null,
+        created_at: "2026-05-03T09:55:00.000Z",
+        jobs: null,
+        job_production_links: null,
+      },
+    ],
+    escalations: [
+      {
+        id: "esc-1",
+        conversation_id: "conv-payment",
+        reason: "ลูกค้าขอคุยกับแอดมิน",
+        status: "open",
+        created_at: "2026-05-03T10:00:00.000Z",
+      },
+    ],
+    recentConversations: [],
+    conversations: [
+      {
+        id: "conv-new",
+        line_user_id: "line-new",
+        state: "NEW_MESSAGE",
+        last_message_at: "2026-05-03T09:00:00.000Z",
+        created_at: "2026-05-03T09:00:00.000Z",
+      },
+      {
+        id: "conv-quote",
+        line_user_id: "line-quote",
+        state: "WAITING_QUOTE_APPROVAL",
+        last_message_at: "2026-05-03T09:35:00.000Z",
+        created_at: "2026-05-03T09:05:00.000Z",
+      },
+      {
+        id: "conv-payment",
+        line_user_id: "line-payment",
+        state: "WAITING_PAYMENT",
+        last_message_at: "2026-05-03T09:40:00.000Z",
+        created_at: "2026-05-03T09:10:00.000Z",
+      },
+      {
+        id: "conv-customer-waiting",
+        line_user_id: "line-customer-waiting",
+        state: "ON_HOLD_CUSTOMER_INPUT",
+        last_message_at: "2026-05-03T09:45:00.000Z",
+        created_at: "2026-05-03T09:15:00.000Z",
+      },
+      {
+        id: "conv-design",
+        line_user_id: "line-design",
+        state: "IN_DESIGN",
+        last_message_at: "2026-05-03T09:50:00.000Z",
+        created_at: "2026-05-03T09:20:00.000Z",
+      },
+      {
+        id: "conv-commercial",
+        line_user_id: "line-commercial",
+        state: "WAITING_PAYMENT",
+        last_message_at: "2026-05-03T09:55:00.000Z",
+        created_at: "2026-05-03T09:25:00.000Z",
+      },
+      {
+        id: "conv-production",
+        line_user_id: "line-production",
+        state: "IN_PRODUCTION",
+        last_message_at: "2026-05-03T10:00:00.000Z",
+        created_at: "2026-05-03T09:30:00.000Z",
+      },
+    ],
+  };
+}
+
+describe("buildBackofficeAutomationSnapshot", () => {
+  it("keeps automation lanes aligned with queue ownership", () => {
+    const automation = buildBackofficeAutomationSnapshot(makeSnapshot());
+    const laneCounts = Object.fromEntries(
+      automation.lanes.map((lane) => [lane.key, lane.count])
+    );
+
+    expect(laneCounts).toEqual({
+      "new-leads": 1,
+      "quote-decision": 1,
+      "payment-ops": 2,
+      "customer-waiting": 2,
+      "commercial-gate": 1,
+      "design-ops": 2,
+      "production-ops": 1,
+      exceptions: 1,
+    });
+
+    expect(automation.summary.waitingOnCustomerCount).toBe(2);
+    expect(laneCounts["quote-decision"]).toBe(1);
+  });
+});

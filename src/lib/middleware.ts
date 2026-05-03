@@ -26,6 +26,17 @@ function isPublicRoute(pathname: string) {
 }
 
 export async function updateSession(request: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET
+  const authHeader = request.headers.get("authorization")
+
+  if (
+    request.nextUrl.pathname === "/api/admin/follow-up" &&
+    cronSecret &&
+    authHeader === `Bearer ${cronSecret}`
+  ) {
+    return NextResponse.next({ request })
+  }
+
   if (isPublicRoute(request.nextUrl.pathname)) {
     return NextResponse.next({ request })
   }

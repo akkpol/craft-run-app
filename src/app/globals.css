@@ -215,6 +215,7 @@
   .liff-shell {
     min-height: 100vh;
     min-height: 100dvh;
+    padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     background:
       radial-gradient(circle at 10% 12%, rgba(245, 158, 11, 0.12), transparent 22%),
@@ -232,6 +233,7 @@
     box-shadow:
       0 24px 56px rgba(28, 25, 23, 0.08),
       inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    -webkit-backdrop-filter: blur(18px);
     backdrop-filter: blur(18px);
   }
 
@@ -312,6 +314,7 @@
       radial-gradient(circle at 82% 20%, rgba(254, 240, 138, 0.46), transparent 20%),
       radial-gradient(circle at 78% 82%, rgba(165, 180, 252, 0.34), transparent 26%),
       linear-gradient(135deg, rgba(255, 255, 255, 0.84), rgba(248, 250, 252, 0.64));
+    -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
   }
 
@@ -390,6 +393,7 @@
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: rgba(51, 65, 85, 0.84);
+    -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
   }
 
@@ -518,6 +522,7 @@
     background: rgba(255, 255, 255, 0.82);
     padding: 0.55rem 0.7rem;
     box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
   }
 
@@ -731,6 +736,7 @@
     background: rgba(255, 255, 255, 0.88);
     padding: 0.55rem 0.7rem 0.65rem;
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
   }
 
@@ -777,6 +783,7 @@
   }
 
   .studio-station-preview {
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
   }
 
@@ -803,6 +810,7 @@
       linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
       linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px);
     background-size: 44px 44px;
+    -webkit-mask-image: linear-gradient(180deg, transparent, black 14%, black 84%, transparent);
     mask-image: linear-gradient(180deg, transparent, black 14%, black 84%, transparent);
     opacity: 0.42;
   }
@@ -931,7 +939,7 @@
     --architecture-shadow: rgba(59, 130, 246, 0.2);
     position: relative;
     overflow: hidden;
-    border: 1px solid color-mix(in oklab, var(--architecture-accent) 28%, white);
+    border: 1px solid var(--architecture-soft);
     border-radius: 24px;
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.72)),
@@ -998,7 +1006,7 @@
   }
 
   .studio-architecture-module:hover {
-    border-color: color-mix(in oklab, var(--architecture-accent) 44%, white);
+    border-color: var(--architecture-accent);
     box-shadow: 0 16px 28px var(--architecture-shadow);
     transform: translateY(-2px);
   }
@@ -1051,8 +1059,9 @@
   }
 
   .flow-theme-nav {
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 92%, transparent);
-    background: color-mix(in oklab, var(--background) 88%, transparent);
+    border-bottom: 1px solid var(--border);
+    background: var(--background);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
   }
 
@@ -1064,7 +1073,7 @@
   }
 
   .flow-theme-soft {
-    border: 1px solid color-mix(in oklab, var(--flow-panel-border) 88%, transparent);
+    border: 1px solid var(--flow-panel-border);
     border-radius: 1rem;
     background: var(--flow-soft-bg);
   }
@@ -1073,6 +1082,35 @@
     border: 1px solid var(--flow-note-border);
     border-radius: 1rem;
     background: var(--flow-note-bg);
+  }
+}
+
+@layer utilities {
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .pb-liff-submit-safe {
+    padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+  }
+
+  .bottom-safe-2 {
+    bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+  }
+
+  .pressable-native {
+    touch-action: manipulation;
+    transition-property: transform, background-color, border-color, color, box-shadow, opacity;
+    transition-duration: 140ms;
+    transition-timing-function: ease-out;
+  }
+
+  .pressable-native:active:not(:disabled) {
+    transform: translateY(1px) scale(0.99);
   }
 }
 

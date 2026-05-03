@@ -278,7 +278,7 @@ export default async function AdminProfilePage() {
                 <QuickLink
                   href="/admin"
                   label="กลับไป Dashboard"
-                  description="ดูคิว sales, design, production และ inbox จากหน้าหลักหลังบ้าน"
+                  description="ดู CRM inbox และคิวตาม owner อย่าง New Leads, Payment Ops, Design Ops และ Production Ops"
                 />
                 <QuickLink
                   href="/admin/settings"

@@ -14,10 +14,13 @@ This document maps what the system actually does today, where policy must be str
 
 Related brainstorm: `docs/FOGUS_AUTOMATION_BRAINSTORM_V1.md` expands this map into automation opportunities, approval boundaries, CRM readiness, and anti-ping-pong rules.
 
+Related owner model: `docs/B2B_OPERATIONS_MODEL_V1.md` defines the target B2B operating model above any single packet or admin table.
+
 ## Source Hierarchy For This Analysis
 
 | Layer | Source | How to treat it |
 | --- | --- | --- |
+| Owner operating model | `docs/B2B_OPERATIONS_MODEL_V1.md` | Canonical for cross-channel ownership, queue families, and admin IA intent |
 | Runtime state truth | `docs/workflow-policy.json`, `src/lib/workflow-transitions.ts`, `src/lib/workflow-policy-core.mjs` | Canonical for current state/CTA rules |
 | LINE entry truth | `src/app/api/webhook/route.ts`, `src/lib/line.ts` | Canonical for returning customer behavior |
 | LIFF intake truth | `src/app/liff/intake/intake-form.tsx`, `src/app/api/intake/route.ts` | Canonical for customer form, validation, quote creation |
@@ -362,6 +365,110 @@ Read the diagram this way:
 - Product catalog drives which fields LIFF should ask and whether auto quote is safe.
 - Fulfillment mode changes required fields before quote readiness.
 - Payment/commercial gate is after quote approval, but its risk starts at catalog, tax request, payment profile, and receiver mapping.
+
+## Full Customer-To-Production Brainstorm Flow
+
+This is the fuller brainstorm map that connects LINE re-entry, LIFF intake, quote approval, payment/commercial gates, design, production, fulfillment, and UI lock rules in one flow.
+
+```mermaid
+flowchart TD
+	A[LINE OA: customer sends message] --> B{Existing conversation state?}
+
+	B -->|none or not reusable| C[Send LIFF intake link]
+	B -->|COLLECTING / REVIEW / HOLD reused| D[Offer resume or fresh]
+	B -->|WAITING_QUOTE_APPROVAL| E[Send quote context]
+	B -->|WAITING_PAYMENT| F[Send payment/status context]
+	B -->|IN_DESIGN / IN_PRODUCTION / READY| G[Send production/status context]
+	B -->|COMPLETED / CANCELLED| H[Invite fresh intake]
+	B -->|human keywords| I[Escalate to HUMAN_REVIEW_REQUIRED]
+
+	C --> J[LIFF intake]
+	D --> J
+	J --> K{Identity verified?}
+	K -->|no| K1[Block submit: reopen from LINE]
+	K -->|yes| L[Collect structured requirements]
+
+	L --> L1[Work basics: product, size, qty, due date]
+	L --> L2[Contact: phone + LINE profile]
+	L --> L3[Document intent: quote/tax invoice, billing profile]
+	L --> L4[Fulfillment: pickup/delivery/install]
+	L --> L5[Design context: brief, notes, references]
+
+	L1 --> M{Enough trusted data for auto quote?}
+	L2 --> M
+	L3 --> M
+	L4 --> M
+	L5 --> M
+
+	M -->|no| N[Admin review / ON_HOLD_CUSTOMER_INPUT]
+	M -->|yes| O[Create lead + calculate price + create quote]
+	O --> P[Resolve payment profile snapshot]
+	P --> Q[Push quote link]
+
+	Q --> R[Quote page]
+	R --> S{Customer action}
+	S -->|approve| T[Quote approved]
+	S -->|rescope| U[Return to REQUIREMENTS_REVIEW]
+	S -->|reject| V[CANCELLED]
+
+	T --> W{Payment/commercial safe?}
+	W -->|receiver missing| W1[Admin selects receiver]
+	W -->|tax invoice requested + receiver not VAT| W2[Block before payment]
+	W -->|payment profile not mapped to receiver| W3[Hide/hold payment instructions]
+	W -->|safe| X[Show payment instructions]
+
+	W1 --> X
+	X --> Y[Customer pays / sends proof]
+	Y --> Z[Admin confirms payment]
+	Z --> AA[Lock receiver]
+	AA --> AB[Issue receipt/tax invoice receipt]
+	AB --> AC[Commercial unlock]
+
+	AC --> AD{Design path}
+	AD -->|AI ready + low risk| AE[AI draft preview]
+	AD -->|AI not ready / quota / complex job| AF[Manual design]
+	AE --> AG[Admin/designer reviews before customer]
+	AF --> AG
+	AG --> AH[Send preview]
+	AH --> AI{Customer feedback}
+	AI -->|approve| AJ[Design approved]
+	AI -->|revision| AK[Revision requested / team-owned]
+	AK --> AF
+
+	AJ --> AL{Production prerequisites met?}
+	AL -->|no| AL1[Block move-to-production with reason]
+	AL -->|yes| AM[IN_PRODUCTION]
+	AM --> AN[READY_FOR_FULFILLMENT]
+	AN --> AO[Pickup / delivery / install resolved]
+	AO --> AP[COMPLETED]
+
+	subgraph UI_LOCKS[UI lock rules]
+		U1[One canonical surface per actor]
+		U2[One primary CTA per state]
+		U3[Blockers show owner + reason]
+		U4[Settings show ready / missing / risky]
+		U5[Customer UI hides internals]
+		U6[Admin UI shows policy consequences]
+	end
+
+	W -. governed by .-> U3
+	R -. governed by .-> U2
+	J -. governed by .-> U4
+	N -. governed by .-> U3
+	AL1 -. governed by .-> U3
+
+	classDef customer fill:#eff6ff,stroke:#60a5fa,color:#0f172a;
+	classDef admin fill:#fff7ed,stroke:#fb923c,color:#0f172a;
+	classDef gate fill:#fef2f2,stroke:#f87171,color:#0f172a;
+	classDef system fill:#f8fafc,stroke:#94a3b8,color:#0f172a;
+	classDef done fill:#ecfdf5,stroke:#34d399,color:#0f172a;
+
+	class A,C,D,E,F,G,H,J,R,Q,Y,AH,AI,AO customer;
+	class I,N,W1,Z,AA,AG,AF,AL1 admin;
+	class B,K,M,S,W,AD,AL gate;
+	class L,L1,L2,L3,L4,L5,O,P,T,U,V,X,AB,AC,AE,AK,AM,AN system;
+	class AP done;
+```
 
 ## Validated Intake Envelope
 

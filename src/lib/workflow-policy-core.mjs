@@ -63,6 +63,45 @@ function isClosedQuoteStatus(status) {
   return status === "rejected" || status === "expired";
 }
 
+function firstPresentString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function getPaymentReceiverEntityId(bundle = {}) {
+  return firstPresentString(
+    bundle.payment_receiver_entity_id,
+    bundle.payment_receiver_entity,
+    bundle.selected_receiver_entity_id,
+    bundle.selectedReceiverEntityId
+  );
+}
+
+function getDocumentIssuerEntityId(bundle = {}) {
+  return firstPresentString(
+    bundle.document_issuer_entity_id,
+    bundle.document_issuer_entity,
+    bundle.issuer_entity_id,
+    bundle.issued_document_issuer_entity_id
+  );
+}
+
+function hasPaymentReceiverDocumentIssuerMismatch(bundle = {}) {
+  const paymentReceiverEntityId = getPaymentReceiverEntityId(bundle);
+  const documentIssuerEntityId = getDocumentIssuerEntityId(bundle);
+
+  return Boolean(
+    paymentReceiverEntityId &&
+    documentIssuerEntityId &&
+    paymentReceiverEntityId !== documentIssuerEntityId
+  );
+}
+
 function isOnCustomerHold(bundle = {}) {
   return (
     bundle.conversation_state === "ON_HOLD_CUSTOMER_INPUT" ||
@@ -83,6 +122,10 @@ function requiresCommercialDocument(bundle = {}) {
 }
 
 function isCommercialGateSatisfied(bundle = {}) {
+  if (hasPaymentReceiverDocumentIssuerMismatch(bundle)) {
+    return false;
+  }
+
   if (bundle.commercial_gate_status === "ready" || bundle.commercial_gate_status === "not_required") {
     return true;
   }
@@ -108,6 +151,7 @@ function isCommercialGatePending(bundle = {}) {
   }
 
   return (
+    hasPaymentReceiverDocumentIssuerMismatch(bundle) ||
     bundle.commercial_review_required === true ||
     requiresCommercialDocument(bundle) ||
     bundle.commercial_gate_status === "pending" ||
@@ -769,6 +813,16 @@ function validateJobTransition(action, fromState = {}, context = {}) {
         null,
         [],
         ["design_status must be approved or not_started"]
+      );
+    }
+
+    if (hasPaymentReceiverDocumentIssuerMismatch(workflowBundle)) {
+      return makeResult(
+        "blocked",
+        "Job cannot move to production because payment receiver and document issuer must match.",
+        null,
+        [],
+        ["payment_receiver_entity_id must equal document_issuer_entity_id"]
       );
     }
 

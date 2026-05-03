@@ -22,6 +22,10 @@ export type WorkflowBundle = {
   commercial_review_required?: boolean;
   commercial_gate_status?: string | null;
   payment_receiver_locked?: boolean;
+  payment_receiver_entity_id?: string | null;
+  document_issuer_entity_id?: string | null;
+  selected_receiver_entity_id?: string | null;
+  issuer_entity_id?: string | null;
 };
 
 export type AllowedActionResult = {

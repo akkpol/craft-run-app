@@ -1,7 +1,7 @@
 import { getRuntimeAppConfig } from "@/lib/app-settings";
 import {
   fetchAdminOverviewPage,
-  isOverviewFilterKey,
+  normalizeOverviewFilterKey,
 } from "@/lib/admin-overview";
 import { buildBackofficeAutomationSnapshot } from "@/lib/backoffice-automation";
 import { fetchBackofficeSnapshot } from "@/lib/backoffice-snapshot";
@@ -20,9 +20,7 @@ export default async function AdminPage(props: {
   const searchParams = await props.searchParams;
   const requestedFilter = firstValue(searchParams.filter);
   const requestedPage = Number(firstValue(searchParams.page) || "1");
-  const filter = requestedFilter && isOverviewFilterKey(requestedFilter)
-    ? requestedFilter
-    : "all";
+  const filter = normalizeOverviewFilterKey(requestedFilter) || "all";
 
   const [config, snapshot] = await Promise.all([
     getRuntimeAppConfig(),

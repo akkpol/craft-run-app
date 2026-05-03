@@ -30,6 +30,10 @@ import type {
   OverviewFilterKey,
 } from "@/lib/admin-overview";
 import {
+  ADMIN_QUEUE_FILTER_KEYS,
+  getAdminQueueContract,
+} from "@/lib/admin-queue-contract";
+import {
   getLeadDesignRoutingSummary,
   getLeadAiDisplayPrompt,
   hasLeadAiSeedPrompt,
@@ -604,48 +608,15 @@ const OVERVIEW_QUEUE_FILTERS: Array<{
   key: OverviewFilterKey;
   label: string;
   description: string;
-}> = [
-  {
-    key: "all",
-    label: "ทั้งหมด",
-    description: "มองทุกคิวในมุมเดียวเพื่อจัดลำดับว่าสิ่งไหนต้องขยับก่อนในรอบนี้",
-  },
-  {
-    key: "escalation",
-    label: "Escalation",
-    description: "เคสที่ลูกค้าหรือระบบส่งกลับมาให้ทีมตอบทันทีและไม่ควรปล่อยค้าง",
-  },
-  {
-    key: "blocked",
-    label: "Workflow ติดค้าง",
-    description: "งานที่ flow เดินต่อไม่ได้จนกว่าจะมีคนปลดล็อกหรือเลือกทางไปต่อ",
-  },
-  {
-    key: "waiting-customer",
-    label: "รอลูกค้า",
-    description: "คิวที่ฝั่งทีมส่งคำถามหรือแบบกลับไปแล้วและกำลังรอข้อมูลเพิ่มจากลูกค้า",
-  },
-  {
-    key: "quote",
-    label: "Quote",
-    description: "ใบเสนอราคาที่ต้องตามการอนุมัติ การจ่ายเงิน หรือการเปิดงานต่อจากเอกสาร",
-  },
-  {
-    key: "commercial-gate",
-    label: "Commercial gate",
-    description: "quote ที่ยังติด receiver lock หรือเอกสารหลังรับชำระ และยังไม่ควรปล่อยเข้า production",
-  },
-  {
-    key: "production-review",
-    label: "Review",
-    description: "หลักฐานจากหน้างานที่ยังรอตรวจ ตีกลับ หรือยังต้องส่งต่อให้ลูกค้าเห็น",
-  },
-  {
-    key: "running-job",
-    label: "งานรันอยู่",
-    description: "งาน active ที่มี owner ต้องตาม prompt, preview, production link และสถานะหน้างาน",
-  },
-];
+}> = ADMIN_QUEUE_FILTER_KEYS.map((key) => {
+  const contract = getAdminQueueContract(key);
+
+  return {
+    key,
+    label: contract.label,
+    description: contract.description,
+  };
+});
 
 export function OverviewCombinedQueueTable({
   overview,
@@ -684,11 +655,14 @@ export function OverviewCombinedQueueTable({
       <div className="rounded-[24px] border border-cyan-100/80 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.95))] p-3.5 shadow-[0_16px_36px_rgba(0,62,93,0.08)]">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-1.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Queue focus</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Owner queue focus</p>
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-base font-semibold text-slate-950">{activeFilter.label}</h3>
               <Badge variant="outline" className="border-cyan-200 bg-white text-cyan-700">
                 {overview.counts[activeFilter.key]} รายการ
+              </Badge>
+              <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
+                {getAdminQueueContract(activeFilter.key).ownerLabel}
               </Badge>
             </div>
             <p className="max-w-3xl text-sm leading-6 text-slate-500">{activeFilter.description}</p>
@@ -754,7 +728,7 @@ export function OverviewCombinedQueueTable({
                       <TableCell className={getOverviewCellClassName()}>
                         <OverviewMobileLabel>คิว</OverviewMobileLabel>
                         <OverviewCellFrame tone="danger" className="min-w-36 space-y-2">
-                          <Badge className="border border-rose-200 bg-rose-100 text-rose-800">Escalation</Badge>
+                          <Badge className="border border-rose-200 bg-rose-100 text-rose-800">{getAdminQueueContract("exceptions").label}</Badge>
                           <p className="text-xs font-medium text-rose-700">{formatDateTime(row.createdAt)}</p>
                         </OverviewCellFrame>
                       </TableCell>
@@ -796,7 +770,7 @@ export function OverviewCombinedQueueTable({
                               currentState={row.conversationState}
                               compact
                               buttonVariant="default"
-                              buttonLabel={getConversationActionLabel(row.conversationState, "escalation")}
+                              buttonLabel={getConversationActionLabel(row.conversationState, "exceptions")}
                             />
                           </OverviewActionRail>
                         ) : null}
@@ -813,24 +787,28 @@ export function OverviewCombinedQueueTable({
                       key={`overview-conversation-${row.filterKey}-${row.id}-${index}`}
                       className={getOverviewRowClassName(
                         cn(
-                          row.filterKey === "blocked"
+                          row.filterKey === "payment-ops"
                             ? "border-amber-100 bg-amber-50/60 hover:bg-amber-50/80 xl:border-slate-100 xl:bg-amber-50/20 xl:hover:bg-amber-50/40"
+                            : row.filterKey === "new-leads"
+                              ? "border-violet-100 bg-violet-50/60 hover:bg-violet-50/80 xl:border-slate-100 xl:bg-violet-50/20 xl:hover:bg-violet-50/35"
                             : "border-sky-100 bg-sky-50/60 hover:bg-sky-50/80 xl:border-slate-100 xl:bg-sky-50/20 xl:hover:bg-sky-50/40"
                         )
                       )}
                     >
                       <TableCell className={getOverviewCellClassName()}>
                         <OverviewMobileLabel>คิว</OverviewMobileLabel>
-                        <OverviewCellFrame tone={row.filterKey === "blocked" ? "warning" : "info"} className="min-w-36 space-y-2">
+                        <OverviewCellFrame tone={row.filterKey === "payment-ops" ? "warning" : row.filterKey === "new-leads" ? "accent" : "info"} className="min-w-36 space-y-2">
                           <Badge
                             className={cn(
                               "border",
-                              row.filterKey === "blocked"
+                              row.filterKey === "payment-ops"
                                 ? "border-amber-200 bg-amber-100 text-amber-800"
+                                : row.filterKey === "new-leads"
+                                  ? "border-violet-200 bg-violet-100 text-violet-800"
                                 : "border-sky-200 bg-sky-100 text-sky-800"
                             )}
                           >
-                            {row.filterKey === "blocked" ? "Workflow ติดค้าง" : "รอลูกค้าตอบ"}
+                            {getAdminQueueContract(row.filterKey).label}
                           </Badge>
                           <p className="text-xs font-medium text-slate-600">{formatDateTime(row.messageAt)}</p>
                         </OverviewCellFrame>
@@ -845,9 +823,15 @@ export function OverviewCombinedQueueTable({
                       </TableCell>
                       <TableCell className={getOverviewCellClassName()}>
                         <OverviewMobileLabel>บริบท</OverviewMobileLabel>
-                        <OverviewCellFrame tone={row.filterKey === "blocked" ? "warning" : "info"} className="min-w-64 space-y-1.5">
+                        <OverviewCellFrame tone={row.filterKey === "payment-ops" ? "warning" : row.filterKey === "new-leads" ? "accent" : "info"} className="min-w-64 space-y-1.5">
                           <p className="line-clamp-2 text-sm text-slate-700">
-                            {note || (row.filterKey === "blocked" ? "ยังต้องมีคนปลดล็อก workflow นี้" : "กำลังรอข้อมูลหรือ feedback เพิ่มจากลูกค้า")}
+                            {note || (
+                              row.filterKey === "payment-ops"
+                                ? "ยังต้องมีคนเคลียร์ payment gate หรือ manual review นี้"
+                                : row.filterKey === "new-leads"
+                                  ? "กำลังเก็บ requirement ต้นทางให้พร้อมก่อนออก quote"
+                                  : "กำลังรอข้อมูลหรือ feedback เพิ่มจากลูกค้า"
+                            )}
                           </p>
                           <p className="text-xs text-slate-500">
                             {row.quoteStatus && row.paymentStatus
@@ -861,7 +845,7 @@ export function OverviewCombinedQueueTable({
                       </TableCell>
                       <TableCell className={getOverviewCellClassName()}>
                         <OverviewMobileLabel>สถานะ</OverviewMobileLabel>
-                        <OverviewCellFrame tone={row.filterKey === "blocked" ? "warning" : "info"} className="space-y-2">
+                        <OverviewCellFrame tone={row.filterKey === "payment-ops" ? "warning" : row.filterKey === "new-leads" ? "accent" : "info"} className="space-y-2">
                           <Badge className={cn("border", statusToneClass(row.conversationState))}>{WORKFLOW_STATE_LABELS[row.conversationState]}</Badge>
                           <p className="text-xs text-slate-500">
                             {row.jobStatus ? JOB_STATUS_LABELS[row.jobStatus] || row.jobStatus : "ยังไม่มี job"}
@@ -895,7 +879,7 @@ export function OverviewCombinedQueueTable({
                       <TableCell className={getOverviewCellClassName()}>
                         <OverviewMobileLabel>คิว</OverviewMobileLabel>
                         <OverviewCellFrame tone="accent" className="min-w-36 space-y-2">
-                          <Badge className="border border-violet-200 bg-violet-100 text-violet-800">Quote ติดค้าง</Badge>
+                          <Badge className="border border-violet-200 bg-violet-100 text-violet-800">{getAdminQueueContract(row.filterKey).label}</Badge>
                           <p className="text-xs font-medium text-violet-700">{formatDateTime(row.createdAt)}</p>
                         </OverviewCellFrame>
                       </TableCell>
@@ -965,7 +949,7 @@ export function OverviewCombinedQueueTable({
                       <TableCell className={getOverviewCellClassName()}>
                         <OverviewMobileLabel>คิว</OverviewMobileLabel>
                         <OverviewCellFrame tone="info" className="min-w-36 space-y-2">
-                          <Badge className="border border-cyan-200 bg-cyan-100 text-cyan-800">Production Review</Badge>
+                          <Badge className="border border-cyan-200 bg-cyan-100 text-cyan-800">{getAdminQueueContract("design-ops").label}</Badge>
                           <p className="text-xs font-medium text-cyan-700">{formatDateTime(row.createdAt)}</p>
                         </OverviewCellFrame>
                       </TableCell>
@@ -1031,7 +1015,7 @@ export function OverviewCombinedQueueTable({
                       <TableCell className={getOverviewCellClassName()}>
                         <OverviewMobileLabel>คิว</OverviewMobileLabel>
                         <OverviewCellFrame tone="success" className="min-w-36 space-y-2">
-                          <Badge className="border border-emerald-200 bg-emerald-100 text-emerald-800">งานที่กำลังรันอยู่</Badge>
+                          <Badge className="border border-emerald-200 bg-emerald-100 text-emerald-800">{getAdminQueueContract("production-ops").label}</Badge>
                           <p className="text-xs font-medium text-emerald-700">เริ่ม {formatDate(row.createdAt)}</p>
                         </OverviewCellFrame>
                       </TableCell>
@@ -2258,10 +2242,13 @@ export function InboxUrgentTable({
   blockedConversations: SnapshotConversation[];
   waitingCustomerConversations: SnapshotConversation[];
 }) {
+  const exceptionsQueue = getAdminQueueContract("exceptions");
+  const paymentOpsQueue = getAdminQueueContract("payment-ops");
+  const customerWaitingQueue = getAdminQueueContract("customer-waiting");
   const rows = [
     ...escalations.map((escalation) => ({ kind: "escalation" as const, escalation })),
-    ...blockedConversations.map((conversation) => ({ kind: "conversation" as const, lane: "blocked" as const, conversation })),
-    ...waitingCustomerConversations.map((conversation) => ({ kind: "conversation" as const, lane: "waiting-customer" as const, conversation })),
+    ...blockedConversations.map((conversation) => ({ kind: "conversation" as const, lane: "payment-ops" as const, conversation })),
+    ...waitingCustomerConversations.map((conversation) => ({ kind: "conversation" as const, lane: "customer-waiting" as const, conversation })),
   ];
 
   return (
@@ -2279,8 +2266,8 @@ export function InboxUrgentTable({
                   <TableRow key={`escalation-${row.escalation.id}-${index}`} className="bg-rose-50/30 align-top">
                     <TableCell className="px-4 py-4 align-top whitespace-normal">
                       <div className="min-w-32 space-y-1">
-                        <p className="text-sm font-semibold text-rose-900">Escalation</p>
-                        <p className="text-xs text-rose-700">ต้องใช้คนเข้าเคลียร์</p>
+                        <p className="text-sm font-semibold text-rose-900">{exceptionsQueue.label}</p>
+                        <p className="text-xs text-rose-700">{exceptionsQueue.ownerLabel}</p>
                       </div>
                     </TableCell>
                     <TableCell className="px-4 py-4 align-top whitespace-normal">
@@ -2327,14 +2314,14 @@ export function InboxUrgentTable({
                   key={`${row.lane}-${row.conversation.id}-${index}`}
                   className={cn(
                     "align-top",
-                    row.lane === "blocked" && "bg-amber-50/20",
-                    row.lane === "waiting-customer" && "bg-sky-50/20"
+                    row.lane === "payment-ops" && "bg-amber-50/20",
+                    row.lane === "customer-waiting" && "bg-sky-50/20"
                   )}
                 >
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="min-w-32 space-y-1">
                       <p className="text-sm font-semibold text-slate-900">
-                        {row.lane === "blocked" ? "Workflow ติดค้าง" : "รอลูกค้าตอบ"}
+                        {row.lane === "payment-ops" ? paymentOpsQueue.label : customerWaitingQueue.label}
                       </p>
                       <p className="text-xs text-slate-500">อัปเดต {formatDateTime(row.conversation.last_message_at)}</p>
                     </div>
@@ -2349,7 +2336,13 @@ export function InboxUrgentTable({
                   </TableCell>
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="min-w-64 space-y-1">
-                      <p className="text-sm text-slate-700">{note || (row.lane === "blocked" ? "ยังต้องมีคนปลดล็อก workflow นี้" : "กำลังรอข้อมูลหรือ feedback เพิ่มจากลูกค้า")}</p>
+                      <p className="text-sm text-slate-700">
+                        {note || (
+                          row.lane === "payment-ops"
+                            ? "ยังต้องมีคนเคลียร์ payment gate หรือ manual review นี้"
+                            : "กำลังรอข้อมูลหรือ feedback เพิ่มจากลูกค้า"
+                        )}
+                      </p>
                     </div>
                   </TableCell>
                   <TableCell className="px-4 py-4 align-top whitespace-normal">

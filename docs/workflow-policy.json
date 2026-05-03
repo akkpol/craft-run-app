@@ -394,6 +394,9 @@
     "guardRails": [
       "Do not offer approve_quote once the bundle is already payment-gated.",
       "Do not allow move_to_production while the commercial document gate is pending or blocked.",
+      "Treat payment/commercial document safety as gates, not workflow states.",
+      "Production must stay blocked while the required commercial document is not issued.",
+      "Money receiver entity must equal document issuer entity.",
       "Treat revision_requested as team-owned until preview_sent appears again.",
       "Do not reuse terminal conversations for new customer intake work."
     ]
@@ -431,6 +434,23 @@
       "src/lib/webhook-returning-customer.ts",
       "src/app/api/webhook/route.ts",
       "src/lib/line.ts"
+    ]
+  },
+  "commercial_document_gate": {
+    "description": "Commercial document issuance is a production gate. It must not introduce workflow states.",
+    "requiredBeforeProduction": [
+      "RECEIPT",
+      "TAX_INVOICE_RECEIPT"
+    ],
+    "enforcement": "block_production_until_required_document_issued_or_explicitly_not_required",
+    "invariants": [
+      "payment_receiver_entity_id must equal document_issuer_entity_id",
+      "Production can start only after the required commercial document is issued or explicitly not required"
+    ],
+    "implementationFiles": [
+      "src/lib/workflow-policy-core.mjs",
+      "src/lib/workflow-policy.ts",
+      "docs/COMMERCIAL_DOCUMENT_BUSINESS_FLOW_V1_FREEZE.md"
     ]
   }
 }

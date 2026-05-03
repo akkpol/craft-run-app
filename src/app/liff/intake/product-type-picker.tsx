@@ -68,6 +68,7 @@ export default function ProductTypePicker({
     normalizeCategory(initialCategory, getDefaultProductCatalog())
   );
   const [query, setQuery] = useState("");
+  const [showAllProducts, setShowAllProducts] = useState(false);
   const selectedProduct = useMemo(
     () => products.find((item) => item.value === value) || null,
     [products, value]
@@ -174,6 +175,15 @@ export default function ProductTypePicker({
     });
   }, [categoryFilteredProducts, query]);
 
+  const compactProductList = !query.trim() && activeCategory === "all";
+  const visibleProducts = compactProductList && !showAllProducts
+    ? filteredProducts.slice(0, 6)
+    : filteredProducts;
+
+  useEffect(() => {
+    setShowAllProducts(false);
+  }, [activeCategory, query]);
+
   useEffect(() => {
     if (!value) {
       return;
@@ -190,10 +200,10 @@ export default function ProductTypePicker({
   }, [activeCategory, categoryFilteredProducts, onChange, value]);
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="rounded-[1.25rem] bg-slate-50/78 p-4">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Product</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">สินค้า</p>
           <p className="mt-1 text-sm font-semibold text-stone-900">
             {selectedProduct ? selectedProduct.label : "เลือกหมวดและชนิดสินค้า"}
           </p>
@@ -202,7 +212,7 @@ export default function ProductTypePicker({
           ) : null}
         </div>
 
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 flex flex-col gap-2">
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">หมวดงาน</p>
           <div className="flex flex-wrap gap-2">
             {categoryOptions.map((category) => {
@@ -229,7 +239,7 @@ export default function ProductTypePicker({
           </div>
         </div>
 
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 flex flex-col gap-2">
           <label
             htmlFor="product-type-query"
             className="block text-xs font-medium uppercase tracking-[0.14em] text-slate-500"
@@ -249,7 +259,7 @@ export default function ProductTypePicker({
         <div className="mt-4 space-y-2">
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">ชนิดสินค้า</p>
           <div className="grid gap-2 sm:grid-cols-2">
-            {filteredProducts.map((item) => {
+            {visibleProducts.map((item) => {
               const isActive = value === item.value;
 
               return (
@@ -258,7 +268,7 @@ export default function ProductTypePicker({
                   type="button"
                   onClick={() => onChange(item.value)}
                   className={cn(
-                    "rounded-2xl border px-4 py-3 text-left transition",
+                    "pressable-native rounded-2xl border px-4 py-3 text-left",
                     isActive
                       ? "border-sky-300 bg-sky-50/90 text-slate-900 shadow-[0_12px_24px_rgba(125,211,252,0.18)]"
                       : "border-slate-200 bg-white/82 text-slate-900 hover:border-sky-200 hover:bg-sky-50/40"
@@ -270,6 +280,16 @@ export default function ProductTypePicker({
               );
             })}
           </div>
+          {compactProductList && filteredProducts.length > visibleProducts.length ? (
+            <button
+              type="button"
+              onClick={() => setShowAllProducts(true)}
+              className="pressable-native w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              แสดงสินค้าทั้งหมด {filteredProducts.length} รายการ
+            </button>
+          ) : null}
+
           {filteredProducts.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
               ไม่พบรายการที่ตรงกับหมวดหรือคำค้นนี้
@@ -296,11 +316,9 @@ export default function ProductTypePicker({
         ) : null}
 
         <p className="mt-3 text-[11px] text-slate-400">
-          {catalogSource === "database"
-            ? "กำลังใช้ product catalog runtime จากฐานข้อมูล"
-            : catalogSource === "loading"
-              ? "กำลังโหลด product catalog"
-              : "กำลังใช้ catalog มาตรฐานของระบบเป็น fallback"}
+          {catalogSource === "loading"
+            ? "กำลังโหลดรายการสินค้า"
+            : "เลือกสินค้าที่ใกล้เคียงที่สุดได้ ทีมงานจะตรวจรายละเอียดก่อนเสนอราคา"}
         </p>
       </div>
     </div>

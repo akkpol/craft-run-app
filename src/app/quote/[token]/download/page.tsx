@@ -226,7 +226,7 @@ export default async function QuoteDownloadPage(props: {
               ]}
             />
             <InfoBox
-              title="ลูกค้า / Bill To"
+              title="ลูกค้าและข้อมูลออกเอกสาร"
               rows={[
                 billingName,
                 `เอกสารที่ร้องขอ / Requested Document: ${requestedDocumentLabel}`,
@@ -353,7 +353,7 @@ export default async function QuoteDownloadPage(props: {
                 </div>
                 <div className="min-w-0">
                   <p className="text-base font-black text-[#123B63]">
-                    ช่องทางชำระเงิน / Payment Instructions
+                    ช่องทางชำระเงิน
                   </p>
                   <p className="mt-1 text-sm leading-relaxed text-slate-700">{paymentHelpText}</p>
                   {paymentRoutingNote ? (

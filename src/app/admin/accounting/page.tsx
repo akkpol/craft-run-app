@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getAdminQueueContract } from "@/lib/admin-queue-contract";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,8 @@ export default async function AdminAccountingPage(props: {
   const searchParams = await props.searchParams;
   const month = normalizeMonth(firstValue(searchParams.month));
   const exportHref = `/api/admin/accounting/monthly?month=${encodeURIComponent(month)}`;
+  const paymentOpsQueue = getAdminQueueContract("payment-ops");
+  const commercialGateQueue = getAdminQueueContract("commercial-gate");
 
   return (
     <div className="admin-shell min-h-screen bg-slate-50">
@@ -35,14 +38,22 @@ export default async function AdminAccountingPage(props: {
               ← กลับแดชบอร์ด
             </Link>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
-              Monthly Accounting
+              {paymentOpsQueue.ownerLabel}
             </p>
-            <h1 className="mt-2 text-2xl font-bold text-slate-950">Accounting Export</h1>
+            <h1 className="mt-2 text-2xl font-bold text-slate-950">Finance &amp; Documents Export</h1>
             <p className="mt-2 text-sm leading-6 text-slate-500">
               ดาวน์โหลด CSV รายเดือนจาก quote, payment tracking, และข้อมูลออกเอกสารที่เก็บจาก
               LIFF intake เพื่อส่งต่อให้นักบัญชีได้เป็นชุดเดียว โดยยังไม่ต้องสร้าง invoice runtime
               เต็มระบบก่อน
             </p>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 font-medium text-slate-700">
+                {paymentOpsQueue.label}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 font-medium text-slate-700">
+                {commercialGateQueue.label}
+              </span>
+            </div>
           </div>
         </div>
       </div>

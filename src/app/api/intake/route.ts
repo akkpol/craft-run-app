@@ -84,6 +84,8 @@ export async function POST(request: NextRequest) {
   const providedLineUserId = data.lineUserId?.trim() || "";
   const providedDisplayName = data.displayName?.trim() || "";
   const providedLiffIdToken = data.liffIdToken?.trim() || "";
+  const allowClientProfileFallback =
+    process.env.NODE_ENV !== "production" && !providedLiffIdToken;
   const liffDebugFingerprint =
     request.headers.get("x-liff-debug-fingerprint")?.trim() || null;
   const earliestDueDate = getBangkokTodayDateString();
@@ -156,7 +158,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-  } else if (process.env.NODE_ENV !== "production" && providedLineUserId) {
+  } else if (allowClientProfileFallback && providedLineUserId) {
     intakeIdentity = {
       userId: providedLineUserId,
       displayName: providedDisplayName || "ลูกค้า",
@@ -177,7 +179,9 @@ export async function POST(request: NextRequest) {
 
   const resolvedLineUserId = intakeIdentity.userId;
   const resolvedDisplayName =
-    intakeIdentity.displayName?.trim() || providedDisplayName || "ลูกค้า";
+    intakeIdentity.displayName?.trim() ||
+    (allowClientProfileFallback ? providedDisplayName : "") ||
+    "ลูกค้า";
   const billingEntityType =
     data.billingEntityType && isBillingEntityType(data.billingEntityType)
       ? data.billingEntityType

@@ -31,6 +31,7 @@ export default function LiffLayout({ children }: { children: React.ReactNode }) 
   return (
     <>
       <Script src="https://static.line-scdn.net/liff/edge/2/sdk.js" strategy="beforeInteractive" />
+      <Script src="https://static.line-scdn.net/5/liff-common-profile/edge/production/1.0.0/index.umd.cjs" strategy="beforeInteractive" />
       <div className={`liff-shell flow-theme-shell liff-thai ${plexSansThai.variable} ${jetBrainsMono.variable}`}>
         {children}
       </div>

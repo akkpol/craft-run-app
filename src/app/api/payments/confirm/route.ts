@@ -64,7 +64,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Payment not found" }, { status: 404 });
   }
 
-  if (payment.status !== "PENDING") {
+  const paymentAlreadyConfirmed = payment.status === "CONFIRMED";
+
+  if (payment.status !== "PENDING" && !paymentAlreadyConfirmed) {
     return NextResponse.json(
       { error: `Payment is already in status ${payment.status}` },
       { status: 409 }
@@ -180,19 +182,21 @@ export async function POST(request: NextRequest) {
 
   const now = new Date().toISOString();
 
-  // 5. Mark payment as CONFIRMED.
-  const { error: paymentUpdateError } = await supabase
-    .from("payments")
-    .update({ status: "CONFIRMED", paid_at: now, updated_at: now })
-    .eq("id", paymentId);
+  // 5. Mark payment as CONFIRMED unless a previous attempt already did so.
+  if (!paymentAlreadyConfirmed) {
+    const { error: paymentUpdateError } = await supabase
+      .from("payments")
+      .update({ status: "CONFIRMED", paid_at: now, updated_at: now })
+      .eq("id", paymentId);
 
-  if (paymentUpdateError) {
-    return NextResponse.json(
-      {
-        error: paymentUpdateError.message || "Failed to confirm payment",
-      },
-      { status: 500 }
-    );
+    if (paymentUpdateError) {
+      return NextResponse.json(
+        {
+          error: paymentUpdateError.message || "Failed to confirm payment",
+        },
+        { status: 500 }
+      );
+    }
   }
 
   // 6. Lock the receiver on the order (policy §7.4).

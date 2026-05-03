@@ -40,9 +40,32 @@ import {
 } from "@/lib/tax-document-intake";
 import ProductTypePicker from "./product-type-picker";
 
+type CommonProfileScope =
+  | "family-name"
+  | "given-name"
+  | "tel"
+  | "postal-code"
+  | "address-level1"
+  | "address-level2"
+  | "address-level3"
+  | "address-level4";
+
+type CommonProfileData = Partial<Record<CommonProfileScope, string | number | null>>;
+type CommonProfileError = Partial<Record<CommonProfileScope, string[]>>;
+
+type CommonProfileOptions = {
+  formatOptions?: {
+    familyName?: { excludeEmojis?: boolean };
+    givenName?: { excludeEmojis?: boolean };
+    tel?: { excludeNonJp?: boolean };
+    postalCode?: { digitsOnly?: boolean };
+  };
+};
+
 declare global {
   interface Window {
     liff: {
+      use?: (plugin: unknown) => void;
       init: (config: { liffId: string }) => Promise<void>;
       isLoggedIn: () => boolean;
       login: (config?: { redirectUri?: string }) => void;
@@ -70,9 +93,18 @@ declare global {
       requestFriendship: () => Promise<{ friendFlag: boolean }>;
       closeWindow: () => void;
       isInClient: () => boolean;
+      $commonProfile?: {
+        get: (
+          scopes: CommonProfileScope[],
+          options?: CommonProfileOptions
+        ) => Promise<{ data: CommonProfileData; error: CommonProfileError }>;
+      };
       permission?: {
         getGrantedAll?: () => Promise<string[]>;
       };
+    };
+    liffCommonProfile?: {
+      LiffCommonProfilePlugin: new () => unknown;
     };
   }
 }
@@ -90,6 +122,20 @@ const MAX_REFERENCE_FILES = 5;
 const MAX_REFERENCE_FILE_SIZE = 10 * 1024 * 1024;
 const AUTO_RESIZE_IMAGE_MAX_DIMENSION = 1800;
 const AUTO_RESIZE_TARGET_FILE_SIZE = 2 * 1024 * 1024;
+const QUICK_FILL_TYPE_D_BUTTON = {
+  url: "https://account-center-fe.line-scdn.net/images/quick_fill_button_LINE_white.png",
+  alt: "LINEで自動入力しますか？氏名、電話番号、メールアドレス、住所など。自動入力",
+  width: 288,
+  height: 66,
+};
+const COMMON_PROFILE_BASE_SCOPES: CommonProfileScope[] = ["tel"];
+const COMMON_PROFILE_ADDRESS_SCOPES: CommonProfileScope[] = [
+  "postal-code",
+  "address-level1",
+  "address-level2",
+  "address-level3",
+  "address-level4",
+];
 
 type LiffConsoleLevel = "info" | "warn" | "error";
 
@@ -99,7 +145,7 @@ function getErrorMessage(error: unknown) {
 
 function compactLineUserIdForDebug(value: string | null | undefined) {
   if (!value) {
-    return null;
+    return undefined;
   }
 
   const trimmed = value.trim();
@@ -116,6 +162,32 @@ function createLiffDebugFingerprint() {
   }
 
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getCommonProfileString(
+  data: CommonProfileData,
+  scope: CommonProfileScope
+) {
+  const value = data[scope];
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (typeof value === "number") {
+    return String(value);
+  }
+
+  return "";
+}
+
+function getCommonProfileMessages(error: CommonProfileError | null | undefined) {
+  if (!error) {
+    return [];
+  }
+
+  return Object.values(error)
+    .flatMap((messages) => messages || [])
+    .filter(Boolean);
 }
 
 function getStatusFromLiffConsoleDetails(details?: Record<string, unknown>) {
@@ -209,7 +281,7 @@ function sendLiffIncident(payload: {
   userAgent: string;
   sdkPresent: boolean;
   liffIdConfigured: boolean;
-  lineUserId?: string;
+  lineUserHint?: string;
   liffContextSnapshot?: string;
 }) {
   if (typeof window === "undefined") {
@@ -218,7 +290,7 @@ function sendLiffIncident(payload: {
 
   const body = JSON.stringify({
     ...payload,
-    lineUserId: payload.lineUserId || null,
+    lineUserHint: payload.lineUserHint || null,
     liffContextSnapshot: payload.liffContextSnapshot || null,
   });
 
@@ -465,7 +537,7 @@ function SectionCard({
         </div>
       </div>
 
-      <div className="mt-4 space-y-4">{children}</div>
+      <div className="mt-4 flex flex-col gap-4">{children}</div>
     </section>
   );
 }
@@ -524,11 +596,10 @@ function SelectorChip({
     <button
       type="button"
       onClick={onClick}
-      aria-pressed={active}
       className={
         active
-          ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)] transition"
-          : "rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+          ? "pressable-native rounded-xl border border-slate-900 bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)]"
+          : "pressable-native rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50"
       }
     >
       {children}
@@ -569,7 +640,7 @@ export default function IntakeForm({
   initialProduct?: string;
   intakeMode: "resume" | "fresh";
 }) {
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(() => !liffId);
   const [loading, setLoading] = useState(false);
   const [submitOutcome, setSubmitOutcome] = useState<"quote" | "review" | null>(null);
   const [submitMessage, setSubmitMessage] = useState("");
@@ -615,9 +686,13 @@ export default function IntakeForm({
   const [suggestedProductTypes, setSuggestedProductTypes] = useState<string[]>([]);
   const [referenceFiles, setReferenceFiles] = useState<ReferenceFilePreview[]>([]);
   const [prefillSummary, setPrefillSummary] = useState<string[]>([]);
+  const [commonProfileReady, setCommonProfileReady] = useState(false);
+  const [commonProfileFilling, setCommonProfileFilling] = useState(false);
+  const [commonProfileMessage, setCommonProfileMessage] = useState("");
   const [showOptionalDetails, setShowOptionalDetails] = useState(false);
   const [showDocumentDetails, setShowDocumentDetails] = useState(false);
   const previewUrlsRef = useRef<string[]>([]);
+  const commonProfilePluginInstalledRef = useRef(false);
   const reportedLiffIncidentKeysRef = useRef<Set<string>>(new Set());
   const liffConsoleFingerprintRef = useRef(createLiffDebugFingerprint());
   const latestLineUserIdRef = useRef(lineUserId);
@@ -653,7 +728,7 @@ export default function IntakeForm({
         userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
         sdkPresent: typeof window !== "undefined" && Boolean(window.liff),
         liffIdConfigured: Boolean(liffId),
-        lineUserId: latestLineUserIdRef.current,
+        lineUserHint: compactLineUserIdForDebug(latestLineUserIdRef.current),
         liffContextSnapshot: latestLiffContextSnapshotRef.current,
       });
     },
@@ -690,6 +765,33 @@ export default function IntakeForm({
     [intakeMode, liffId, lineUserId]
   );
 
+  const installCommonProfilePlugin = useCallback(() => {
+    if (typeof window === "undefined" || !window.liff) {
+      return false;
+    }
+
+    if (window.liff.$commonProfile) {
+      return true;
+    }
+
+    const CommonProfilePlugin = window.liffCommonProfile?.LiffCommonProfilePlugin;
+    if (!CommonProfilePlugin || !window.liff.use) {
+      logIntakeLiffConsole("common_profile_plugin_unavailable", {
+        hasPluginGlobal: Boolean(CommonProfilePlugin),
+        hasLiffUse: Boolean(window.liff.use),
+      }, "warn");
+      return false;
+    }
+
+    if (!commonProfilePluginInstalledRef.current) {
+      window.liff.use(new CommonProfilePlugin());
+      commonProfilePluginInstalledRef.current = true;
+      logIntakeLiffConsole("common_profile_plugin_installed", { intakeMode });
+    }
+
+    return Boolean(window.liff.$commonProfile);
+  }, [intakeMode, logIntakeLiffConsole]);
+
   const selectedUnitLabel = UNITS.find((item) => item.value === unit)?.label || unit;
   const billingBranchSummary =
     billingEntityType === "company"
@@ -699,6 +801,15 @@ export default function IntakeForm({
       : null;
   const requiresFulfillmentAddress =
     fulfillmentMode === "delivery" || fulfillmentMode === "install";
+  const commonProfileScopes = useMemo(() => {
+    const scopes = [...COMMON_PROFILE_BASE_SCOPES];
+
+    if (requiresFulfillmentAddress) {
+      scopes.push(...COMMON_PROFILE_ADDRESS_SCOPES);
+    }
+
+    return Array.from(new Set(scopes));
+  }, [requiresFulfillmentAddress]);
   const fulfillmentAddressSummary = compactSummaryText(
     [
       fulfillmentAddressLine1,
@@ -798,6 +909,116 @@ export default function IntakeForm({
     );
   }, []);
 
+  const handleCommonProfileQuickFill = useCallback(async () => {
+    if (commonProfileFilling) {
+      return;
+    }
+
+    if (typeof window === "undefined" || !window.liff?.$commonProfile) {
+      setCommonProfileMessage("ใช้ LINE Auto-fill ได้เมื่อเปิดจาก LINE MINI App ที่เปิด Quick-fill แล้ว");
+      logIntakeLiffConsole("common_profile_not_ready", {
+        hasLiff: typeof window !== "undefined" && Boolean(window.liff),
+        hasCommonProfileApi:
+          typeof window !== "undefined" && Boolean(window.liff?.$commonProfile),
+      }, "warn");
+      return;
+    }
+
+    setCommonProfileFilling(true);
+    setCommonProfileMessage("");
+
+    try {
+      const { data, error: profileError } = await window.liff.$commonProfile.get(
+        commonProfileScopes,
+        {
+          formatOptions: {
+            familyName: { excludeEmojis: false },
+            givenName: { excludeEmojis: false },
+            tel: { excludeNonJp: false },
+            postalCode: { digitsOnly: false },
+          },
+        }
+      );
+      const filledFields: string[] = [];
+      const tel = getCommonProfileString(data, "tel");
+
+      if (tel) {
+        setPhone(tel);
+        filledFields.push("เบอร์โทร");
+      }
+
+      if (requiresFulfillmentAddress) {
+        const addressLevel1 = getCommonProfileString(data, "address-level1");
+        const addressLevel2 = getCommonProfileString(data, "address-level2");
+        const addressLevel3 = getCommonProfileString(data, "address-level3");
+        const addressLevel4 = getCommonProfileString(data, "address-level4");
+        const postalCode = getCommonProfileString(data, "postal-code");
+        const addressLine1 = [addressLevel3, addressLevel4].filter(Boolean).join(" ").trim();
+
+        if (addressLine1) {
+          setFulfillmentAddressLine1((current) => current || addressLine1);
+          filledFields.push(fulfillmentMode === "install" ? "ที่อยู่หน้างาน" : "ที่อยู่จัดส่ง");
+        }
+        if (addressLevel2) {
+          setFulfillmentDistrict((current) => current || addressLevel2);
+        }
+        if (addressLevel1) {
+          setFulfillmentProvince((current) => current || addressLevel1);
+        }
+        if (postalCode) {
+          setFulfillmentPostalCode((current) => current || postalCode);
+        }
+
+        if (showDocumentDetails) {
+          const billingAddressFromProfile = [
+            addressLine1,
+            addressLevel2,
+            addressLevel1,
+            postalCode,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+
+          if (billingAddressFromProfile) {
+            setBillingAddress((current) => current || billingAddressFromProfile);
+          }
+        }
+      }
+
+      const profileMessages = getCommonProfileMessages(profileError);
+      const uniqueFilledFields = Array.from(new Set(filledFields));
+      setCommonProfileMessage(
+        uniqueFilledFields.length > 0
+          ? `เติมข้อมูลจาก LINE แล้ว: ${uniqueFilledFields.join(" · ")}`
+          : profileMessages.length > 0
+            ? "LINE ส่งข้อมูลบางรายการไม่ได้ กรุณากรอกช่องที่ยังว่างต่อได้เลย"
+            : "ยังไม่มีข้อมูลจาก LINE สำหรับช่องที่เปิดอยู่ตอนนี้"
+      );
+
+      logIntakeLiffConsole("common_profile_fill_ok", {
+        scopes: commonProfileScopes,
+        filledCount: uniqueFilledFields.length,
+        profileErrorCount: profileMessages.length,
+      });
+    } catch (quickFillError) {
+      const message = getErrorMessage(quickFillError);
+      setCommonProfileMessage("ไม่สามารถใช้ LINE Auto-fill ได้ กรุณากรอกข้อมูลเองหรือเปิดจาก LINE อีกครั้ง");
+      logIntakeLiffConsole("common_profile_fill_failed", { message }, "warn");
+      reportLiffIncident({ stage: "common_profile_fill_failed", message });
+    } finally {
+      setCommonProfileFilling(false);
+    }
+  }, [
+    commonProfileFilling,
+    commonProfileScopes,
+    fulfillmentMode,
+    logIntakeLiffConsole,
+    reportLiffIncident,
+    requiresFulfillmentAddress,
+    showDocumentDetails,
+  ]);
+
   useEffect(() => {
     async function initLiff() {
       try {
@@ -810,17 +1031,23 @@ export default function IntakeForm({
 
         if (!liffId) {
           logIntakeLiffConsole("init_skipped_no_liff_id", { intakeMode });
+          setCommonProfileReady(false);
           setReady(true);
           return;
         }
 
+        const commonProfilePluginReady = installCommonProfilePlugin();
+
         await window.liff.init({ liffId });
+        setCommonProfileReady(Boolean(window.liff.$commonProfile));
 
         logIntakeLiffConsole("init_ok", {
           intakeMode,
           isLoggedIn: window.liff.isLoggedIn(),
           isInClient: window.liff.isInClient(),
           liffSdkVersion: window.liff.getVersion?.() || null,
+          commonProfilePluginReady,
+          commonProfileApiReady: Boolean(window.liff.$commonProfile),
         });
 
         if (!window.liff.isLoggedIn()) {
@@ -1125,6 +1352,7 @@ export default function IntakeForm({
           stage: "init_failed",
           message: getErrorMessage(err),
         });
+        setCommonProfileReady(false);
         setReady(true);
       }
     }
@@ -1172,7 +1400,7 @@ export default function IntakeForm({
         clearTimeout(timeout);
       }
     };
-  }, [intakeMode, liffId, logIntakeLiffConsole, reportLiffIncident]);
+  }, [installCommonProfilePlugin, intakeMode, liffId, logIntakeLiffConsole, reportLiffIncident]);
 
   const handleReferenceFileSelect = useCallback(async (files: FileList | null) => {
     if (!files?.length) return;
@@ -1341,9 +1569,13 @@ export default function IntakeForm({
 
       try {
         const formData = new FormData();
-        formData.append("lineUserId", lineUserId || "");
-        formData.append("displayName", displayName || "");
         formData.append("liffIdToken", liffIdToken || "");
+        if (!liffIdToken && lineUserId) {
+          formData.append("lineUserId", lineUserId);
+        }
+        if (!liffIdToken && displayName) {
+          formData.append("displayName", displayName);
+        }
         formData.append("productType", productType);
         formData.append("width", String(Number(width)));
         formData.append("height", String(Number(height)));
@@ -1517,7 +1749,7 @@ export default function IntakeForm({
   }
 
   return (
-    <div className="px-3 py-4">
+    <div className="px-3 py-4 pb-safe pt-safe">
       <div className="mx-auto max-w-lg">
         <div className="flow-theme-card overflow-hidden">
           <div className="liff-flow-hero px-4 py-5 text-white">
@@ -1582,7 +1814,7 @@ export default function IntakeForm({
             ) : null}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4 px-4 py-5 pb-28">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-5 pb-liff-submit-safe">
             <SectionCard
               step="1"
               title="เลือกงาน"
@@ -1602,7 +1834,7 @@ export default function IntakeForm({
                         key={t}
                         type="button"
                         onClick={() => setProductType(t)}
-                        className="rounded-full border border-stone-200 bg-stone-100 px-3 py-1 text-xs font-medium text-stone-700 transition hover:bg-stone-200"
+                        className="pressable-native rounded-full border border-stone-200 bg-stone-100 px-3 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200"
                       >
                         {resolveProductTypeLabel(t)}
                       </button>
@@ -1677,6 +1909,8 @@ export default function IntakeForm({
                     id="qty"
                     type="number"
                     inputMode="numeric"
+                    aria-label="จำนวนชิ้น"
+                    placeholder="1"
                     value={qty}
                     onChange={(e) => setQty(e.target.value)}
                     className={inputClassName}
@@ -1689,6 +1923,7 @@ export default function IntakeForm({
                   <input
                     id="dueDate"
                     type="date"
+                    aria-label="วันที่ต้องการใช้งาน"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
                     min={earliestDueDate}
@@ -1701,13 +1936,38 @@ export default function IntakeForm({
                   <input
                     id="phone"
                     type="tel"
-                    inputMode="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    data-liff-autocomplete="tel"
                     placeholder="08x-xxx-xxxx"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     className={inputClassName}
                   />
                 </div>
+
+                {commonProfileReady ? (
+                  <div className="md:col-span-2 p-2.5" aria-live="polite">
+                    <button
+                      type="button"
+                      onClick={handleCommonProfileQuickFill}
+                      className="block"
+                    >
+                      <img
+                        src={QUICK_FILL_TYPE_D_BUTTON.url}
+                        alt={QUICK_FILL_TYPE_D_BUTTON.alt}
+                        width={QUICK_FILL_TYPE_D_BUTTON.width}
+                        height={QUICK_FILL_TYPE_D_BUTTON.height}
+                        className="block"
+                      />
+                    </button>
+                    {commonProfileMessage ? (
+                      <p className="mt-3 text-xs font-medium leading-5 text-slate-500">
+                        {commonProfileMessage}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 <div className="md:col-span-2 rounded-[20px] border border-slate-200 bg-slate-50/82 p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -1743,11 +2003,10 @@ export default function IntakeForm({
                         key={option.value}
                         type="button"
                         onClick={() => setFulfillmentMode(option.value)}
-                        aria-pressed={fulfillmentMode === option.value}
                         className={
                           fulfillmentMode === option.value
-                            ? "rounded-2xl border border-slate-900 bg-slate-900 px-4 py-3 text-left text-white shadow-[0_16px_28px_rgba(15,23,42,0.18)] transition"
-                            : "rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                            ? "pressable-native rounded-2xl border border-slate-900 bg-slate-900 px-4 py-3 text-left text-white shadow-[0_16px_28px_rgba(15,23,42,0.18)]"
+                            : "pressable-native rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                         }
                       >
                         <p className="text-sm font-semibold">{option.title}</p>
@@ -1778,6 +2037,7 @@ export default function IntakeForm({
                         />
                         <textarea
                           id="fulfillmentAddressLine1"
+                          data-liff-autocomplete="address-level3"
                           placeholder="บ้านเลขที่ อาคาร หมู่บ้าน ถนน หรือจุดสังเกตหลัก"
                           value={fulfillmentAddressLine1}
                           onChange={(event) => setFulfillmentAddressLine1(event.target.value)}
@@ -1791,6 +2051,7 @@ export default function IntakeForm({
                         <input
                           id="fulfillmentAddressLine2"
                           type="text"
+                          data-liff-autocomplete="address-level4"
                           placeholder="เช่น ชั้น อาคาร ข้างร้าน หรือวิธีเข้าหน้างาน"
                           value={fulfillmentAddressLine2}
                           onChange={(event) => setFulfillmentAddressLine2(event.target.value)}
@@ -1803,6 +2064,8 @@ export default function IntakeForm({
                         <input
                           id="fulfillmentSubdistrict"
                           type="text"
+                          aria-label="แขวงหรือตำบล"
+                          placeholder="เช่น บางนา"
                           value={fulfillmentSubdistrict}
                           onChange={(event) => setFulfillmentSubdistrict(event.target.value)}
                           className={inputClassName}
@@ -1814,6 +2077,9 @@ export default function IntakeForm({
                         <input
                           id="fulfillmentDistrict"
                           type="text"
+                          data-liff-autocomplete="address-level2"
+                          aria-label="เขตหรืออำเภอ"
+                          placeholder="เช่น บางนา"
                           value={fulfillmentDistrict}
                           onChange={(event) => setFulfillmentDistrict(event.target.value)}
                           className={inputClassName}
@@ -1825,6 +2091,9 @@ export default function IntakeForm({
                         <input
                           id="fulfillmentProvince"
                           type="text"
+                          data-liff-autocomplete="address-level1"
+                          aria-label="จังหวัด"
+                          placeholder="เช่น กรุงเทพมหานคร"
                           value={fulfillmentProvince}
                           onChange={(event) => setFulfillmentProvince(event.target.value)}
                           className={inputClassName}
@@ -1837,6 +2106,9 @@ export default function IntakeForm({
                           id="fulfillmentPostalCode"
                           type="text"
                           inputMode="numeric"
+                          data-liff-autocomplete="postal-code"
+                          aria-label="รหัสไปรษณีย์"
+                          placeholder="เช่น 10260"
                           value={fulfillmentPostalCode}
                           onChange={(event) => setFulfillmentPostalCode(event.target.value)}
                           className={inputClassName}
@@ -1855,7 +2127,7 @@ export default function IntakeForm({
                             type="button"
                             onClick={requestCurrentLocation}
                             disabled={capturingLocation}
-                            className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="pressable-native inline-flex items-center gap-2 rounded-full border border-slate-300 bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <MapPin className="size-3.5" aria-hidden="true" />
                             {capturingLocation ? "กำลังดึงพิกัด..." : "ใช้ตำแหน่งปัจจุบัน"}
@@ -1916,6 +2188,176 @@ export default function IntakeForm({
                     ))}
                   </div>
                 </div>
+
+                <div className="md:col-span-2 rounded-[20px] border border-slate-200 bg-white/92 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 shadow-sm">
+                      <ScrollText className="size-5" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-900">เอกสารและข้อมูลออกบิล</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        เลือกประเภทเอกสารตั้งแต่ตอนส่งข้อมูล เพื่อให้ชื่อบนเอกสารตรงกับผู้รับชำระในขั้นถัดไป
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <FieldLabel htmlFor="requestedDocumentType" label="เอกสารที่ต้องการ" />
+                    <div id="requestedDocumentType" className="flex flex-wrap gap-2">
+                      {DOCUMENT_REQUEST_TYPES.map((type) => (
+                        <SelectorChip
+                          key={type}
+                          active={requestedDocumentType === type}
+                          onClick={() => {
+                            setRequestedDocumentType(type as DocumentRequestType);
+                            if (type !== "quote") {
+                              setShowDocumentDetails(true);
+                            }
+                          }}
+                        >
+                          {DOCUMENT_REQUEST_TYPE_LABELS[type]}
+                        </SelectorChip>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 space-y-2" aria-live="polite">
+                    {taxDocumentValidation.errors.map((message) => (
+                      <p
+                        key={message}
+                        className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-800"
+                      >
+                        {message}
+                      </p>
+                    ))}
+                    {taxDocumentValidation.notices.map((message) => (
+                      <p
+                        key={message}
+                        className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-800"
+                      >
+                        {message}
+                      </p>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                    <p className="text-xs leading-5 text-slate-600">
+                      {documentSummary.length > 0 ? documentSummary.join(" · ") : "ใบเสนอราคา"}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowDocumentDetails((current) => !current)}
+                      className="pressable-native inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      {showDocumentDetails ? <ChevronUp className="size-4" aria-hidden="true" /> : <ChevronDown className="size-4" aria-hidden="true" />}
+                      {showDocumentDetails ? "ซ่อนข้อมูลบิล" : "เพิ่มข้อมูลบิล"}
+                    </button>
+                  </div>
+
+                  {showDocumentDetails ? (
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <div className="md:col-span-2">
+                        <FieldLabel
+                          htmlFor="billingName"
+                          label={
+                            billingEntityType === "company"
+                              ? "ชื่อบริษัท / ชื่อนิติบุคคล"
+                              : "ชื่อที่ต้องการให้ออกเอกสาร"
+                          }
+                          required={taxDocumentValidation.requiresTaxProfile}
+                        />
+                        <input
+                          id="billingName"
+                          type="text"
+                          placeholder={
+                            billingEntityType === "company"
+                              ? "เช่น TD All Co., Ltd."
+                              : "เช่น สมชาย ใจดี"
+                          }
+                          value={billingName}
+                          onChange={(event) => setBillingName(event.target.value)}
+                          className={inputClassName}
+                        />
+                      </div>
+
+                      {billingEntityType === "company" ? (
+                        <>
+                          <div className="md:col-span-2">
+                            <FieldLabel
+                              htmlFor="billingBranchType"
+                              label="ประเภทสาขา"
+                              required={taxDocumentValidation.requiresTaxProfile}
+                            />
+                            <div id="billingBranchType" className="grid grid-cols-2 gap-2">
+                              {BILLING_BRANCH_TYPES.map((type) => (
+                                <SelectorChip
+                                  key={type}
+                                  active={billingBranchType === type}
+                                  onClick={() => setBillingBranchType(type)}
+                                >
+                                  {BILLING_BRANCH_TYPE_LABELS[type]}
+                                </SelectorChip>
+                              ))}
+                            </div>
+                          </div>
+
+                          {billingBranchType === "branch" ? (
+                            <div className="md:col-span-2">
+                              <FieldLabel
+                                htmlFor="billingBranchCode"
+                                label="เลขสาขา"
+                                required={taxDocumentValidation.requiresTaxProfile}
+                              />
+                              <input
+                                id="billingBranchCode"
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="เช่น 00001"
+                                value={billingBranchCode}
+                                onChange={(event) => setBillingBranchCode(event.target.value)}
+                                className={inputClassName}
+                              />
+                            </div>
+                          ) : null}
+                        </>
+                      ) : null}
+
+                      <div className="md:col-span-2">
+                        <FieldLabel
+                          htmlFor="taxId"
+                          label="เลขผู้เสียภาษี / Tax ID"
+                          required={taxDocumentValidation.requiresTaxProfile}
+                        />
+                        <input
+                          id="taxId"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="ถ้ามี ให้กรอกสำหรับใบกำกับภาษีหรือเอกสารบริษัท"
+                          value={taxId}
+                          onChange={(event) => setTaxId(event.target.value)}
+                          className={inputClassName}
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <FieldLabel
+                          htmlFor="billingAddress"
+                          label="ที่อยู่ออกเอกสาร"
+                          required={taxDocumentValidation.requiresTaxProfile}
+                        />
+                        <textarea
+                          id="billingAddress"
+                          placeholder="เช่น ที่อยู่บริษัทหรือที่อยู่สำหรับออกใบเสนอราคา / ใบกำกับภาษี"
+                          value={billingAddress}
+                          onChange={(event) => setBillingAddress(event.target.value)}
+                          rows={3}
+                          className={textareaClassName}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </SectionCard>
 
@@ -1941,7 +2383,7 @@ export default function IntakeForm({
                   <button
                     type="button"
                     onClick={() => setShowOptionalDetails((current) => !current)}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
+                    className="pressable-native inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
                   >
                     {showOptionalDetails ? <ChevronUp className="size-4" aria-hidden="true" /> : <ChevronDown className="size-4" aria-hidden="true" />}
                     {showOptionalDetails ? "ซ่อน" : "เปิด"}
@@ -1958,7 +2400,7 @@ export default function IntakeForm({
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-amber-900">เพิ่มรูปหรือไฟล์อ้างอิง</p>
-                        <p className="text-xs text-amber-800/80">Auto resize · สูงสุด 5 ไฟล์ · 10MB / ไฟล์</p>
+                        <p className="text-xs text-amber-800/80">ปรับขนาดรูปอัตโนมัติ · สูงสุด 5 ไฟล์ · 10MB / ไฟล์</p>
                       </div>
                     </div>
 
@@ -1970,7 +2412,6 @@ export default function IntakeForm({
                           type="file"
                           accept="image/png,image/jpeg,image/webp,image/heic,image/heif,application/pdf"
                           multiple
-                          capture="environment"
                           onChange={(e) => {
                             handleReferenceFileSelect(e.target.files);
                             e.target.value = "";
@@ -1997,7 +2438,7 @@ export default function IntakeForm({
                       <div className="mt-4">
                         <div className="mb-2 flex items-center justify-between gap-3">
                           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                            Preview {referenceFiles.length}/{MAX_REFERENCE_FILES}
+                            ตัวอย่างไฟล์ {referenceFiles.length}/{MAX_REFERENCE_FILES}
                           </p>
                           <p className="text-xs text-slate-500">แตะ x เพื่อลบก่อนส่ง</p>
                         </div>
@@ -2059,169 +2500,6 @@ export default function IntakeForm({
                     />
                   </div>
 
-                  <div className="flow-theme-soft p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
-                            <ScrollText className="size-4.5" aria-hidden="true" />
-                          </div>
-                          <p className="text-sm font-semibold text-slate-900">เอกสาร</p>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {documentSummary.length > 0 ? (
-                            <p className="text-xs leading-5 text-stone-600">{documentSummary.join(" · ")}</p>
-                          ) : (
-                            <p className="text-xs leading-5 text-stone-600">ใบเสนอราคา</p>
-                          )}
-                        </div>
-                        <div className="mt-3 space-y-2" aria-live="polite">
-                          {taxDocumentValidation.errors.map((message) => (
-                            <p
-                              key={message}
-                              className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-800"
-                            >
-                              {message}
-                            </p>
-                          ))}
-                          {taxDocumentValidation.notices.map((message) => (
-                            <p
-                              key={message}
-                              className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-800"
-                            >
-                              {message}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowDocumentDetails((current) => !current)}
-                        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-                      >
-                        {showDocumentDetails ? <ChevronUp className="size-4" aria-hidden="true" /> : <ChevronDown className="size-4" aria-hidden="true" />}
-                        {showDocumentDetails ? "ซ่อน" : "แก้ไข"}
-                      </button>
-                    </div>
-                    {showDocumentDetails ? (
-                      <div className="mt-4 grid gap-4 md:grid-cols-2">
-                        <div className="md:col-span-2">
-                          <FieldLabel htmlFor="requestedDocumentType" label="เอกสารหลัก" />
-                          <div id="requestedDocumentType" className="flex flex-wrap gap-2">
-                            {DOCUMENT_REQUEST_TYPES.map((type) => (
-                              <SelectorChip
-                                key={type}
-                                active={requestedDocumentType === type}
-                                onClick={() => setRequestedDocumentType(type as DocumentRequestType)}
-                              >
-                                {DOCUMENT_REQUEST_TYPE_LABELS[type]}
-                              </SelectorChip>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="md:col-span-2">
-                          <FieldLabel
-                            htmlFor="billingName"
-                            label={
-                              billingEntityType === "company"
-                                ? "ชื่อบริษัท / ชื่อนิติบุคคล"
-                                : "ชื่อที่ต้องการให้ออกเอกสาร"
-                            }
-                            required={taxDocumentValidation.requiresTaxProfile}
-                          />
-                          <input
-                            id="billingName"
-                            type="text"
-                            placeholder={
-                              billingEntityType === "company"
-                                ? "เช่น TD All Co., Ltd."
-                                : "เช่น สมชาย ใจดี"
-                            }
-                            value={billingName}
-                            onChange={(event) => setBillingName(event.target.value)}
-                            className={inputClassName}
-                          />
-                        </div>
-
-                        {billingEntityType === "company" ? (
-                          <>
-                            <div className="md:col-span-2">
-                              <FieldLabel
-                                htmlFor="billingBranchType"
-                                label="ประเภทสาขา"
-                                required={taxDocumentValidation.requiresTaxProfile}
-                              />
-                              <div id="billingBranchType" className="grid grid-cols-2 gap-2">
-                                {BILLING_BRANCH_TYPES.map((type) => (
-                                  <SelectorChip
-                                    key={type}
-                                    active={billingBranchType === type}
-                                    onClick={() => setBillingBranchType(type)}
-                                  >
-                                    {BILLING_BRANCH_TYPE_LABELS[type]}
-                                  </SelectorChip>
-                                ))}
-                              </div>
-                            </div>
-
-                            {billingBranchType === "branch" ? (
-                              <div className="md:col-span-2">
-                                <FieldLabel
-                                  htmlFor="billingBranchCode"
-                                  label="เลขสาขา"
-                                  required={taxDocumentValidation.requiresTaxProfile}
-                                />
-                                <input
-                                  id="billingBranchCode"
-                                  type="text"
-                                  inputMode="numeric"
-                                  placeholder="เช่น 00001"
-                                  value={billingBranchCode}
-                                  onChange={(event) => setBillingBranchCode(event.target.value)}
-                                  className={inputClassName}
-                                />
-                              </div>
-                            ) : null}
-                          </>
-                        ) : null}
-
-                        <div className="md:col-span-2">
-                          <FieldLabel
-                            htmlFor="taxId"
-                            label="เลขผู้เสียภาษี / Tax ID"
-                            required={taxDocumentValidation.requiresTaxProfile}
-                          />
-                          <input
-                            id="taxId"
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="ถ้ามี ให้กรอกสำหรับใบกำกับภาษีหรือเอกสารบริษัท"
-                            value={taxId}
-                            onChange={(event) => setTaxId(event.target.value)}
-                            className={inputClassName}
-                          />
-                        </div>
-
-                        <div className="md:col-span-2">
-                          <FieldLabel
-                            htmlFor="billingAddress"
-                            label="ที่อยู่ออกเอกสาร"
-                            required={taxDocumentValidation.requiresTaxProfile}
-                          />
-                          <textarea
-                            id="billingAddress"
-                            placeholder="เช่น ที่อยู่บริษัทหรือที่อยู่สำหรับออกใบเสนอราคา / ใบกำกับภาษี"
-                            value={billingAddress}
-                            onChange={(event) => setBillingAddress(event.target.value)}
-                            rows={3}
-                            className={textareaClassName}
-                          />
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-
                   <div>
                     <FieldLabel htmlFor="referenceInfo" label="ลิงก์ไฟล์" />
                     <input
@@ -2243,7 +2521,7 @@ export default function IntakeForm({
               </div>
             ) : null}
 
-            <div className="flow-theme-card sticky bottom-[calc(env(safe-area-inset-bottom)+10px)] z-10 p-3 backdrop-blur">
+            <div className="flow-theme-card sticky bottom-safe-2 z-10 p-3 backdrop-blur">
               <div className="mb-3 grid grid-cols-3 gap-2">
                 <SummaryBlock
                   icon={<Package2 className="size-3.5" aria-hidden="true" />}
@@ -2268,7 +2546,7 @@ export default function IntakeForm({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-xl bg-slate-950 px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="pressable-native w-full rounded-xl bg-slate-950 px-5 py-3.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? "กำลังส่ง..." : "ส่งรายละเอียดงาน"}
               </button>

@@ -128,6 +128,104 @@ describe("commercial flow route confirmation", () => {
     );
   });
 
+  it("re-applies the receiver lock when payment is already confirmed but the order is still unlocked", async () => {
+    const paymentUpdate = vi.fn();
+    const orderUpdate = vi.fn().mockResolvedValue({ error: null });
+    const orderUpdatePayloads: Array<Record<string, unknown>> = [];
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "payments") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: {
+                    id: "payment-1",
+                    order_id: "order-1",
+                    receiver_entity_id: "entity-main",
+                    status: "CONFIRMED",
+                    amount: 963,
+                  },
+                  error: null,
+                }),
+              })),
+            })),
+            update: vi.fn(() => ({
+              eq: paymentUpdate,
+            })),
+          };
+        }
+
+        if (table === "commercial_orders") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: {
+                    id: "order-1",
+                    quote_id: "quote-1",
+                    selected_receiver_entity_id: "entity-main",
+                    payment_receiver_locked_at: null,
+                  },
+                  error: null,
+                }),
+              })),
+            })),
+            update: vi.fn((payload: Record<string, unknown>) => {
+              orderUpdatePayloads.push(payload);
+              return {
+                eq: orderUpdate,
+              };
+            }),
+          };
+        }
+
+        if (table === "commercial_entities") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: {
+                    id: "entity-main",
+                    active: true,
+                  },
+                  error: null,
+                }),
+              })),
+            })),
+          };
+        }
+
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase);
+
+    const { POST } = await import("../src/app/api/payments/confirm/route.ts");
+    const response = await POST(
+      new NextRequest("http://localhost/api/payments/confirm", {
+        method: "POST",
+        body: JSON.stringify({ paymentId: "payment-1" }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(paymentUpdate).not.toHaveBeenCalled();
+    expect(orderUpdatePayloads).toHaveLength(1);
+    expect(orderUpdatePayloads[0]).toHaveProperty("payment_receiver_locked_at");
+    expect(mockLogHumanAction).toHaveBeenCalledWith(
+      supabase,
+      expect.objectContaining({
+        actionType: "commercial.payment_confirmed",
+        entityId: "quote-1",
+      })
+    );
+  });
+
   it("short-circuits document issue when a payment already has an issued document", async () => {
     const rpc = vi.fn();
     const supabase = {

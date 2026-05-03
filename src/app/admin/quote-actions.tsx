@@ -384,12 +384,15 @@ export default function AdminQuoteActions({
           </span>
         ) : null}
         {issuedDocumentId ? (
-          <span
-            className="max-w-52 truncate rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium leading-none text-emerald-800"
+          <a
+            href={`/commercial/documents/${issuedDocumentId}/download`}
+            target="_blank"
+            rel="noreferrer"
+            className="max-w-52 truncate rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium leading-none text-emerald-800 hover:border-emerald-300 hover:bg-emerald-100 transition-colors"
             title={issuedDocumentNumber || issuedDocumentType || "issued"}
           >
-            ออกเอกสารแล้ว{issuedDocumentNumber ? `: ${issuedDocumentNumber}` : ""}
-          </span>
+            ออกเอกสารแล้ว{issuedDocumentNumber ? `: ${issuedDocumentNumber}` : ""} ↗
+          </a>
         ) : null}
         <AdminActionMenu
           actions={actions}

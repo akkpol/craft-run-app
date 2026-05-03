@@ -11,6 +11,8 @@ depends_on: docs/FOGUS_REALITY_ANALYSIS_MAP_V1.md
 
 This is a long-form brainstorm, not an implementation freeze.
 
+Owner operating model reference: `docs/B2B_OPERATIONS_MODEL_V1.md`
+
 The goal is to maximize automation without making the system unsafe, confusing, or expensive to operate. Automation should reduce customer back-and-forth, reduce admin typing, and keep business policy strict. It should not hide blockers, bypass approvals, or send customers back to LIFF for problems owned by admin, finance, owner, dev, provider, or production.
 
 Core idea:
