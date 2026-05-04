@@ -396,10 +396,7 @@ export async function POST(request: NextRequest) {
     ai_image_model: aiImageModel,
     ai_image_api_key: aiImageApiKey || preservedAiImageApiKey || null,
   };
-  const fullPayload = {
-    ...basePayload,
-    document_appendix_image_url: documentAppendixImageUrl || null,
-    document_appendix_image_name: documentAppendixImageName || null,
+  const optionalSettingsPayload = {
     payment_account_name: paymentAccountName || null,
     payment_bank_name: paymentBankName || null,
     payment_account_number: paymentAccountNumber || null,
@@ -428,6 +425,15 @@ export async function POST(request: NextRequest) {
       defaultSettings.productionCustomerAutoSendEnabled,
     production_asset_retention_days: productionAssetRetentionDays,
   };
+  const payloadWithoutDocumentAppendix = {
+    ...basePayload,
+    ...optionalSettingsPayload,
+  };
+  const fullPayload = {
+    ...payloadWithoutDocumentAppendix,
+    document_appendix_image_url: documentAppendixImageUrl || null,
+    document_appendix_image_name: documentAppendixImageName || null,
+  };
 
   let error: { message: string } | null = null;
   let persistedPayload: Record<string, unknown> = fullPayload;
@@ -438,12 +444,7 @@ export async function POST(request: NextRequest) {
 
   error = primaryResult.error;
 
-  if (
-    error &&
-    /(payment_(account_name|bank_name|account_number|promptpay_id|qr_code_url|qr_code_label|display_mode|secondary_account_name|secondary_bank_name|secondary_account_number|secondary_promptpay_id|secondary_qr_code_url|secondary_qr_code_label|secondary_display_mode|secondary_instructions|secondary_max_quote_total|secondary_customer_scope|secondary_payment_terms_scope|instructions)|customer_upload_(url|label)|production_(upload_enabled|customer_auto_send_enabled|asset_retention_days)|document_appendix_image_(url|name))/i.test(
-      error.message
-    )
-  ) {
+  if (error && /document_appendix_image_(url|name)/i.test(error.message)) {
     if (
       wantsToSaveDocumentAppendix &&
       /document_appendix_image_(url|name)/i.test(error.message)
@@ -453,6 +454,22 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
+
+    const retryWithoutAppendixResult = await supabase
+      .from("app_settings")
+      .upsert(payloadWithoutDocumentAppendix, {
+        onConflict: "id",
+      });
+    error = retryWithoutAppendixResult.error;
+    persistedPayload = payloadWithoutDocumentAppendix;
+  }
+
+  if (
+    error &&
+    /(payment_(account_name|bank_name|account_number|promptpay_id|qr_code_url|qr_code_label|display_mode|secondary_account_name|secondary_bank_name|secondary_account_number|secondary_promptpay_id|secondary_qr_code_url|secondary_qr_code_label|secondary_display_mode|secondary_instructions|secondary_max_quote_total|secondary_customer_scope|secondary_payment_terms_scope|instructions)|customer_upload_(url|label)|production_(upload_enabled|customer_auto_send_enabled|asset_retention_days))/i.test(
+      error.message
+    )
+  ) {
 
     if (
       wantsToSavePaymentSettings &&
