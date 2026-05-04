@@ -16,6 +16,7 @@ import {
   getDefaultProductionSettings,
   normalizeProductionRetentionDays,
 } from "@/lib/production-settings";
+import { getCustomerMediaStorageRuntimeStatus } from "@/lib/customer-media-storage";
 import {
   DEFAULT_PAYMENT_DISPLAY_MODE,
   isPaymentDisplayMode,
@@ -51,6 +52,8 @@ type SettingsPayload = {
   businessLogoUrl?: string;
   businessCatalogUrl?: string;
   businessCatalogName?: string;
+  documentAppendixImageUrl?: string;
+  documentAppendixImageName?: string;
   customerUploadUrl?: string;
   customerUploadLabel?: string;
   productionUploadEnabled?: boolean;
@@ -68,6 +71,8 @@ type SettingsPayload = {
 
 const PAYMENT_SETTINGS_SCHEMA_ERROR =
   "Database schema is missing payment settings columns. Run migration 013_payment_instruction_settings.sql before saving payment instructions.";
+const DOCUMENT_APPENDIX_SCHEMA_ERROR =
+  "Database schema is missing document appendix settings columns. Run migration 20260504042703_add_document_appendix_settings.sql before saving document appendix settings.";
 
 function normalizeAuditValue(value: unknown) {
   if (typeof value === "string") {
@@ -102,6 +107,24 @@ export async function GET() {
     settings?.line_channel_secret || process.env.LINE_CHANNEL_SECRET
   );
   const aiImageProvider = runtimeConfig.aiImageProvider;
+  const customerMediaStorage = getCustomerMediaStorageRuntimeStatus();
+  const productionAssetRetentionDays = normalizeProductionRetentionDays(
+    settings?.production_asset_retention_days ??
+      runtimeConfig.productionAssetRetentionDays ??
+      defaultProductionSettings.productionAssetRetentionDays
+  );
+  const productionUploadEnabled =
+    settings?.production_upload_enabled ??
+    runtimeConfig.productionUploadEnabled ??
+    defaultProductionSettings.productionUploadEnabled;
+  const productionCustomerAutoSendEnabled =
+    settings?.production_customer_auto_send_enabled ??
+    runtimeConfig.productionCustomerAutoSendEnabled ??
+    defaultProductionSettings.productionCustomerAutoSendEnabled;
+  const documentAppendixImageUrl =
+    settings?.document_appendix_image_url || runtimeConfig.documentAppendixImageUrl || "";
+  const documentAppendixImageName =
+    settings?.document_appendix_image_name || runtimeConfig.documentAppendixImageName || "";
   const hasAiImageApiKey = Boolean(
     settings?.ai_image_api_key ||
       (aiImageProvider === "google"
@@ -154,21 +177,28 @@ export async function GET() {
       businessLogoUrl: settings?.business_logo_url || runtimeConfig.businessLogoUrl || "",
       businessCatalogUrl: settings?.business_catalog_url || runtimeConfig.businessCatalogUrl || "",
       businessCatalogName: settings?.business_catalog_name || runtimeConfig.businessCatalogName || "",
+      documentAppendixImageUrl,
+      documentAppendixImageName,
       customerUploadUrl: settings?.customer_upload_url || runtimeConfig.customerUploadUrl || "",
       customerUploadLabel: settings?.customer_upload_label || runtimeConfig.customerUploadLabel || "",
-      productionUploadEnabled:
-        settings?.production_upload_enabled ??
-        runtimeConfig.productionUploadEnabled ??
-        defaultProductionSettings.productionUploadEnabled,
-      productionCustomerAutoSendEnabled:
-        settings?.production_customer_auto_send_enabled ??
-        runtimeConfig.productionCustomerAutoSendEnabled ??
-        defaultProductionSettings.productionCustomerAutoSendEnabled,
-      productionAssetRetentionDays: normalizeProductionRetentionDays(
-        settings?.production_asset_retention_days ??
-          runtimeConfig.productionAssetRetentionDays ??
-          defaultProductionSettings.productionAssetRetentionDays
-      ),
+      customerMediaStorage,
+      productionMediaStorage: {
+        activeProvider: "supabase",
+        bucket: "job-media",
+        metadataTables: ["job_media_events", "job_media_assets"],
+        uploadEnabled: productionUploadEnabled,
+        customerSendEnabled: productionCustomerAutoSendEnabled,
+        retentionDays: productionAssetRetentionDays,
+      },
+      documentAppendixStorage: {
+        activeProvider: "supabase",
+        bucket: "app-assets",
+        imageConfigured: Boolean(documentAppendixImageUrl),
+        imageName: documentAppendixImageName,
+      },
+      productionUploadEnabled,
+      productionCustomerAutoSendEnabled,
+      productionAssetRetentionDays,
       lineChannelAccessToken: "",
       lineChannelSecret: "",
       hasLineChannelAccessToken,
@@ -198,6 +228,8 @@ export async function POST(request: NextRequest) {
   const businessLogoUrl = (body.businessLogoUrl || "").trim();
   const businessCatalogUrl = (body.businessCatalogUrl || "").trim();
   const businessCatalogName = (body.businessCatalogName || "").trim();
+  const documentAppendixImageUrl = (body.documentAppendixImageUrl || "").trim();
+  const documentAppendixImageName = (body.documentAppendixImageName || "").trim();
   const paymentAccountName = (body.paymentAccountName || "").trim();
   const paymentBankName = (body.paymentBankName || "").trim();
   const paymentAccountNumber = (body.paymentAccountNumber || "").trim();
@@ -242,6 +274,9 @@ export async function POST(request: NextRequest) {
           paymentSecondaryPaymentTermsScope !== "none" ||
       paymentInstructions
   );
+  const wantsToSaveDocumentAppendix = Boolean(
+    documentAppendixImageUrl || documentAppendixImageName
+  );
   const customerUploadUrl = (body.customerUploadUrl || "").trim();
   const customerUploadLabel = (body.customerUploadLabel || "").trim();
   const productionAssetRetentionDays = normalizeProductionRetentionDays(
@@ -271,6 +306,7 @@ export async function POST(request: NextRequest) {
   for (const assetUrl of [
     businessLogoUrl,
     businessCatalogUrl,
+    documentAppendixImageUrl,
     paymentQrCodeUrl,
     paymentSecondaryQrCodeUrl,
   ]) {
@@ -360,8 +396,7 @@ export async function POST(request: NextRequest) {
     ai_image_model: aiImageModel,
     ai_image_api_key: aiImageApiKey || preservedAiImageApiKey || null,
   };
-  const fullPayload = {
-    ...basePayload,
+  const optionalSettingsPayload = {
     payment_account_name: paymentAccountName || null,
     payment_bank_name: paymentBankName || null,
     payment_account_number: paymentAccountNumber || null,
@@ -390,6 +425,15 @@ export async function POST(request: NextRequest) {
       defaultSettings.productionCustomerAutoSendEnabled,
     production_asset_retention_days: productionAssetRetentionDays,
   };
+  const payloadWithoutDocumentAppendix = {
+    ...basePayload,
+    ...optionalSettingsPayload,
+  };
+  const fullPayload = {
+    ...payloadWithoutDocumentAppendix,
+    document_appendix_image_url: documentAppendixImageUrl || null,
+    document_appendix_image_name: documentAppendixImageName || null,
+  };
 
   let error: { message: string } | null = null;
   let persistedPayload: Record<string, unknown> = fullPayload;
@@ -400,12 +444,33 @@ export async function POST(request: NextRequest) {
 
   error = primaryResult.error;
 
+  if (error && /document_appendix_image_(url|name)/i.test(error.message)) {
+    if (
+      wantsToSaveDocumentAppendix &&
+      /document_appendix_image_(url|name)/i.test(error.message)
+    ) {
+      return NextResponse.json(
+        { error: DOCUMENT_APPENDIX_SCHEMA_ERROR },
+        { status: 409 }
+      );
+    }
+
+    const retryWithoutAppendixResult = await supabase
+      .from("app_settings")
+      .upsert(payloadWithoutDocumentAppendix, {
+        onConflict: "id",
+      });
+    error = retryWithoutAppendixResult.error;
+    persistedPayload = payloadWithoutDocumentAppendix;
+  }
+
   if (
     error &&
     /(payment_(account_name|bank_name|account_number|promptpay_id|qr_code_url|qr_code_label|display_mode|secondary_account_name|secondary_bank_name|secondary_account_number|secondary_promptpay_id|secondary_qr_code_url|secondary_qr_code_label|secondary_display_mode|secondary_instructions|secondary_max_quote_total|secondary_customer_scope|secondary_payment_terms_scope|instructions)|customer_upload_(url|label)|production_(upload_enabled|customer_auto_send_enabled|asset_retention_days))/i.test(
       error.message
     )
   ) {
+
     if (
       wantsToSavePaymentSettings &&
       /payment_(account_name|bank_name|account_number|promptpay_id|qr_code_url|qr_code_label|display_mode|secondary_account_name|secondary_bank_name|secondary_account_number|secondary_promptpay_id|secondary_qr_code_url|secondary_qr_code_label|secondary_display_mode|secondary_instructions|secondary_max_quote_total|secondary_customer_scope|secondary_payment_terms_scope|instructions)/i.test(

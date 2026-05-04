@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Image from "next/image";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildCommercialDocumentPrintModel } from "@/lib/commercial-document-print";
@@ -117,6 +118,34 @@ export default async function CommercialDocumentDownloadPage(props: {
           </footer>
         </div>
       </article>
+
+      {printModel.documentAppendix ? (
+        <article className="mx-auto mt-4 w-full max-w-[210mm] rounded-[18px] bg-white px-4 py-4 shadow-[0_24px_90px_rgba(15,23,42,0.16)] sm:min-h-[297mm] sm:px-7 sm:py-7 md:px-[14mm] md:py-[14mm] print:mt-0 print:min-h-0 print:max-w-none print:break-before-page print:rounded-none print:px-0 print:py-0 print:shadow-none">
+          <div className="flex min-h-[260mm] flex-col overflow-hidden border border-slate-200 print:min-h-[260mm] print:border-slate-200">
+            <header className="border-b border-slate-200 p-5">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                Document Appendix
+              </p>
+              <h2 className="mt-2 text-2xl font-black leading-tight text-[#123B63]">
+                รูปแนบท้ายเอกสาร
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                {printModel.documentAppendix.imageName}
+              </p>
+            </header>
+            <div className="flex flex-1 items-center justify-center p-5">
+              <Image
+                src={printModel.documentAppendix.imageUrl}
+                alt={printModel.documentAppendix.imageName}
+                width={1200}
+                height={1600}
+                unoptimized
+                className="max-h-[235mm] w-full object-contain"
+              />
+            </div>
+          </div>
+        </article>
+      ) : null}
     </div>
   );
 }

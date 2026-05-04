@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { logHumanAction } from "@/lib/action-log";
 import { buildCommercialDocumentIssueFailureAudit } from "@/lib/commercial-audit";
 import { buildCommercialDocumentIssuePlan } from "@/lib/commercial-document-issue";
+import { getRuntimeAppConfig } from "@/lib/app-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type IssueDocumentBody = {
@@ -310,6 +311,15 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  const runtimeConfig = await getRuntimeAppConfig();
+  const documentAppendix = runtimeConfig.documentAppendixImageUrl
+    ? {
+        image_url: runtimeConfig.documentAppendixImageUrl,
+        image_name: runtimeConfig.documentAppendixImageName || null,
+        source: "app_settings",
+      }
+    : null;
+
   const snapshot = {
     policy_version: "COMMERCIAL_DOCUMENT_POLICY_V1",
     order_id: order.id,
@@ -358,6 +368,7 @@ export async function POST(request: NextRequest) {
       vat_amount: issuePlan.value.vatAmount,
       grand_total: issuePlan.value.grandTotal,
     },
+    document_appendix: documentAppendix,
   };
 
   const { data: insertedDocument, error: insertError } = await supabase

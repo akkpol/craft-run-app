@@ -29,6 +29,10 @@ export type CommercialDocumentPrintModel = {
     vatAmount: string;
     grandTotal: string;
   };
+  documentAppendix: {
+    imageUrl: string;
+    imageName: string;
+  } | null;
 };
 
 const MONEY_FORMATTER = new Intl.NumberFormat("th-TH-u-nu-latn", {
@@ -59,6 +63,10 @@ function isRecord(value: unknown): value is JsonRecord {
 
 function text(value: unknown, fallback = "-") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function optionalText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function numberValue(value: unknown) {
@@ -109,6 +117,12 @@ export function buildCommercialDocumentPrintModel(
   const taxProfile = isRecord(customer.tax_profile) ? customer.tax_profile : null;
   const payment = isRecord(snapshot.payment) ? snapshot.payment : {};
   const totals = isRecord(snapshot.totals) ? snapshot.totals : {};
+  const documentAppendix = isRecord(snapshot.document_appendix)
+    ? snapshot.document_appendix
+    : null;
+  const appendixImageUrl = documentAppendix
+    ? optionalText(documentAppendix.image_url)
+    : "";
   const documentType = text(snapshot.document_type, "UNKNOWN");
   const labels = DOCUMENT_LABELS[documentType] || {
     th: documentType,
@@ -164,5 +178,12 @@ export function buildCommercialDocumentPrintModel(
       vatAmount: money(totals.vat_amount),
       grandTotal: money(totals.grand_total),
     },
+    documentAppendix: appendixImageUrl
+      ? {
+          imageUrl: appendixImageUrl,
+          imageName:
+            optionalText(documentAppendix?.image_name) || "รูปแนบท้ายเอกสาร",
+        }
+      : null,
   };
 }
