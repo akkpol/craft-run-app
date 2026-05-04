@@ -18,6 +18,8 @@ test("parseMultipartIntakeFormData keeps design brief and advanced prompt values
   formData.set("dueDate", "2026-05-01");
   formData.set("phone", "0812345678");
   formData.set("fulfillmentMode", "pickup");
+  formData.append("requestedDocumentTypes", "quote");
+  formData.append("requestedDocumentTypes", "tax_invoice");
   formData.set("designBrief", "ป้ายร้านกาแฟมินิมอล โทนไม้");
   formData.set("aiImagePrompt", "clean storefront sign mockup");
   formData.set("note", "ใช้หน้าร้านใหม่");
@@ -33,6 +35,8 @@ test("parseMultipartIntakeFormData keeps design brief and advanced prompt values
   assert.equal(data.aiImagePrompt, "clean storefront sign mockup");
   assert.equal(data.note, "ใช้หน้าร้านใหม่");
   assert.equal(data.referenceInfo, "มีโลโก้เดิม");
+  assert.deepEqual(data.requestedDocumentTypes, ["quote", "tax_invoice"]);
+  assert.equal(data.requestedDocumentType, "tax_invoice");
   assert.equal(customerMediaFiles.length, 1);
   assert.equal(customerMediaFiles[0]?.name, "ref.txt");
 });

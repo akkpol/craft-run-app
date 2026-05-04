@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
   const { data: leads } = await supabase
     .from("leads")
     .select(
-      "product_type, width_mm, height_mm, qty, requested_document_type, billing_entity_type, billing_branch_type, billing_branch_code, billing_name, tax_id, billing_address, fulfillment_mode, fulfillment_address_line1, fulfillment_address_line2, fulfillment_subdistrict, fulfillment_district, fulfillment_province, fulfillment_postal_code, fulfillment_latitude, fulfillment_longitude"
+      "product_type, width_mm, height_mm, qty, requested_document_type, requested_document_types, billing_entity_type, billing_branch_type, billing_branch_code, billing_name, tax_id, billing_address, fulfillment_mode, fulfillment_address_line1, fulfillment_address_line2, fulfillment_subdistrict, fulfillment_district, fulfillment_province, fulfillment_postal_code, fulfillment_latitude, fulfillment_longitude"
     )
     .eq("customer_id", customer.id)
     .order("created_at", { ascending: false })
@@ -91,6 +91,11 @@ export async function GET(request: NextRequest) {
         heightMm: lastLead.height_mm ?? null,
         qty: lastLead.qty ?? null,
         requestedDocumentType: lastLead.requested_document_type ?? null,
+        requestedDocumentTypes:
+          lastLead.requested_document_types ??
+          (lastLead.requested_document_type
+            ? [lastLead.requested_document_type]
+            : null),
         billingEntityType: lastLead.billing_entity_type ?? null,
         billingBranchType: lastLead.billing_branch_type ?? null,
         billingBranchCode: lastLead.billing_branch_code ?? null,

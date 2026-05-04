@@ -1,3 +1,7 @@
+import {
+  getPrimaryDocumentRequestType,
+  normalizeDocumentRequestTypes,
+} from "@/lib/document-request";
 import type { IntakeFormData } from "@/lib/types";
 
 export function parseOptionalNumber(value: unknown) {
@@ -31,6 +35,10 @@ export function parseMultipartIntakeFormData(formData: FormData) {
   const customerMediaFiles = formData
     .getAll("referenceFiles")
     .filter((value): value is File => value instanceof File && value.size > 0);
+  const requestedDocumentTypes = normalizeDocumentRequestTypes([
+    ...formData.getAll("requestedDocumentTypes"),
+    getOptionalFormDataString(formData, "requestedDocumentType"),
+  ]);
 
   const data: IntakeFormData = {
     liffIdToken: getOptionalFormDataString(formData, "liffIdToken"),
@@ -44,7 +52,8 @@ export function parseMultipartIntakeFormData(formData: FormData) {
     dueDate: getFormDataString(formData, "dueDate"),
     phone: getFormDataString(formData, "phone"),
     requestedDocumentType:
-      getOptionalFormDataString(formData, "requestedDocumentType") as IntakeFormData["requestedDocumentType"],
+      getPrimaryDocumentRequestType(requestedDocumentTypes),
+    requestedDocumentTypes,
     designBrief: getOptionalFormDataString(formData, "designBrief"),
     note: getFormDataString(formData, "note"),
     referenceInfo: getFormDataString(formData, "referenceInfo"),

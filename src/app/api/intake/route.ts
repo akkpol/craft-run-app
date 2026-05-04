@@ -20,11 +20,13 @@ import { getProductCatalog } from "@/lib/product-catalog-store";
 import {
   toMM,
   calculatePrice,
+  getPrimaryDocumentRequestType,
   isBillingBranchType,
   isBillingEntityType,
   isDocumentRequestType,
   isFulfillmentMode,
   isPaymentTerm,
+  normalizeDocumentRequestTypes,
 } from "@/lib/types";
 import type { IntakeFormData, WorkflowState } from "@/lib/types";
 import { getLeadOperationalDefaults } from "@/lib/quote-workflow";
@@ -106,6 +108,13 @@ export async function POST(request: NextRequest) {
   if (data.requestedDocumentType && !isDocumentRequestType(data.requestedDocumentType)) {
     errors.push("requestedDocumentType is invalid");
   }
+  if (
+    data.requestedDocumentTypes?.some(
+      (type) => !isDocumentRequestType(type)
+    )
+  ) {
+    errors.push("requestedDocumentTypes is invalid");
+  }
   if (data.intakeMode && !["resume", "fresh"].includes(data.intakeMode)) {
     errors.push("intakeMode is invalid");
   }
@@ -181,11 +190,14 @@ export async function POST(request: NextRequest) {
     billingEntityType === "company" && normalizedBillingBranchType === "branch"
       ? data.billingBranchCode?.trim() || null
       : null;
-  const requestedDocumentType =
-    data.requestedDocumentType &&
-    isDocumentRequestType(data.requestedDocumentType)
-      ? data.requestedDocumentType
-      : "quote";
+  const requestedDocumentTypes = normalizeDocumentRequestTypes(
+    data.requestedDocumentTypes?.length
+      ? data.requestedDocumentTypes
+      : data.requestedDocumentType
+  );
+  const requestedDocumentType = getPrimaryDocumentRequestType(
+    requestedDocumentTypes
+  );
   const fulfillmentMode =
     data.fulfillmentMode && isFulfillmentMode(data.fulfillmentMode)
       ? data.fulfillmentMode
@@ -256,6 +268,7 @@ export async function POST(request: NextRequest) {
 
   const taxDocumentValidation = validateTaxDocumentIntake({
     requestedDocumentType,
+    requestedDocumentTypes,
     billingEntityType,
     billingBranchType,
     billingBranchCode,
@@ -568,6 +581,7 @@ export async function POST(request: NextRequest) {
       due_date: data.dueDate || null,
       ...buildLeadPromptFields(data),
       requested_document_type: requestedDocumentType,
+      requested_document_types: requestedDocumentTypes,
       billing_entity_type: billingEntityType,
       billing_branch_type: billingBranchType,
       billing_branch_code: billingBranchCode,
