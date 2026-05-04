@@ -35,6 +35,16 @@ type R2Config = {
 };
 
 const DEFAULT_CUSTOMER_MEDIA_BUCKET = "customer-media";
+const R2_REQUIRED_ENV_KEYS = [
+  "CLOUDFLARE_R2_BUCKET",
+  "CLOUDFLARE_R2_ENDPOINT",
+  "CLOUDFLARE_R2_ACCESS_KEY_ID",
+  "CLOUDFLARE_R2_SECRET_ACCESS_KEY",
+] as const;
+
+function getMissingR2ConfigKeys() {
+  return R2_REQUIRED_ENV_KEYS.filter((key) => !process.env[key]?.trim());
+}
 
 function getR2Config(): R2Config | null {
   const bucket = process.env.CLOUDFLARE_R2_BUCKET?.trim();
@@ -85,6 +95,19 @@ export function getDefaultCustomerMediaBucket() {
 
 export function isCustomerMediaR2Configured() {
   return getR2Config() !== null;
+}
+
+export function getCustomerMediaStorageRuntimeStatus() {
+  const missingR2EnvKeys = getMissingR2ConfigKeys();
+  const r2Configured = missingR2EnvKeys.length === 0;
+
+  return {
+    activeProvider: r2Configured ? "r2" : "supabase",
+    r2Configured,
+    requiredR2EnvKeys: [...R2_REQUIRED_ENV_KEYS],
+    missingR2EnvKeys,
+    fallbackProvider: "supabase",
+  };
 }
 
 export async function uploadCustomerMediaObject({

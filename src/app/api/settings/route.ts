@@ -16,6 +16,7 @@ import {
   getDefaultProductionSettings,
   normalizeProductionRetentionDays,
 } from "@/lib/production-settings";
+import { getCustomerMediaStorageRuntimeStatus } from "@/lib/customer-media-storage";
 import {
   DEFAULT_PAYMENT_DISPLAY_MODE,
   isPaymentDisplayMode,
@@ -102,6 +103,7 @@ export async function GET() {
     settings?.line_channel_secret || process.env.LINE_CHANNEL_SECRET
   );
   const aiImageProvider = runtimeConfig.aiImageProvider;
+  const customerMediaStorage = getCustomerMediaStorageRuntimeStatus();
   const hasAiImageApiKey = Boolean(
     settings?.ai_image_api_key ||
       (aiImageProvider === "google"
@@ -156,6 +158,7 @@ export async function GET() {
       businessCatalogName: settings?.business_catalog_name || runtimeConfig.businessCatalogName || "",
       customerUploadUrl: settings?.customer_upload_url || runtimeConfig.customerUploadUrl || "",
       customerUploadLabel: settings?.customer_upload_label || runtimeConfig.customerUploadLabel || "",
+      customerMediaStorage,
       productionUploadEnabled:
         settings?.production_upload_enabled ??
         runtimeConfig.productionUploadEnabled ??

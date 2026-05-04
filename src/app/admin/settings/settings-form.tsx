@@ -23,6 +23,14 @@ type ProductCatalogImportResult = {
   generatedValueCount: number;
 };
 
+type CustomerMediaStorageStatus = {
+  activeProvider: "r2" | "supabase";
+  r2Configured: boolean;
+  requiredR2EnvKeys: string[];
+  missingR2EnvKeys: string[];
+  fallbackProvider: "supabase";
+};
+
 type SettingsState = {
   businessName: string;
   businessPhone: string;
@@ -51,6 +59,7 @@ type SettingsState = {
   businessCatalogName: string;
   customerUploadUrl: string;
   customerUploadLabel: string;
+  customerMediaStorage: CustomerMediaStorageStatus;
   productionUploadEnabled: boolean;
   productionCustomerAutoSendEnabled: boolean;
   productionAssetRetentionDays: number;
@@ -98,6 +107,23 @@ const emptyState: SettingsState = {
   businessCatalogName: "",
   customerUploadUrl: "",
   customerUploadLabel: "ส่งไฟล์งาน / รูปอ้างอิง",
+  customerMediaStorage: {
+    activeProvider: "supabase",
+    r2Configured: false,
+    requiredR2EnvKeys: [
+      "CLOUDFLARE_R2_BUCKET",
+      "CLOUDFLARE_R2_ENDPOINT",
+      "CLOUDFLARE_R2_ACCESS_KEY_ID",
+      "CLOUDFLARE_R2_SECRET_ACCESS_KEY",
+    ],
+    missingR2EnvKeys: [
+      "CLOUDFLARE_R2_BUCKET",
+      "CLOUDFLARE_R2_ENDPOINT",
+      "CLOUDFLARE_R2_ACCESS_KEY_ID",
+      "CLOUDFLARE_R2_SECRET_ACCESS_KEY",
+    ],
+    fallbackProvider: "supabase",
+  },
   productionUploadEnabled: true,
   productionCustomerAutoSendEnabled: false,
   productionAssetRetentionDays: 30,
@@ -200,6 +226,16 @@ export default function SettingsForm() {
       setError("อัปโหลดไฟล์ไม่สำเร็จ");
     } finally {
       setUploadingAsset("");
+    }
+  }
+
+  function handleAiImageProviderChange(provider: string) {
+    updateField("aiImageProvider", provider);
+
+    const providerDefaultModel = provider === "google" ? "imagen-3.0-generate-002" : "gpt-image-1";
+    const knownDefaultModels = new Set(["gpt-image-1", "imagen-3.0-generate-002"]);
+    if (!form.aiImageModel || knownDefaultModels.has(form.aiImageModel)) {
+      updateField("aiImageModel", providerDefaultModel);
     }
   }
 
@@ -349,7 +385,7 @@ export default function SettingsForm() {
           <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>QR Code สำหรับชำระเงิน</span>
             <div className="flex flex-wrap items-center gap-3">
-              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => handleAssetUpload("paymentQr", e.target.files?.[0] || null)} className="block text-sm" />
+              <input type="file" accept="image/png,image/jpeg,image/webp" aria-label="อัปโหลด QR Code สำหรับชำระเงิน" title="อัปโหลด QR Code สำหรับชำระเงิน" onChange={(e) => handleAssetUpload("paymentQr", e.target.files?.[0] || null)} className="block text-sm" />
               {uploadingAsset === "paymentQr" ? <span className="text-xs text-slate-500">กำลังอัปโหลด...</span> : null}
               {form.paymentQrCodeUrl ? <a href={form.paymentQrCodeUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">เปิด QR Code</a> : null}
             </div>
@@ -458,7 +494,7 @@ export default function SettingsForm() {
               <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
                 <span>QR Code ของบัญชีรอง</span>
                 <div className="flex flex-wrap items-center gap-3">
-                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => handleAssetUpload("paymentSecondaryQr", e.target.files?.[0] || null)} className="block text-sm" />
+                  <input type="file" accept="image/png,image/jpeg,image/webp" aria-label="อัปโหลด QR Code บัญชีสำรอง" title="อัปโหลด QR Code บัญชีสำรอง" onChange={(e) => handleAssetUpload("paymentSecondaryQr", e.target.files?.[0] || null)} className="block text-sm" />
                   {uploadingAsset === "paymentSecondaryQr" ? <span className="text-xs text-slate-500">กำลังอัปโหลด...</span> : null}
                   {form.paymentSecondaryQrCodeUrl ? <a href={form.paymentSecondaryQrCodeUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">เปิด QR บัญชีรอง</a> : null}
                 </div>
@@ -481,7 +517,7 @@ export default function SettingsForm() {
           <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>โลโก้ร้าน</span>
             <div className="flex flex-wrap items-center gap-3">
-              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => handleAssetUpload("logo", e.target.files?.[0] || null)} className="block text-sm" />
+              <input type="file" accept="image/png,image/jpeg,image/webp" aria-label="อัปโหลดโลโก้ร้าน" title="อัปโหลดโลโก้ร้าน" onChange={(e) => handleAssetUpload("logo", e.target.files?.[0] || null)} className="block text-sm" />
               {uploadingAsset === "logo" ? <span className="text-xs text-slate-500">กำลังอัปโหลด...</span> : null}
               {form.businessLogoUrl ? <a href={form.businessLogoUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">เปิดไฟล์โลโก้</a> : null}
             </div>
@@ -499,7 +535,7 @@ export default function SettingsForm() {
           <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>ไฟล์ร้าน / Company Profile</span>
             <div className="flex flex-wrap items-center gap-3">
-              <input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e) => handleAssetUpload("catalog", e.target.files?.[0] || null)} className="block text-sm" />
+              <input type="file" accept="application/pdf,image/png,image/jpeg" aria-label="อัปโหลดไฟล์ร้านหรือ Company Profile" title="อัปโหลดไฟล์ร้านหรือ Company Profile" onChange={(e) => handleAssetUpload("catalog", e.target.files?.[0] || null)} className="block text-sm" />
               {uploadingAsset === "catalog" ? <span className="text-xs text-slate-500">กำลังอัปโหลด...</span> : null}
               {form.businessCatalogUrl ? <a href={form.businessCatalogUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">เปิดไฟล์ร้าน</a> : null}
             </div>
@@ -514,6 +550,36 @@ export default function SettingsForm() {
             <span>ข้อความปุ่มลิงก์รับไฟล์</span>
             <input value={form.customerUploadLabel} onChange={(e) => updateField("customerUploadLabel", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="ส่งไฟล์งาน / รูปอ้างอิง" />
           </label>
+          <div className="rounded-[24px] border border-sky-200 bg-sky-50/80 p-4 md:col-span-2">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-950">ที่เก็บรูป/ไฟล์ลูกค้า</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">
+                  ไฟล์ที่ลูกค้าอัปโหลดใน LIFF จะผ่าน server route ก่อน แล้วบันทึก metadata ไว้ใน Supabase เสมอ
+                </p>
+              </div>
+              <span className={form.customerMediaStorage.r2Configured ? "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800" : "rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800"}>
+                ใช้งานจริง: {form.customerMediaStorage.activeProvider === "r2" ? "Cloudflare R2" : "Supabase Storage"}
+              </span>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {form.customerMediaStorage.requiredR2EnvKeys.map((key) => {
+                const missing = form.customerMediaStorage.missingR2EnvKeys.includes(key);
+
+                return (
+                  <div key={key} className="flex items-center justify-between gap-3 rounded-2xl border border-white/80 bg-white px-3 py-2 text-xs">
+                    <span className="font-mono text-slate-600">{key}</span>
+                    <span className={missing ? "font-semibold text-amber-700" : "font-semibold text-emerald-700"}>
+                      {missing ? "ยังขาด" : "พร้อม"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-500">
+              R2 key เป็น server-only และแก้ที่ Vercel Environment Variables เท่านั้น ถ้า key ครบ ระบบจะใช้ R2 อัตโนมัติ ถ้าไม่ครบจะ fallback ไป Supabase Storage โดยไม่ทำให้ลูกค้าส่งฟอร์มเสีย
+            </p>
+          </div>
         </div>
       </section>
 
@@ -596,6 +662,8 @@ export default function SettingsForm() {
             <input
               type="file"
               accept=".csv,text/csv"
+              aria-label="อัปโหลด CSV product catalog"
+              title="อัปโหลด CSV product catalog"
               onChange={(event) => {
                 void handleProductCatalogImport(event.target.files?.[0] || null);
                 event.currentTarget.value = "";
@@ -731,8 +799,23 @@ export default function SettingsForm() {
       </section>
 
       <section className="rounded-3xl border border-violet-200 bg-violet-50 p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-950">AI สร้างรูป</h2>
-        <p className="mt-1 text-sm text-slate-600">รองรับ OpenAI (gpt-image-1) และ Google AI Studio (Imagen 3) แนะนำให้ใช้ Google AI Studio หากต้องการความประหยัดหรือโควตาฟรี</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">AI สร้างรูป</h2>
+            <p className="mt-1 text-sm text-slate-600">รองรับ OpenAI (gpt-image-1) และ Google AI Studio (Imagen 3) แนะนำให้ใช้ Google AI Studio หากต้องการความประหยัดหรือโควตาฟรี</p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs font-semibold">
+            <span className={form.aiImageEnabled ? "rounded-full border border-emerald-200 bg-white px-3 py-1 text-emerald-800" : "rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600"}>
+              {form.aiImageEnabled ? "เปิดใช้งาน" : "ปิดอยู่"}
+            </span>
+            <span className="rounded-full border border-violet-200 bg-white px-3 py-1 text-violet-800">
+              Provider: {form.aiImageProvider === "google" ? "Google AI Studio" : "OpenAI"}
+            </span>
+            <span className={form.hasAiImageApiKey ? "rounded-full border border-emerald-200 bg-white px-3 py-1 text-emerald-800" : "rounded-full border border-amber-200 bg-white px-3 py-1 text-amber-800"}>
+              {form.hasAiImageApiKey ? "มี API key" : "ยังไม่มี API key"}
+            </span>
+          </div>
+        </div>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm text-slate-700">
             <span>เปิดใช้งาน AI Image</span>
@@ -743,7 +826,7 @@ export default function SettingsForm() {
           </label>
           <label className="grid gap-2 text-sm text-slate-700">
             <span>Provider</span>
-            <select value={form.aiImageProvider} onChange={(e) => updateField("aiImageProvider", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400">
+            <select value={form.aiImageProvider} onChange={(e) => handleAiImageProviderChange(e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400">
               <option value="openai">OpenAI</option>
               <option value="google">Google AI Studio</option>
             </select>

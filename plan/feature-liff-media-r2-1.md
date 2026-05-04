@@ -24,6 +24,63 @@ The overall delivery order and current wave priority still come from [process-go
 
 Deploy sequencing rule: if the customer LIFF intake UX is stable before the storage-provider work is ready, ship the LIFF-only improvement first. Do not hold a customer-facing LIFF deploy behind the R2 rollout track unless the release explicitly depends on the new media backend.
 
+## Discovery Gate - 2026-05-04 Settings Visibility Slice
+
+Known Facts
+
+- Customer reference media already has a provider-aware path in `src/lib/customer-media-storage.ts`.
+- Cloudflare R2 is used automatically when the required `CLOUDFLARE_R2_*` server environment variables are present.
+- AI image generation already supports OpenAI and Google AI Studio through `src/lib/ai-images.ts`, `src/lib/ai-google-studio.ts`, `/api/settings`, and `/admin/settings`.
+- Production Vercel has the R2 environment variable names configured; AI image generation was disabled in runtime settings during discovery.
+
+Unknowns
+
+- Whether R2 credentials should ever be editable from app settings, or remain Vercel/server-only.
+- Whether generated AI preview images should move from the existing `app-assets` Supabase storage path to R2 in a later packet.
+
+Assumptions
+
+- Do not start over; continue from the existing R2 and Google AI provider implementation.
+- Keep R2 secrets server-only and expose readiness/status in Settings instead of secret values.
+- Keep generated AI preview storage unchanged in this slice.
+
+Out of Scope
+
+- New database columns for R2 secrets.
+- Moving AI-generated image storage to R2.
+- Direct browser-to-R2 uploads from LIFF.
+
+Decision Owner
+
+- Product owner for whether R2 credentials must become app-editable later; Delivery Engineering for the current server-only status UI implementation.
+
+## Execution Update - 2026-05-04 Settings Visibility Slice
+
+Done
+
+- Added `/api/settings` runtime status for customer media storage without exposing R2 secret values.
+- Added `/admin/settings` visibility for active customer media provider, required R2 env key readiness, and AI provider/key status.
+- Kept existing Google AI Studio provider path and existing customer media R2 path; no restart/rebuild-from-scratch path was used.
+
+Validation
+
+- `npm run lint` passed.
+- `npx vitest run tests/customer-media.test.ts` passed 16/16.
+- `npm run build` passed.
+
+Remaining
+
+- Browser-test `/admin/settings` after preview/production deploy of this branch.
+- Decide later whether generated AI preview images should use R2 instead of Supabase `app-assets`.
+
+Risks
+
+- R2 credentials remain controlled by Vercel environment variables; app Settings can show readiness but cannot edit those secrets in this slice.
+
+Tool/env changed
+
+- No product tool change. `vercel link` had already created `.vercel` and refreshed `.env.local` before this slice; no secret values were printed.
+
 ## 1. Requirements & Constraints
 
 - **REQ-001**: Customer reference upload and preview must support frequent image-heavy usage without degrading the current lead, quote, and admin preview workflow.
