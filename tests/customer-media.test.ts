@@ -55,6 +55,28 @@ import {
   MAX_CUSTOMER_MEDIA_FILES,
   MAX_CUSTOMER_MEDIA_FILE_SIZE,
 } from "../src/lib/customer-media.js";
+import { getCustomerMediaStorageRuntimeStatus } from "../src/lib/customer-media-storage.ts";
+
+const R2_ENV_KEYS = [
+  "CLOUDFLARE_R2_BUCKET",
+  "CLOUDFLARE_R2_ENDPOINT",
+  "CLOUDFLARE_R2_ACCESS_KEY_ID",
+  "CLOUDFLARE_R2_SECRET_ACCESS_KEY",
+] as const;
+
+function clearR2Env() {
+  R2_ENV_KEYS.forEach((key) => {
+    delete process.env[key];
+  });
+  delete process.env.CLOUDFLARE_R2_REGION;
+}
+
+function setCompleteR2Env() {
+  process.env.CLOUDFLARE_R2_BUCKET = "customer-media";
+  process.env.CLOUDFLARE_R2_ENDPOINT = "https://example.r2.cloudflarestorage.com";
+  process.env.CLOUDFLARE_R2_ACCESS_KEY_ID = "test-access-key";
+  process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY = "test-secret-key";
+}
 
 // Mock Supabase admin client
 const mockSupabase = {
@@ -144,14 +166,42 @@ describe("validateCustomerMediaFiles", () => {
   });
 });
 
+describe("getCustomerMediaStorageRuntimeStatus", () => {
+  beforeEach(() => {
+    clearR2Env();
+  });
+
+  it("reports Supabase fallback when R2 env is incomplete", () => {
+    process.env.CLOUDFLARE_R2_BUCKET = "customer-media";
+
+    const status = getCustomerMediaStorageRuntimeStatus();
+
+    expect(status.activeProvider).toBe("supabase");
+    expect(status.r2Configured).toBe(false);
+    expect(status.requiredR2EnvKeys).toEqual([...R2_ENV_KEYS]);
+    expect(status.missingR2EnvKeys).toEqual([
+      "CLOUDFLARE_R2_ENDPOINT",
+      "CLOUDFLARE_R2_ACCESS_KEY_ID",
+      "CLOUDFLARE_R2_SECRET_ACCESS_KEY",
+    ]);
+  });
+
+  it("reports R2 as active when all required env keys are present", () => {
+    setCompleteR2Env();
+
+    const status = getCustomerMediaStorageRuntimeStatus();
+
+    expect(status.activeProvider).toBe("r2");
+    expect(status.r2Configured).toBe(true);
+    expect(status.requiredR2EnvKeys).toEqual([...R2_ENV_KEYS]);
+    expect(status.missingR2EnvKeys).toEqual([]);
+  });
+});
+
 describe("uploadLeadMediaFiles", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    delete process.env.CLOUDFLARE_R2_BUCKET;
-    delete process.env.CLOUDFLARE_R2_ENDPOINT;
-    delete process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
-    delete process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
-    delete process.env.CLOUDFLARE_R2_REGION;
+    clearR2Env();
   });
 
   it("should return empty array for no files", async () => {
@@ -305,10 +355,7 @@ describe("uploadLeadMediaFiles", () => {
   });
 
   it("should upload files to R2 when R2 env is configured", async () => {
-    process.env.CLOUDFLARE_R2_BUCKET = "customer-media";
-    process.env.CLOUDFLARE_R2_ENDPOINT = "https://example.r2.cloudflarestorage.com";
-    process.env.CLOUDFLARE_R2_ACCESS_KEY_ID = "test-access-key";
-    process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY = "test-secret-key";
+    setCompleteR2Env();
 
     mockR2Send.mockResolvedValue({});
     vi.mocked(mockSupabase.from).mockReturnValue({
@@ -334,11 +381,7 @@ describe("uploadLeadMediaFiles", () => {
 describe("signLeadMediaAssetPaths", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    delete process.env.CLOUDFLARE_R2_BUCKET;
-    delete process.env.CLOUDFLARE_R2_ENDPOINT;
-    delete process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
-    delete process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
-    delete process.env.CLOUDFLARE_R2_REGION;
+    clearR2Env();
   });
 
   it("should create signed URLs for valid paths", async () => {
@@ -405,10 +448,7 @@ describe("signLeadMediaAssetPaths", () => {
   });
 
   it("should create signed URLs for R2-backed assets", async () => {
-    process.env.CLOUDFLARE_R2_BUCKET = "customer-media";
-    process.env.CLOUDFLARE_R2_ENDPOINT = "https://example.r2.cloudflarestorage.com";
-    process.env.CLOUDFLARE_R2_ACCESS_KEY_ID = "test-access-key";
-    process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY = "test-secret-key";
+    setCompleteR2Env();
 
     mockGetSignedUrl.mockResolvedValue("https://example.com/r2-signed");
 

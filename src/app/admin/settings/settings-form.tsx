@@ -139,18 +139,8 @@ const emptyState: SettingsState = {
   customerMediaStorage: {
     activeProvider: "supabase",
     r2Configured: false,
-    requiredR2EnvKeys: [
-      "CLOUDFLARE_R2_BUCKET",
-      "CLOUDFLARE_R2_ENDPOINT",
-      "CLOUDFLARE_R2_ACCESS_KEY_ID",
-      "CLOUDFLARE_R2_SECRET_ACCESS_KEY",
-    ],
-    missingR2EnvKeys: [
-      "CLOUDFLARE_R2_BUCKET",
-      "CLOUDFLARE_R2_ENDPOINT",
-      "CLOUDFLARE_R2_ACCESS_KEY_ID",
-      "CLOUDFLARE_R2_SECRET_ACCESS_KEY",
-    ],
+    requiredR2EnvKeys: [],
+    missingR2EnvKeys: [],
     fallbackProvider: "supabase",
   },
   productionMediaStorage: {
