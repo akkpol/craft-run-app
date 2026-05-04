@@ -7,10 +7,14 @@ import {
   CircleUserRoundIcon,
   ClipboardCheckIcon,
   CommandIcon,
+  FilePlus2Icon,
   LayoutDashboardIcon,
   Settings2Icon,
   SmartphoneIcon,
   ScrollTextIcon,
+  UserRoundSearchIcon,
+  UsersRoundIcon,
+  WandSparklesIcon,
 } from "lucide-react";
 
 import { NavUser } from "@/components/nav-user";
@@ -38,32 +42,56 @@ type AdminSidebarProps = {
 
 const primaryItems = [
   {
-    title: "CRM Inbox",
+    title: "CRM กลาง",
     href: "/admin",
     icon: LayoutDashboardIcon,
     isActive: (pathname: string) => pathname === "/admin",
   },
   {
-    title: "Customer Waiting",
+    title: "รับงาน manual",
+    href: "/admin/manual-intake",
+    icon: FilePlus2Icon,
+    isActive: (pathname: string) => pathname.startsWith("/admin/manual-intake"),
+  },
+  {
+    title: "โปรไฟล์ลูกค้า",
+    href: "/admin/customers",
+    icon: UserRoundSearchIcon,
+    isActive: (pathname: string) => pathname.startsWith("/admin/customers"),
+  },
+  {
+    title: "รอลูกค้า",
     href: "/admin/follow-up",
     icon: ClipboardCheckIcon,
     isActive: (pathname: string) => pathname.startsWith("/admin/follow-up"),
   },
 
   {
-    title: "Intake Ops",
+    title: "LIFF / Intake",
     href: "/admin/liff-monitor",
     icon: SmartphoneIcon,
     isActive: (pathname: string) => pathname.startsWith("/admin/liff-monitor"),
   },
   {
-    title: "Finance & Documents",
+    title: "เอกสาร / การเงิน",
     href: "/admin/accounting",
     icon: ScrollTextIcon,
     isActive: (pathname: string) => pathname.startsWith("/admin/accounting"),
   },
   {
-    title: "Teams & Profiles",
+    title: "พรอมพ์ / AI",
+    href: "/admin/prompts",
+    icon: WandSparklesIcon,
+    isActive: (pathname: string) => pathname.startsWith("/admin/prompts"),
+  },
+  {
+    title: "พนักงาน",
+    href: "/admin/staff",
+    icon: UsersRoundIcon,
+    isActive: (pathname: string) => pathname.startsWith("/admin/staff"),
+  },
+  {
+    title: "โปรไฟล์ของฉัน",
     href: "/admin/profile",
     icon: CircleUserRoundIcon,
     isActive: (pathname: string) => pathname.startsWith("/admin/profile"),
@@ -72,14 +100,14 @@ const primaryItems = [
 
 const secondaryItems = [
   {
-    title: "Automation Settings",
+    title: "ตั้งค่าระบบ",
     href: "/admin/settings",
     icon: Settings2Icon,
     isActive: (pathname: string) => pathname.startsWith("/admin/settings"),
     external: false,
   },
   {
-    title: "Flow Reference",
+    title: "ผัง Flow",
     href: "/flow",
     icon: CircleHelpIcon,
     isActive: (pathname: string) => pathname.startsWith("/flow"),

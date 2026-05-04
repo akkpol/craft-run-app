@@ -54,7 +54,11 @@ async function loadFollowUpPreview(
   }
 
   const rows = (conversations || [])
-    .filter((conversation) => conversation.line_user_id)
+    .filter(
+      (conversation) =>
+        conversation.line_user_id &&
+        !String(conversation.line_user_id).startsWith("manual:")
+    )
     .map((conversation) => {
       const queueKey = getFollowUpQueueKey(conversation.state);
       return {

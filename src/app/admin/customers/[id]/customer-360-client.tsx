@@ -100,6 +100,19 @@ function formatContextType(type: string | null) {
   }
 }
 
+function formatCustomerSource(lineUserId: string) {
+  if (lineUserId.startsWith("manual:")) {
+    const source = lineUserId.split(":")[1] || "other";
+    if (source === "walk_in") return "Manual: หน้าร้าน";
+    if (source === "phone") return "Manual: โทรศัพท์";
+    if (source === "facebook") return "Manual: Facebook";
+    if (source === "email") return "Manual: อีเมล";
+    return "Manual intake";
+  }
+
+  return `LINE: ${lineUserId}`;
+}
+
 function StateChip({ state }: { state: string }) {
   const color = STATE_COLORS[state] ?? "bg-slate-100 text-slate-600";
   return (
@@ -215,7 +228,7 @@ export default function Customer360Client({
               </h1>
               <div className="mt-1 flex flex-wrap gap-3 text-sm text-slate-600">
                 {customer.phone ? <span>{customer.phone}</span> : null}
-                <span className="text-slate-400">LINE: {customer.line_user_id}</span>
+                <span className="text-slate-400">{formatCustomerSource(customer.line_user_id)}</span>
                 <span className="text-slate-400">
                   สมัครเมื่อ {formatDate(customer.created_at)}
                 </span>
@@ -267,7 +280,7 @@ export default function Customer360Client({
                 <p className="font-semibold text-slate-900">
                   {customer.display_name || asString(latestLiffProfile?.displayName) || "ลูกค้าไม่ระบุชื่อ"}
                 </p>
-                <p className="wrap-break-word text-slate-500">LINE ID: {customer.line_user_id}</p>
+                <p className="wrap-break-word text-slate-500">แหล่งที่มา: {formatCustomerSource(customer.line_user_id)}</p>
                 <p>{customer.line_email || asString(latestLiffProfile?.email) || "ยังไม่มีอีเมลจาก LINE"}</p>
                 <p>{customer.phone || "ยังไม่มีเบอร์โทรในระบบ"}</p>
                 <p>{customer.line_status_message || asString(latestLiffProfile?.statusMessage) || "ยังไม่มี status message"}</p>

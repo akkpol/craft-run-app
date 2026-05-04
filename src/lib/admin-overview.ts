@@ -172,6 +172,15 @@ function productLabel(value: string | null | undefined, fallback = "ยังไ
 }
 
 function formatLineUserLabel(lineUserId: string | null | undefined) {
+  if (lineUserId?.startsWith("manual:")) {
+    const source = lineUserId.split(":")[1] || "other";
+    if (source === "walk_in") return "Manual หน้าร้าน";
+    if (source === "phone") return "Manual โทรศัพท์";
+    if (source === "facebook") return "Manual Facebook";
+    if (source === "email") return "Manual อีเมล";
+    return "Manual intake";
+  }
+
   return lineUserId ? `LINE ${lineUserId.slice(0, 12)}...` : "ลูกค้า";
 }
 

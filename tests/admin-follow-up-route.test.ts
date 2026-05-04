@@ -89,6 +89,12 @@ describe("admin follow-up route", () => {
             line_user_id: "user-2",
             last_message_at: "2026-05-01T11:00:00.000Z",
           },
+          {
+            id: "conv-manual",
+            state: "ON_HOLD_CUSTOMER_INPUT",
+            line_user_id: "manual:phone:customer",
+            last_message_at: "2026-05-01T09:00:00.000Z",
+          },
         ],
         [
           { line_user_id: "user-1", display_name: "A" },
@@ -151,5 +157,31 @@ describe("admin follow-up route", () => {
         actionType: "follow_up_sent",
       })
     );
+  });
+
+  it("does not send LINE follow-ups to manual intake customers", async () => {
+    mockCreateAdminClient.mockReturnValue(
+      createSupabaseClient([
+        {
+          id: "conv-manual",
+          state: "ON_HOLD_CUSTOMER_INPUT",
+          line_user_id: "manual:walk_in:customer",
+          last_message_at: "2026-05-01T10:00:00.000Z",
+        },
+      ])
+    );
+
+    const { POST } = await import("../src/app/api/admin/follow-up/route.ts");
+    const response = await POST(
+      new NextRequest("http://localhost/api/admin/follow-up", {
+        method: "POST",
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.sent).toBe(0);
+    expect(body.skipped).toBe(0);
+    expect(mockPushFollowUpMessage).not.toHaveBeenCalled();
   });
 });

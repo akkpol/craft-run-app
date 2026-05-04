@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { getAdminQueueContract } from "@/lib/admin-queue-contract";
 import type { AdminOverviewPage } from "@/lib/admin-overview";
 import type { BackofficeAutomationSnapshot } from "@/lib/backoffice-automation";
@@ -64,6 +65,32 @@ export default function AdminDashboardClient({ baseUrl, automation, overview }: 
               },
             ]}
           />
+
+          <SurfaceSection
+            title="ทางลัดงานหลังบ้าน"
+            description="ปุ่มหลักที่ต้องใช้จริง: รับงานนอก LINE, เปิดโปรไฟล์ลูกค้า, ดูเอกสาร runtime, จัดการพรอมพ์ และดูทีมงาน"
+            count={5}
+          >
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              {[
+                ["/admin/manual-intake", "รับงาน manual", "ลูกค้าหน้าร้าน โทร Facebook หรืออีเมล"],
+                ["/admin/customers", "โปรไฟล์ลูกค้า", "Customer 360 และประวัติ lead/quote"],
+                ["/admin/accounting", "เอกสาร / การเงิน", "receipt, tax invoice receipt และ export"],
+                ["/admin/prompts", "พรอมพ์ / AI", "แก้ prompt และสั่ง preview จากทุก lead"],
+                ["/admin/staff", "พนักงาน", "allowlist และสถานะบัญชีหลังบ้าน"],
+              ].map(([href, label, description]) => (
+                <Link
+                  key={href}
+                  href={href}
+                  prefetch={false}
+                  className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 text-sm shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <span className="font-semibold text-slate-950">{label}</span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">{description}</span>
+                </Link>
+              ))}
+            </div>
+          </SurfaceSection>
 
           <SurfaceSection
             title="Automation lanes"
