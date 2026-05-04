@@ -21,7 +21,6 @@ export type LiffContextSnapshot = {
   grantedScopes: string[];
   context: {
     type: string | null;
-    userId: string | null;
     liffId: string | null;
     viewType: string | null;
     endpointUrl: string | null;
@@ -115,7 +114,6 @@ export function normalizeLiffContextSnapshot(
     grantedScopes: asStringArray(root.grantedScopes),
     context: {
       type: asString(context?.type),
-      userId: asString(context?.userId),
       liffId: asString(context?.liffId),
       viewType: asString(context?.viewType),
       endpointUrl: asString(context?.endpointUrl),

@@ -8,6 +8,8 @@ import {
 
 test("parseMultipartIntakeFormData keeps design brief and advanced prompt values", () => {
   const formData = new FormData();
+  formData.set("lineUserId", "U-client-profile-should-not-be-trusted");
+  formData.set("displayName", "Client Profile Name");
   formData.set("productType", "signage");
   formData.set("width", "1200");
   formData.set("height", "600");
@@ -25,6 +27,8 @@ test("parseMultipartIntakeFormData keeps design brief and advanced prompt values
 
   const { data, customerMediaFiles } = parseMultipartIntakeFormData(formData);
 
+  assert.equal("lineUserId" in data, false);
+  assert.equal("displayName" in data, false);
   assert.equal(data.designBrief, "ป้ายร้านกาแฟมินิมอล โทนไม้");
   assert.equal(data.aiImagePrompt, "clean storefront sign mockup");
   assert.equal(data.note, "ใช้หน้าร้านใหม่");

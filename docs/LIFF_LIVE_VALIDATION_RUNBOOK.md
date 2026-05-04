@@ -10,6 +10,7 @@ source_refs:
   - docs/GO_NOGO_REVIEW.md
   - docs/ENV_AND_LINE_SETUP.md
   - docs/COMMERCIAL_DOCUMENT_POLICY_V1.md
+  - https://developers.line.biz/en/docs/liff/overview/#support-tool
 ---
 
 # LIFF Live Validation Runbook
@@ -48,6 +49,16 @@ source_refs:
 ถ้า LIFF พังก่อนถึง `/api/intake` ให้เปิด `/admin/liff-monitor` ก่อนดูอย่างอื่น
 
 ถ้าไม่แน่ใจว่าต้องเก็บ screenshot หรือ log จากหน้าไหน ให้ใช้ [OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md](OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md)
+
+## LINE Support Tools For Debugging
+
+ส่วนนี้ไม่ใช่ gate เพิ่ม แต่ใช้เมื่อ browser ปกติ reproduce ไม่ได้ หรือปัญหาเกิดเฉพาะ LINE WebView/LIFF browser:
+
+- ใช้ `LIFF CLI` เพื่อเปิด local development server แบบ HTTPS และต่อกับ `LIFF Inspector` ตอนต้อง debug หน้า `/liff/intake` ภายใน LINE browser จริง
+- ใช้ `LIFF Inspector` เก็บ console/runtime error จากเครื่องทดสอบแทนการพึ่ง Chrome desktop อย่างเดียว เพราะ LIFF browser บน iOS ใช้ `WKWebView` และ Android ใช้ `Android WebView`
+- ใช้ `LIFF Playground` เพื่อเทียบพฤติกรรม API/permission แบบเร็ว แต่ไม่ถือว่าเป็น proof ของ FOGUS production flow
+- ถ้าเจอปัญหา cache ให้จำไว้ว่าฝั่ง LIFF browser ไม่มีวิธีล้าง cache โดยตรง ต้องแก้ด้วย deploy/version/header strategy และทดสอบจาก LIFF URL ใหม่
+- ถ้าเปิด LIFF จาก recently used services อาจเป็น resume หรือ reload ได้ ดังนั้นทุก request ที่ต้องใช้ identity ต้อง verify `liffIdToken` หรือ `liffAccessToken` ฝั่ง server ทุกครั้ง ห้ามเชื่อค่าจาก client profile snapshot
 
 
 ## Scenario 1 — LIFF-VAL-005 First-Time Customer Path

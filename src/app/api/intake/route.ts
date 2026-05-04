@@ -81,11 +81,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid intake request" }, { status: 400 });
   }
 
-  const providedLineUserId = data.lineUserId?.trim() || "";
-  const providedDisplayName = data.displayName?.trim() || "";
   const providedLiffIdToken = data.liffIdToken?.trim() || "";
-  const allowClientProfileFallback =
-    process.env.NODE_ENV !== "production" && !providedLiffIdToken;
   const liffDebugFingerprint =
     request.headers.get("x-liff-debug-fingerprint")?.trim() || null;
   const earliestDueDate = getBangkokTodayDateString();
@@ -149,7 +145,6 @@ export async function POST(request: NextRequest) {
           intakeMode: data.intakeMode || null,
           hasLiffIdToken: true,
           hasLiffContextSnapshot: Boolean(data.liffContextSnapshot),
-          lineUserIdHint: data.lineUserId?.trim() || null,
           userAgent: request.headers.get("user-agent"),
         },
       });
@@ -158,15 +153,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-  } else if (allowClientProfileFallback && providedLineUserId) {
-    intakeIdentity = {
-      userId: providedLineUserId,
-      displayName: providedDisplayName || "ลูกค้า",
-      pictureUrl: null,
-      email: null,
-      authTime: null,
-      amr: [],
-    };
   } else {
     return NextResponse.json(
       {
@@ -180,7 +166,6 @@ export async function POST(request: NextRequest) {
   const resolvedLineUserId = intakeIdentity.userId;
   const resolvedDisplayName =
     intakeIdentity.displayName?.trim() ||
-    (allowClientProfileFallback ? providedDisplayName : "") ||
     "ลูกค้า";
   const billingEntityType =
     data.billingEntityType && isBillingEntityType(data.billingEntityType)

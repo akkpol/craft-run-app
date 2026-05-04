@@ -33,8 +33,6 @@ export function parseMultipartIntakeFormData(formData: FormData) {
     .filter((value): value is File => value instanceof File && value.size > 0);
 
   const data: IntakeFormData = {
-    lineUserId: getOptionalFormDataString(formData, "lineUserId"),
-    displayName: getOptionalFormDataString(formData, "displayName"),
     liffIdToken: getOptionalFormDataString(formData, "liffIdToken"),
     liffAccessToken: getOptionalFormDataString(formData, "liffAccessToken"),
     liffContextSnapshot: getOptionalFormDataString(formData, "liffContextSnapshot"),

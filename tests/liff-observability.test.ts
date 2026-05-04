@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { normalizeLiffIncidentPayload } from "../src/lib/liff-observability.ts";
 
-test("normalizeLiffIncidentPayload keeps only a compact LINE user hint", () => {
+test("normalizeLiffIncidentPayload drops client-sent LINE user identifiers", () => {
   const incident = normalizeLiffIncidentPayload({
     stage: "init_failed",
     message: "sdk missing",
@@ -17,10 +17,10 @@ test("normalizeLiffIncidentPayload keeps only a compact LINE user hint", () => {
 
   assert.ok(incident);
   assert.equal(incident?.lineUserId, null);
-  assert.equal(incident?.lineUserHint, "U12345...IJKL");
+  assert.equal(incident?.lineUserHint, null);
 });
 
-test("normalizeLiffIncidentPayload preserves explicit lineUserHint from client", () => {
+test("normalizeLiffIncidentPayload ignores explicit lineUserHint from client", () => {
   const incident = normalizeLiffIncidentPayload({
     stage: "prefill_http_error",
     lineUserHint: "U12345...ABCD",
@@ -28,7 +28,7 @@ test("normalizeLiffIncidentPayload preserves explicit lineUserHint from client",
 
   assert.ok(incident);
   assert.equal(incident?.lineUserId, null);
-  assert.equal(incident?.lineUserHint, "U12345...ABCD");
+  assert.equal(incident?.lineUserHint, null);
 });
 
 test("normalizeLiffIncidentPayload ignores malformed liffContextSnapshot", () => {

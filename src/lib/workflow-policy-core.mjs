@@ -1,21 +1,10 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import workflowPolicy from "../../docs/workflow-policy.json" with { type: "json" };
 
 let cachedPolicy = null;
 
 function loadWorkflowPolicy() {
   if (!cachedPolicy) {
-    const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-    const policyPath = path.join(
-      moduleDir,
-      "..",
-      "..",
-      "docs",
-      "workflow-policy.json"
-    );
-    const raw = readFileSync(policyPath, "utf8");
-    cachedPolicy = JSON.parse(raw);
+    cachedPolicy = workflowPolicy;
   }
 
   return cachedPolicy;

@@ -3,6 +3,17 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
+  CheckCircle2,
+  Clipboard,
+  KeyRound,
+  Link2,
+  MessageCircle,
+  ShieldCheck,
+  Smartphone,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
+import {
   DEFAULT_PAYMENT_DISPLAY_MODE,
   PAYMENT_DISPLAY_MODE_LABELS,
   PAYMENT_DISPLAY_MODES,
@@ -285,6 +296,21 @@ export default function SettingsForm() {
     }
   }
 
+  async function copySettingValue(value: string, label: string) {
+    if (!value) {
+      setError(`ยังไม่มีค่า ${label} ให้คัดลอก`);
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(value);
+      setMessage(`คัดลอก ${label} แล้ว`);
+      setError("");
+    } catch {
+      setError(`คัดลอก ${label} ไม่สำเร็จ`);
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -370,6 +396,49 @@ export default function SettingsForm() {
   if (loading) {
     return <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500">กำลังโหลดการตั้งค่า...</div>;
   }
+
+  const normalizedBaseUrl = (form.baseUrl || "").replace(/\/$/, "");
+  const webhookUrl = form.webhookUrl || (normalizedBaseUrl ? `${normalizedBaseUrl}/api/webhook` : "");
+  const liffEndpointUrl = form.liffEndpointUrl || (normalizedBaseUrl ? `${normalizedBaseUrl}/liff` : "");
+  const lineReceiveReady = Boolean(form.hasLineChannelSecret && webhookUrl);
+  const lineSendReady = form.hasLineChannelAccessToken;
+  const liffReady = Boolean(form.liffId && liffEndpointUrl);
+  const lineConnectionReady = lineReceiveReady && lineSendReady && liffReady;
+
+  const LineStatusIcon = lineConnectionReady ? CheckCircle2 : TriangleAlert;
+  const lineStatusCards: Array<{
+    title: string;
+    description: string;
+    ready: boolean;
+    readyLabel: string;
+    missingLabel: string;
+    icon: LucideIcon;
+  }> = [
+    {
+      title: "รับข้อความจาก LINE OA",
+      description: "ใช้ Webhook URL และ Channel Secret เพื่อ verify event ที่เข้าระบบ",
+      ready: lineReceiveReady,
+      readyLabel: "พร้อมรับ webhook",
+      missingLabel: form.hasLineChannelSecret ? "รอ Base URL" : "ยังขาด Channel Secret",
+      icon: MessageCircle,
+    },
+    {
+      title: "ส่งข้อความกลับลูกค้า",
+      description: "ใช้ Channel Access Token สำหรับส่ง quote, payment, status และ proof กลับเข้า LINE",
+      ready: lineSendReady,
+      readyLabel: "พร้อมส่งข้อความ",
+      missingLabel: "ยังขาด Access Token",
+      icon: KeyRound,
+    },
+    {
+      title: "เปิดฟอร์ม LINE MINI App",
+      description: "ใช้ LIFF ID และ endpoint `/liff` เพื่อเปิด intake form ใน LINE browser",
+      ready: liffReady,
+      readyLabel: "พร้อมเปิด LIFF",
+      missingLabel: form.liffId ? "รอ Base URL" : "ยังขาด LIFF ID",
+      icon: Smartphone,
+    },
+  ];
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -669,52 +738,143 @@ export default function SettingsForm() {
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-950">LINE Messaging API และ LINE MINI App</h2>
-        <p className="mt-1 text-sm text-slate-500">กรอกค่าที่เจ้าของระบบได้จาก LINE Developers Console เพื่อให้ระบบส่งข้อความและเปิด LINE MINI App ที่ทำงานบน LIFF SDK ได้โดยไม่ต้องแก้ไฟล์ env</p>
-        <div className="mt-5 grid gap-4">
-          <label className="grid gap-2 text-sm text-slate-700">
-            <span>LINE Channel Access Token</span>
-            <textarea
-              value={form.lineChannelAccessToken}
-              onChange={(e) => updateField("lineChannelAccessToken", e.target.value)}
-              rows={3}
-              className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
-              placeholder={form.hasLineChannelAccessToken ? "มี token ถูกบันทึกไว้แล้ว, กรอกใหม่เมื่อต้องการเปลี่ยน" : "ใส่ค่าจาก Messaging API"}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <p className="text-xs text-slate-500">
-              {form.hasLineChannelAccessToken
-                ? "ระบบมี token อยู่แล้ว ถ้าปล่อยว่างจะเก็บค่าปัจจุบันไว้ และจะไม่ preload กลับมาในเบราว์เซอร์"
-                : "ค่านี้จะไม่ถูก preload กลับมาในเบราว์เซอร์เพื่อความปลอดภัย"}
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">LINE OA และ LINE MINI App</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
+              หน้านี้บอกทีมว่า LINE ใช้งานพร้อมหรือยัง: รับข้อความจาก OA, ส่งข้อความกลับลูกค้า, และเปิดฟอร์ม LIFF
             </p>
-          </label>
+          </div>
+          <span className={lineConnectionReady ? "inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800" : "inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800"}>
+            <LineStatusIcon className="size-4" />
+            {lineConnectionReady ? "พร้อมใช้งานครบ" : "ยังต้องตั้งค่าเพิ่ม"}
+          </span>
+        </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-3">
+          {lineStatusCards.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <div key={item.title} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                <div className="flex items-start gap-3">
+                  <span className={item.ready ? "rounded-2xl bg-emerald-100 p-2 text-emerald-700" : "rounded-2xl bg-amber-100 p-2 text-amber-700"}>
+                    <Icon className="size-5" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-950">{item.title}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">{item.description}</p>
+                  </div>
+                </div>
+                <p className={item.ready ? "mt-3 text-xs font-semibold text-emerald-700" : "mt-3 text-xs font-semibold text-amber-700"}>
+                  {item.ready ? item.readyLabel : item.missingLabel}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm text-slate-700">
-            <span>LINE Channel Secret</span>
-            <input
-              type="password"
-              value={form.lineChannelSecret}
-              onChange={(e) => updateField("lineChannelSecret", e.target.value)}
-              className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
-              placeholder={form.hasLineChannelSecret ? "มี secret ถูกบันทึกไว้แล้ว, กรอกใหม่เมื่อต้องการเปลี่ยน" : "ใส่ค่าจาก Messaging API"}
-              autoComplete="new-password"
-              spellCheck={false}
-            />
-            <p className="text-xs text-slate-500">
-              {form.hasLineChannelSecret
-                ? "ระบบมี secret อยู่แล้ว ถ้าปล่อยว่างจะเก็บค่าปัจจุบันไว้ และจะไม่ preload กลับมาในเบราว์เซอร์"
-                : "ค่านี้จะไม่ถูก preload กลับมาในเบราว์เซอร์เพื่อความปลอดภัย"}
-            </p>
+            <span>Base URL ของระบบ</span>
+            <input value={form.baseUrl} onChange={(e) => updateField("baseUrl", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="https://your-app.vercel.app" />
+            <p className="text-xs leading-5 text-slate-500">ใช้สร้าง Webhook URL และ LIFF endpoint ที่ต้องนำไปวางใน LINE Developers Console</p>
           </label>
           <label className="grid gap-2 text-sm text-slate-700">
             <span>LIFF ID / MINI App ID</span>
             <input value={form.liffId} onChange={(e) => updateField("liffId", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="เช่น 2000000000-xxxxxxx" />
-          </label>
-          <label className="grid gap-2 text-sm text-slate-700">
-            <span>Base URL ของระบบ</span>
-            <input value={form.baseUrl} onChange={(e) => updateField("baseUrl", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="https://your-app.vercel.app" />
+            <p className="text-xs leading-5 text-slate-500">ค่าจาก LINE Login channel ที่ผูกกับ LINE MINI App / LIFF</p>
           </label>
         </div>
+
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+          <div className="flex items-start gap-3">
+            <span className="rounded-2xl bg-slate-900 p-2 text-white">
+              <Link2 className="size-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-slate-950">ค่าที่ทีมต้องนำไปตั้งใน LINE Developers Console</p>
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                Webhook ต้องเป็น `/api/webhook` และ LIFF endpoint ต้องเป็น `/liff` เท่านั้น ไม่ใช้ `/liff/intake`
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3">
+            <label className="grid gap-2 text-sm text-slate-700">
+              <span>Webhook URL</span>
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <input value={webhookUrl} readOnly className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700" />
+                <button type="button" onClick={() => void copySettingValue(webhookUrl, "Webhook URL")} title="คัดลอก Webhook URL" aria-label="คัดลอก Webhook URL" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                  <Clipboard className="size-4" />
+                  คัดลอก
+                </button>
+              </div>
+            </label>
+            <label className="grid gap-2 text-sm text-slate-700">
+              <span>LINE MINI App / LIFF Endpoint URL</span>
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <input value={liffEndpointUrl} readOnly className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700" />
+                <button type="button" onClick={() => void copySettingValue(liffEndpointUrl, "LIFF Endpoint URL")} title="คัดลอก LIFF Endpoint URL" aria-label="คัดลอก LIFF Endpoint URL" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                  <Clipboard className="size-4" />
+                  คัดลอก
+                </button>
+              </div>
+            </label>
+          </div>
+
+          <div className="mt-4 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
+            <p className="rounded-2xl border border-white bg-white px-4 py-3">1. Messaging API: วาง Webhook URL แล้วกด Verify</p>
+            <p className="rounded-2xl border border-white bg-white px-4 py-3">2. Messaging API: เปิด `Use webhook` เป็น Enabled</p>
+            <p className="rounded-2xl border border-white bg-white px-4 py-3">3. LINE MINI App / LIFF: ตั้ง Endpoint URL เป็น `/liff`</p>
+            <p className="rounded-2xl border border-white bg-white px-4 py-3">4. ทดสอบจาก LINE OA จริง ไม่ใช้ desktop browser เป็นหลักฐานเดียว</p>
+          </div>
+        </div>
+
+        <details className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+          <summary className="flex cursor-pointer list-none items-center gap-3 text-sm font-semibold text-slate-900">
+            <span className="rounded-xl bg-slate-100 p-2 text-slate-700">
+              <ShieldCheck className="size-4" />
+            </span>
+            Advanced: LINE Developer credentials
+          </summary>
+          <div className="mt-4 grid gap-4">
+            <label className="grid gap-2 text-sm text-slate-700">
+              <span>LINE Channel Access Token</span>
+              <textarea
+                value={form.lineChannelAccessToken}
+                onChange={(e) => updateField("lineChannelAccessToken", e.target.value)}
+                rows={3}
+                className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
+                placeholder={form.hasLineChannelAccessToken ? "มี token ถูกบันทึกไว้แล้ว, กรอกใหม่เมื่อต้องการเปลี่ยน" : "ใส่ค่าจาก Messaging API"}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="text-xs text-slate-500">
+                {form.hasLineChannelAccessToken
+                  ? "ระบบมี token อยู่แล้ว ถ้าปล่อยว่างจะเก็บค่าปัจจุบันไว้ และจะไม่ preload กลับมาในเบราว์เซอร์"
+                  : "ค่านี้จะไม่ถูก preload กลับมาในเบราว์เซอร์เพื่อความปลอดภัย"}
+              </p>
+            </label>
+            <label className="grid gap-2 text-sm text-slate-700">
+              <span>LINE Channel Secret</span>
+              <input
+                type="password"
+                value={form.lineChannelSecret}
+                onChange={(e) => updateField("lineChannelSecret", e.target.value)}
+                className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
+                placeholder={form.hasLineChannelSecret ? "มี secret ถูกบันทึกไว้แล้ว, กรอกใหม่เมื่อต้องการเปลี่ยน" : "ใส่ค่าจาก Messaging API"}
+                autoComplete="new-password"
+                spellCheck={false}
+              />
+              <p className="text-xs text-slate-500">
+                {form.hasLineChannelSecret
+                  ? "ระบบมี secret อยู่แล้ว ถ้าปล่อยว่างจะเก็บค่าปัจจุบันไว้ และจะไม่ preload กลับมาในเบราว์เซอร์"
+                  : "ค่านี้จะไม่ถูก preload กลับมาในเบราว์เซอร์เพื่อความปลอดภัย"}
+              </p>
+            </label>
+          </div>
+        </details>
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -858,28 +1018,6 @@ export default function SettingsForm() {
               metadata จะยังอยู่เพื่อ audit แต่ไฟล์จริงใน private bucket จะถูก cleanup ตามค่านี้
             </p>
           </label>
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-950">Webhook และ LINE Console Checklist</h2>
-        <p className="mt-1 text-sm text-slate-600">ใช้ค่าด้านล่างใน LINE Developers Console เพื่อให้ LINE OA ยิง event เข้ามาที่ระบบได้จริง</p>
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <label className="grid gap-2 text-sm text-slate-700 md:col-span-2">
-            <span>Webhook URL</span>
-            <input value={form.webhookUrl} readOnly className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-slate-700" />
-          </label>
-          <label className="grid gap-2 text-sm text-slate-700 md:col-span-2">
-            <span>LINE MINI App / LIFF Endpoint URL</span>
-            <input value={form.liffEndpointUrl} readOnly className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-slate-700" />
-          </label>
-        </div>
-        <div className="mt-4 space-y-2 text-sm text-emerald-900">
-          <p>1. ไปที่ LINE Developers Console &gt; Messaging API</p>
-          <p>2. วาง Webhook URL แล้วกด Verify</p>
-          <p>3. เปิดสวิตช์ `Use webhook` ให้เป็น Enabled</p>
-          <p>4. ที่ LINE MINI App / LIFF ให้ลงทะเบียน endpoint เป็น `/liff` ไม่ใช่ `/liff/intake`</p>
-          <p>5. ให้แอปเปิดที่ `/liff` โดยตรง และหลีกเลี่ยงการ redirect ไป path อื่นก่อน `liff.init()` เสร็จ</p>
         </div>
       </section>
 

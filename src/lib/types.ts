@@ -524,8 +524,6 @@ export function calculatePrice(
 
 // Interfaces
 export interface IntakeFormData {
-  lineUserId?: string;
-  displayName?: string;
   liffIdToken?: string;
   liffAccessToken?: string;
   liffContextSnapshot?: unknown;

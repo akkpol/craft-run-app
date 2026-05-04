@@ -144,19 +144,6 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
-function compactLineUserIdForDebug(value: string | null | undefined) {
-  if (!value) {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  if (trimmed.length <= 12) {
-    return trimmed;
-  }
-
-  return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`;
-}
-
 function createLiffDebugFingerprint() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID().split("-")[0];
@@ -282,7 +269,6 @@ function sendLiffIncident(payload: {
   userAgent: string;
   sdkPresent: boolean;
   liffIdConfigured: boolean;
-  lineUserHint?: string;
   liffContextSnapshot?: string;
 }) {
   if (typeof window === "undefined") {
@@ -291,7 +277,6 @@ function sendLiffIncident(payload: {
 
   const body = JSON.stringify({
     ...payload,
-    lineUserHint: payload.lineUserHint || null,
     liffContextSnapshot: payload.liffContextSnapshot || null,
   });
 
@@ -647,7 +632,6 @@ export default function IntakeForm({
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitWarning, setSubmitWarning] = useState("");
   const [error, setError] = useState("");
-  const [lineUserId, setLineUserId] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [liffIdToken, setLiffIdToken] = useState("");
   const [liffAccessToken, setLiffAccessToken] = useState("");
@@ -696,13 +680,8 @@ export default function IntakeForm({
   const commonProfilePluginInstalledRef = useRef(false);
   const reportedLiffIncidentKeysRef = useRef<Set<string>>(new Set());
   const liffConsoleFingerprintRef = useRef(createLiffDebugFingerprint());
-  const latestLineUserIdRef = useRef(lineUserId);
   const latestLiffContextSnapshotRef = useRef(liffContextSnapshot);
   const earliestDueDate = getBangkokTodayDateString();
-
-  useEffect(() => {
-    latestLineUserIdRef.current = lineUserId;
-  }, [lineUserId]);
 
   useEffect(() => {
     latestLiffContextSnapshotRef.current = liffContextSnapshot;
@@ -729,7 +708,6 @@ export default function IntakeForm({
         userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
         sdkPresent: typeof window !== "undefined" && Boolean(window.liff),
         liffIdConfigured: Boolean(liffId),
-        lineUserHint: compactLineUserIdForDebug(latestLineUserIdRef.current),
         liffContextSnapshot: latestLiffContextSnapshotRef.current,
       });
     },
@@ -757,13 +735,12 @@ export default function IntakeForm({
           searchParamKeys:
             typeof window !== "undefined" ? getSearchParamKeys(window.location.search) : [],
           liffIdConfigured: Boolean(liffId),
-          lineUserIdHint: compactLineUserIdForDebug(lineUserId),
           ...details,
         },
         level
       );
     },
-    [intakeMode, liffId, lineUserId]
+    [intakeMode, liffId]
   );
 
   const installCommonProfilePlugin = useCallback(() => {
@@ -1081,14 +1058,11 @@ export default function IntakeForm({
           }
         }
 
-        setLineUserId(profile.userId);
         setDisplayName(profile.displayName);
         setLiffIdToken(idToken || "");
         setLiffAccessToken(accessToken || "");
 
         logIntakeLiffConsole("session_captured", {
-          lineUserId: compactLineUserIdForDebug(profile.userId),
-          displayName: profile.displayName,
           contextType: context?.type || null,
           viewType: context?.viewType || null,
           lineVersion,
@@ -1126,7 +1100,6 @@ export default function IntakeForm({
             context: context
               ? {
                   type: context.type || null,
-                  userId: context.userId || null,
                   liffId: context.liffId || null,
                   viewType: context.viewType || null,
                   endpointUrl: context.endpointUrl || null,
@@ -1145,9 +1118,12 @@ export default function IntakeForm({
         );
 
         // Prefill returning customer data (skip for fresh/restart mode)
-        const devLineUserId = new URLSearchParams(window.location.search)
-          .get("lineUserId")
-          ?.trim();
+        const devLineUserId =
+          process.env.NODE_ENV !== "production"
+            ? new URLSearchParams(window.location.search)
+                .get("lineUserId")
+                ?.trim()
+            : undefined;
 
         if (intakeMode !== "fresh" && (idToken || devLineUserId)) {
           try {
@@ -1571,12 +1547,6 @@ export default function IntakeForm({
       try {
         const formData = new FormData();
         formData.append("liffIdToken", liffIdToken || "");
-        if (!liffIdToken && lineUserId) {
-          formData.append("lineUserId", lineUserId);
-        }
-        if (!liffIdToken && displayName) {
-          formData.append("displayName", displayName);
-        }
         formData.append("productType", productType);
         formData.append("width", String(Number(width)));
         formData.append("height", String(Number(height)));
@@ -1698,8 +1668,6 @@ export default function IntakeForm({
       note,
       referenceInfo,
       referenceFiles,
-      lineUserId,
-      displayName,
       liffId,
       liffIdToken,
       liffAccessToken,

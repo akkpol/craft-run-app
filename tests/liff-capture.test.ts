@@ -48,7 +48,6 @@ test("normalizeLiffContextSnapshot keeps useful LIFF environment data", () => {
     grantedScopes: ["profile", "openid", "email"],
     context: {
       type: "utou",
-      userId: "U123",
       liffId: "2000000000-xxxxxxx",
       viewType: "full",
       endpointUrl: "https://example.com/liff",
