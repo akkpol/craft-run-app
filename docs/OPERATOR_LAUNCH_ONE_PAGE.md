@@ -9,6 +9,7 @@ source_refs:
   - docs/PHASE2_OPERATOR_GATE_CHECKLIST.md
   - docs/LIFF_LIVE_VALIDATION_RUNBOOK.md
   - docs/OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md
+  - docs/COMMERCIAL_DOCUMENT_POLICY_V1.md
 ---
 
 # Operator Launch One Page
@@ -20,6 +21,7 @@ source_refs:
 - ถ้า `P2-G03` ไม่ผ่าน ให้หยุดทันที
 - ถ้า `P2-G05` หรือ `P2-G06` ไม่ผ่าน ห้ามเริ่ม live LIFF run
 - ถ้า gate ใดใน `P3-G01` ถึง `P3-G05` ไม่ผ่าน ให้ถือว่ายัง launch-blocked และหยุดก่อน
+- ถ้า launch นี้ต้องมีใบวางบิล, ใบแจ้งหนี้, ใบเสร็จ, tax-ready, หรือใบกำกับภาษีที่ออกจากระบบจริง ให้หยุดและเปิด [COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md) ก่อน sign-off เพราะตอนนี้ quote PDF และ payment unlock ยังไม่ใช่ commercial document issuance
 
 ## Fixed Values
 
@@ -27,6 +29,8 @@ source_refs:
 - Webhook URL: `https://craft-run.vercel.app/api/webhook`
 - LIFF endpoint: `https://craft-run.vercel.app/liff`
 - Logged-out admin test URL: `https://craft-run.vercel.app/admin`
+- Commercial document policy: [COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md)
+- Commercial document packet: [../plan/feature-commercial-documents-1.md](../plan/feature-commercial-documents-1.md)
 - ถ้า LIFF พังก่อน submit ให้เช็ก `/admin/liff-monitor` ก่อน
 
 ## Minimum Evidence For Every Item
@@ -98,6 +102,14 @@ Send back: fail-path screenshot + pass-path screenshot + exact error text
 Pass when: product picker โหลด runtime catalog ได้ และหน้า quote/status/download แสดง product label ที่อ่านได้ ไม่ใช่ slug ดิบ
 Send back: picker screenshot + quote/status/download evidence + exact mismatch ถ้ามี
 
+### Commercial Document Handoff Before Sign-Off
+
+- Quote PDF ที่ผ่านใน `P3-G08` คือ quotation เท่านั้น ไม่ใช่ invoice, receipt, หรือ tax invoice
+- Payment unlock ที่ผ่านใน `P3-G09` คือ workflow/payment gate เท่านั้น ไม่ใช่การออกเอกสารรับเงิน
+- `LIFF-VAL-007` ตรวจ branch-code validation ตอน intake เท่านั้น ไม่ใช่ proof ว่าออกใบกำกับภาษีได้แล้ว
+- ถ้า business owner ยอมให้ launch ก่อน ให้ส่งผลกลับว่า `COMMERCIAL-POLICY-HANDOFF = Deferred after launch`
+- ถ้า business owner ต้องการเอกสารเหล่านี้ก่อนเปิดจริง ให้ส่งผลกลับว่า `COMMERCIAL-POLICY-HANDOFF = Required before GO`
+
 ## Reply Back Using This Exact Shape
 
 ส่งกลับมาทีละ block แบบนี้ แล้ว Delivery จะเอาไปวางต่อใน `docs/GO_NOGO_REVIEW.md`:
@@ -127,6 +139,7 @@ Suggested `Item` values:
 - `LIFF-VAL-006`
 - `LIFF-VAL-007`
 - `LIFF-VAL-008`
+- `COMMERCIAL-POLICY-HANDOFF`
 
 ## Deep Docs Only If Needed
 
@@ -134,3 +147,4 @@ Suggested `Item` values:
 - [PHASE2_OPERATOR_GATE_CHECKLIST.md](PHASE2_OPERATOR_GATE_CHECKLIST.md)
 - [LIFF_LIVE_VALIDATION_RUNBOOK.md](LIFF_LIVE_VALIDATION_RUNBOOK.md)
 - [OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md](OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md)
+- [COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md)

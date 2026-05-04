@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ComponentProps } from "react";
+import { useId, useState, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
 import {
   PAYMENT_STATUS_LABELS,
@@ -9,6 +9,14 @@ import {
   PAYMENT_TERMS,
   type PaymentTerm,
 } from "@/lib/types";
+import {
+  getCommercialReceiverLabel,
+  getCommercialReceiverWarnings,
+  type CommercialOrderReceiverState,
+  type CommercialReceiverEntityOption,
+  type CommercialReceiverWarning,
+} from "@/lib/commercial-receiver-ui";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -25,7 +33,29 @@ type Props = {
   paymentTerms: PaymentTerm;
   paymentStatus: keyof typeof PAYMENT_STATUS_LABELS;
   hasJob: boolean;
+  requestedDocumentType?: string | null;
+  commercialOrder?: CommercialOrderReceiverState | null;
+  commercialReceiverEntities?: CommercialReceiverEntityOption[];
 };
+
+function receiverWarningClass(warning: CommercialReceiverWarning) {
+  return cn(
+    "rounded-xl border px-3 py-2 text-xs leading-5",
+    warning.tone === "success" && "border-emerald-200 bg-emerald-50 text-emerald-900",
+    warning.tone === "info" && "border-sky-200 bg-sky-50 text-sky-900",
+    warning.tone === "warning" && "border-amber-200 bg-amber-50 text-amber-900",
+    warning.tone === "danger" && "border-rose-200 bg-rose-50 text-rose-900"
+  );
+}
+
+function receiverStatusClass(tone: "missing" | "selected" | "locked") {
+  return cn(
+    "max-w-52 truncate rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none",
+    tone === "missing" && "border-amber-200 bg-amber-50 text-amber-800",
+    tone === "selected" && "border-sky-200 bg-sky-50 text-sky-800",
+    tone === "locked" && "border-slate-300 bg-slate-100 text-slate-700"
+  );
+}
 
 export default function AdminQuoteActions({
   quoteId,
@@ -34,6 +64,9 @@ export default function AdminQuoteActions({
   paymentTerms,
   paymentStatus,
   hasJob,
+  requestedDocumentType = null,
+  commercialOrder = null,
+  commercialReceiverEntities = [],
   buttonVariant = "outline",
   buttonLabel = "ดูแล quote",
 }: Props & {
@@ -43,12 +76,35 @@ export default function AdminQuoteActions({
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<AdminToastState | null>(null);
   const [panel, setPanel] = useState<
-    "commercial" | "deposit" | "paid" | "reject" | "rescope" | null
+    "commercial" | "deposit" | "paid" | "receiver" | "issueDocument" | "reject" | "rescope" | null
   >(null);
   const [paymentTermsDraft, setPaymentTermsDraft] = useState(paymentTerms);
   const [paymentStatusDraft, setPaymentStatusDraft] = useState(paymentStatus);
+  const [receiverEntityIdDraft, setReceiverEntityIdDraft] = useState(
+    commercialOrder?.selectedReceiverEntityId || ""
+  );
   const [note, setNote] = useState("");
+  const paymentTermsSelectId = useId();
+  const paymentStatusSelectId = useId();
   const router = useRouter();
+
+  const selectedReceiverEntity =
+    commercialReceiverEntities.find((entity) => entity.id === receiverEntityIdDraft) || null;
+  const savedReceiverEntity =
+    commercialReceiverEntities.find(
+      (entity) => entity.id === commercialOrder?.selectedReceiverEntityId
+    ) || null;
+  const receiverLocked = Boolean(commercialOrder?.paymentReceiverLockedAt);
+  const confirmedPaymentId = commercialOrder?.confirmedPaymentId || null;
+  const issuedDocumentId = commercialOrder?.issuedDocumentId || null;
+  const issuedDocumentType = commercialOrder?.issuedDocumentType || null;
+  const issuedDocumentNumber = commercialOrder?.issuedDocumentNumber || null;
+  const receiverWarnings = getCommercialReceiverWarnings({
+    selectedEntity: selectedReceiverEntity,
+    requestedDocumentType,
+    customerTaxProfileId: commercialOrder?.customerTaxProfileId || null,
+    paymentReceiverLockedAt: commercialOrder?.paymentReceiverLockedAt || null,
+  });
 
   async function callApi(url: string, body: unknown, errorLabel: string) {
     setLoading(true);
@@ -72,6 +128,7 @@ export default function AdminQuoteActions({
     setPanel(nextPanel);
     setPaymentTermsDraft(paymentTerms);
     setPaymentStatusDraft(paymentStatus);
+    setReceiverEntityIdDraft(commercialOrder?.selectedReceiverEntityId || "");
 
     if (nextPanel === "rescope") {
       setNote("ลูกค้าขอปรับรายละเอียดและออกใบเสนอราคาใหม่");
@@ -141,6 +198,41 @@ export default function AdminQuoteActions({
     }
   }
 
+  async function updateReceiverEntity() {
+    if (!receiverEntityIdDraft) {
+      setToast({
+        tone: "warning",
+        title: "ยังไม่ได้เลือกผู้รับเงิน",
+      });
+      return;
+    }
+
+    try {
+      await callApi(
+        "/api/commercial/select-receiver",
+        {
+          orderId: commercialOrder?.id || undefined,
+          quoteId,
+          receiverEntityId: receiverEntityIdDraft,
+        },
+        "เลือกผู้รับเงินไม่สำเร็จ"
+      );
+      setToast({
+        tone: "success",
+        title: "เลือกผู้รับเงิน/ผู้ออกเอกสารแล้ว",
+        description: getCommercialReceiverLabel(selectedReceiverEntity),
+      });
+      router.refresh();
+      closePanel();
+    } catch (error) {
+      setToast({
+        tone: "error",
+        title: "เลือกผู้รับเงินไม่สำเร็จ",
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+  }
+
   async function submitQuoteAction(action: "reject_quote" | "rescope_quote") {
     try {
       await callApi(
@@ -164,12 +256,87 @@ export default function AdminQuoteActions({
     }
   }
 
+  async function issueCommercialDocument() {
+    if (!confirmedPaymentId) {
+      setToast({
+        tone: "warning",
+        title: "ยังไม่มี payment ที่ยืนยันแล้ว",
+        description: "ต้องยืนยันรับชำระก่อน จึงจะออกเอกสารเชิงพาณิชย์ได้",
+      });
+      return;
+    }
+
+    try {
+      const payload = await callApi(
+        "/api/commercial/documents/issue",
+        { paymentId: confirmedPaymentId },
+        "ออกเอกสารเชิงพาณิชย์ไม่สำเร็จ"
+      );
+      setToast({
+        tone: "success",
+        title: "ออกเอกสารหลังรับชำระแล้ว",
+        description:
+          payload?.documentNumber || payload?.documentType || "Commercial document issued",
+      });
+      router.refresh();
+      closePanel();
+    } catch (error) {
+      setToast({
+        tone: "error",
+        title: "ออกเอกสารเชิงพาณิชย์ไม่สำเร็จ",
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+  }
+
   const canEditTerms = !hasJob && (quoteStatus === "sent" || quoteStatus === "approved");
   const canCapturePayment = !hasJob && quoteStatus === "approved" && paymentTerms !== "credit";
   const canRejectQuote = !hasJob && quoteStatus === "sent";
   const canRescopeQuote = !hasJob && (quoteStatus === "sent" || quoteStatus === "approved");
+  const canShowReceiverAction =
+    commercialReceiverEntities.length > 0 &&
+    (receiverLocked || (!hasJob && (quoteStatus === "sent" || quoteStatus === "approved")));
+  const canIssueCommercialDocument =
+    Boolean(confirmedPaymentId) &&
+    !issuedDocumentId &&
+    requestedDocumentType !== "quote";
+  const receiverStatusTone = receiverLocked
+    ? "locked"
+    : commercialOrder?.selectedReceiverEntityId
+      ? "selected"
+      : "missing";
+  const receiverStatusLabel = receiverLocked
+    ? `ล็อก: ${getCommercialReceiverLabel(savedReceiverEntity)}`
+    : commercialOrder?.selectedReceiverEntityId
+      ? `ผู้รับเงิน: ${getCommercialReceiverLabel(savedReceiverEntity)}`
+      : "ยังไม่เลือกผู้รับเงิน";
+  const effectiveButtonLabel =
+    canShowReceiverAction && receiverStatusTone === "missing"
+      ? "เลือกผู้รับเงิน"
+      : buttonLabel;
 
   const actions = [
+    canShowReceiverAction
+      ? {
+          key: "receiver",
+          label: receiverLocked
+            ? "ดูผู้รับเงินที่ล็อกแล้ว"
+            : "เลือกผู้รับเงิน/ผู้ออกเอกสาร",
+          description: receiverLocked
+            ? getCommercialReceiverLabel(savedReceiverEntity)
+            : "ใช้ก่อนยืนยัน payment เพื่อให้เอกสารออกชื่อเดียวกับผู้รับเงิน",
+        }
+      : null,
+    canIssueCommercialDocument
+      ? {
+          key: "issueDocument",
+          label: "ออกเอกสารหลังรับชำระ",
+          description:
+            requestedDocumentType === "tax_invoice"
+              ? "สร้างใบเสร็จรับเงิน/ใบกำกับภาษีจาก receiver ที่ถูก lock แล้ว"
+              : "สร้างใบเสร็จรับเงินจาก receiver ที่ถูก lock แล้ว",
+        }
+      : null,
     canEditTerms
       ? {
           key: "commercial",
@@ -210,14 +377,75 @@ export default function AdminQuoteActions({
 
   return (
     <>
-      <AdminActionMenu
-        actions={actions}
-        onSelect={(key) => openPanel(key as typeof panel)}
-        disabled={loading}
-        compact
-        label={buttonLabel}
-        buttonVariant={buttonVariant}
-      />
+      <div className="inline-flex flex-col items-end gap-1.5">
+        {canShowReceiverAction ? (
+          <span className={receiverStatusClass(receiverStatusTone)} title={receiverStatusLabel}>
+            {receiverStatusLabel}
+          </span>
+        ) : null}
+        {issuedDocumentId ? (
+          <a
+            href={`/commercial/documents/${issuedDocumentId}/download`}
+            target="_blank"
+            rel="noreferrer"
+            className="max-w-52 truncate rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium leading-none text-emerald-800 hover:border-emerald-300 hover:bg-emerald-100 transition-colors"
+            title={issuedDocumentNumber || issuedDocumentType || "issued"}
+          >
+            ออกเอกสารแล้ว{issuedDocumentNumber ? `: ${issuedDocumentNumber}` : ""} ↗
+          </a>
+        ) : null}
+        <AdminActionMenu
+          actions={actions}
+          onSelect={(key) => openPanel(key as typeof panel)}
+          disabled={loading}
+          compact
+          label={effectiveButtonLabel}
+          buttonVariant={buttonVariant}
+        />
+
+        <AdminActionSheet
+          open={panel === "issueDocument"}
+          onClose={closePanel}
+          title="ออกเอกสารหลังรับชำระ"
+          description="ใช้ confirmed payment และ receiver ที่ถูก lock เพื่อสร้างเอกสารตาม policy v1"
+          badge="Commercial"
+          footer={
+            <div className="flex items-center justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={closePanel}>
+                ยกเลิก
+              </Button>
+              <Button type="button" onClick={issueCommercialDocument} disabled={loading || !confirmedPaymentId}>
+                {loading ? "กำลังออกเอกสาร..." : "ออกเอกสารตอนนี้"}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3 text-sm text-slate-700">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p>
+                เอกสารที่จะออก: <span className="font-semibold text-slate-950">
+                  {requestedDocumentType === "tax_invoice"
+                    ? "ใบเสร็จรับเงิน/ใบกำกับภาษี"
+                    : "ใบเสร็จรับเงิน"}
+                </span>
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                ระบบจะใช้ receiver ที่ถูกล็อกหลังยืนยัน payment เท่านั้น
+              </p>
+            </div>
+
+            {receiverWarnings.length > 0 ? (
+              <div className="space-y-2">
+                {receiverWarnings.map((warning) => (
+                  <div key={`${warning.tone}-${warning.message}`} className={receiverWarningClass(warning)}>
+                    {warning.message}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </AdminActionSheet>
+      </div>
 
       <AdminActionSheet
         open={panel === "commercial"}
@@ -242,8 +470,9 @@ export default function AdminQuoteActions({
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-800">เงื่อนไขชำระเงิน</label>
+            <label htmlFor={paymentTermsSelectId} className="mb-2 block text-sm font-medium text-slate-800">เงื่อนไขชำระเงิน</label>
             <select
+              id={paymentTermsSelectId}
               value={paymentTermsDraft}
               onChange={(event) => setPaymentTermsDraft(event.target.value as PaymentTerm)}
               className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
@@ -257,8 +486,9 @@ export default function AdminQuoteActions({
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-800">สถานะชำระเงิน</label>
+            <label htmlFor={paymentStatusSelectId} className="mb-2 block text-sm font-medium text-slate-800">สถานะชำระเงิน</label>
             <select
+              id={paymentStatusSelectId}
               value={paymentStatusDraft}
               onChange={(event) =>
                 setPaymentStatusDraft(event.target.value as Props["paymentStatus"])
@@ -316,6 +546,75 @@ export default function AdminQuoteActions({
       >
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
           ถ้า payment gate ปลดล็อกได้ ระบบจะสร้างงานต่อให้ตาม logic เดิมของ quote workflow
+        </div>
+      </AdminActionSheet>
+
+      <AdminActionSheet
+        open={panel === "receiver"}
+        onClose={closePanel}
+        title="เลือกผู้รับเงิน/ผู้ออกเอกสาร"
+        description="เงินเข้าใคร เอกสารหลังรับเงินต้องออกชื่อนั้น เลือกได้จนกว่า payment จะถูกยืนยันและ lock"
+        badge="Commercial Policy"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={closePanel}>
+              ปิด
+            </Button>
+            <Button
+              type="button"
+              onClick={updateReceiverEntity}
+              disabled={loading || receiverLocked || !receiverEntityIdDraft}
+            >
+              {loading ? "กำลังบันทึก..." : receiverLocked ? "ล็อกแล้ว" : "บันทึกผู้รับเงิน"}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            ปัจจุบัน: {getCommercialReceiverLabel(savedReceiverEntity)}
+          </div>
+
+          <div className="space-y-2" aria-live="polite">
+            <p className="text-sm font-medium text-slate-800">ผลต่อเอกสารหลังรับเงิน</p>
+            {receiverWarnings.map((warning) => (
+              <div key={warning.message} className={receiverWarningClass(warning)}>
+                {warning.message}
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-800">ผู้รับเงิน</p>
+            {commercialReceiverEntities.map((entity) => {
+              const selected = receiverEntityIdDraft === entity.id;
+              return (
+                <button
+                  key={entity.id}
+                  type="button"
+                  disabled={receiverLocked || !entity.active}
+                  onClick={() => setReceiverEntityIdDraft(entity.id)}
+                  className={cn(
+                    "flex w-full items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition",
+                    selected
+                      ? "border-sky-300 bg-sky-50 text-sky-950"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
+                    (!entity.active || receiverLocked) && "cursor-not-allowed opacity-70"
+                  )}
+                >
+                  <span>
+                    <span className="block text-sm font-semibold">{entity.displayName}</span>
+                    <span className="mt-1 block text-xs leading-5 text-slate-500">
+                      {entity.legalName} · {entity.role} · {entity.isVatRegistered ? "จด VAT" : "ไม่จด VAT"}
+                    </span>
+                  </span>
+                  <span className="mt-0.5 rounded-full border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-500">
+                    {entity.active ? "เปิดใช้งาน" : "ปิดใช้งาน"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </AdminActionSheet>
 

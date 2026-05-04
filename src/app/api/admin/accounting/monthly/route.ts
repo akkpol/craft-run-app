@@ -4,6 +4,7 @@ import {
   buildMonthlyAccountingCsv,
   getAccountingMonthRange,
 } from "@/lib/quote-payment-records";
+import { resolveAdminAccess } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { firstRow } from "@/lib/utils";
@@ -11,10 +12,14 @@ import { firstRow } from "@/lib/utils";
 export async function GET(request: NextRequest) {
   const authClient = await createClient();
   const { data: authData } = await authClient.auth.getClaims();
-  const claims = authData?.claims;
+  const access = resolveAdminAccess(authData?.claims);
 
-  if (!claims) {
+  if (!access.authenticated) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!access.allowed) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const monthRange = getAccountingMonthRange(

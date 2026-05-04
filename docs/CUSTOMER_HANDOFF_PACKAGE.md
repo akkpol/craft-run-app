@@ -40,6 +40,9 @@ All variables must be configured in Vercel Project Settings → Environment Vari
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase dashboard → Project Settings → API → `anon` public key | Browser/SSR read-only access | Public/client | Operator |
 | `SUPABASE_SECRET_KEY` | Supabase dashboard → Project Settings → API → `service_role` key | Server-only admin DB operations | **Server only — never expose to browser** | Operator |
 | `NEXT_PUBLIC_BASE_URL` | Self-defined — your Vercel deployment URL | Builds all quote/status/liff links | Public/client | Operator |
+| `OPENAI_API_KEY` | OpenAI Platform | Optional fallback key for AI preview provider `openai` | Server only | Operator / Business owner |
+| `GOOGLE_API_KEY` | Google AI Studio | Optional fallback key for AI preview provider `google` | Server only | Operator / Business owner |
+| `GEMINI_API_KEY` | Google AI Studio / legacy naming | Optional fallback if `GOOGLE_API_KEY` is not set | Server only | Operator / Business owner |
 | `VERCEL_OIDC_TOKEN` | Auto-provided by Vercel runtime | Vercel integration token | Deployment only | Auto |
 
 ---
@@ -133,9 +136,12 @@ All changes to these settings are recorded in the `action_log` table with `actio
 ## 8. PDF / Quote Document Access
 
 - Quote PDF is publicly accessible at `<base-url>/quote/<token>/download` using the token embedded in LINE messages.
+- The current quote PDF is a quotation document only. It must not be presented as an invoice, receipt, tax invoice, or legal/compliance-complete tax document.
 - No login is required — the token itself is the authorization credential.
 - Tokens are UUIDs generated at quote creation and do not expire by default.
 - Business logo and company details come from runtime settings at `/admin/settings`.
+
+Commercial document policy source: [COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md). Implementation for billing note, invoice, receipt, tax-ready, and tax-invoice issuance belongs to [../plan/feature-commercial-documents-1.md](../plan/feature-commercial-documents-1.md).
 
 ---
 

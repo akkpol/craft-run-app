@@ -11,6 +11,11 @@ import { paymentUnlocksProduction } from "@/lib/quote-workflow";
 import { ALLOWED_JOB_TRANSITIONS } from "@/lib/workflow-transitions";
 import { createOrReuseActiveProductionLink } from "@/lib/production-media";
 import { logHumanAction } from "@/lib/action-log";
+import {
+  fetchCommercialAdminContextForQuoteIds,
+  type CommercialAdminContext,
+} from "@/lib/commercial-admin-context";
+import { validateTransition } from "@/lib/workflow-policy";
 
 function getLeadStatusForJobStatus(status: JobStatus): string {
   if (status === "COMPLETED") {
@@ -78,7 +83,7 @@ export async function POST(
   const { data: currentJob, error: currentJobError } = await supabase
     .from("jobs")
     .select(
-      "id, lead_id, status, quotes(public_token, payment_terms, payment_status, leads(conversation_id, design_status, fulfillment_mode, ai_image_prompt, ai_prompt_snapshot))"
+      "id, lead_id, status, quotes(id, public_token, payment_terms, payment_status, leads(conversation_id, design_status, fulfillment_mode, ai_image_prompt, ai_prompt_snapshot, requested_document_type))"
     )
     .eq("id", id)
     .single();
@@ -99,20 +104,43 @@ export async function POST(
       paymentTerms && paymentStatus
         ? paymentUnlocksProduction(paymentTerms, paymentStatus)
         : false;
-    const designReady =
-      lead?.design_status === "approved" ||
-      !(lead?.ai_image_prompt || lead?.ai_prompt_snapshot);
+    const commercialContext: CommercialAdminContext = quote?.id
+      ? await fetchCommercialAdminContextForQuoteIds([quote.id])
+      : { receiverEntities: [], orderByQuoteId: {} };
+    const commercialOrder = quote?.id
+      ? commercialContext.orderByQuoteId[quote.id] || null
+      : null;
+    const requestedDocumentType = lead?.requested_document_type || null;
+    const requiredCommercialDocumentType = paymentReady
+      ? requestedDocumentType === "tax_invoice"
+        ? "tax_invoice"
+        : requestedDocumentType === "receipt"
+          ? "receipt"
+          : null
+      : null;
+    const transitionValidation = validateTransition({
+      entity: "job",
+      action: "move_to_production",
+      from_state: {
+        job_status: currentJob.status,
+        design_status: lead?.design_status || null,
+        payment_terms: paymentTerms,
+        payment_status: paymentStatus,
+        required_document_type: requiredCommercialDocumentType,
+        required_document_issued: Boolean(commercialOrder?.issuedDocumentId),
+        commercial_review_required:
+          Boolean(requiredCommercialDocumentType) &&
+          (!commercialOrder?.selectedReceiverEntityId || !commercialOrder?.paymentReceiverLockedAt),
+        payment_receiver_locked: Boolean(commercialOrder?.paymentReceiverLockedAt),
+      },
+    });
 
-    if (!paymentReady) {
+    if (transitionValidation.decision !== "allowed") {
       return NextResponse.json(
-        { error: "Payment must be cleared before entering production" },
-        { status: 400 }
-      );
-    }
-
-    if (!designReady) {
-      return NextResponse.json(
-        { error: "Design must be approved before entering production" },
+        {
+          error: transitionValidation.reason,
+          missingRequirements: transitionValidation.missing_requirements,
+        },
         { status: 400 }
       );
     }

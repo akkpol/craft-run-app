@@ -2,7 +2,7 @@
 goal: FOGUS Go-Live Execution Waves
 version: 1.0
 date_created: 2026-04-19
-last_updated: 2026-04-27
+last_updated: 2026-05-02
 owner: Delivery Engineering
 status: In progress
 tags: [process, delivery, go-live, waves, backlog]
@@ -34,6 +34,8 @@ Execution aids for the current pending operator work:
 - [../docs/PHASE2_OPERATOR_GATE_CHECKLIST.md](../docs/PHASE2_OPERATOR_GATE_CHECKLIST.md) for `P2-G03`, `P2-G05`, `P2-G06`, `P2-G07`
 - [../docs/LIFF_LIVE_VALIDATION_RUNBOOK.md](../docs/LIFF_LIVE_VALIDATION_RUNBOOK.md) for `LIFF-VAL-005` through `LIFF-VAL-008`
 - [../docs/OPERATOR_HANDOFF_MESSAGE_TH.md](../docs/OPERATOR_HANDOFF_MESSAGE_TH.md) for a copy-paste operator handoff message in Thai
+- [../docs/COMMERCIAL_DOCUMENT_POLICY_V1.md](../docs/COMMERCIAL_DOCUMENT_POLICY_V1.md) for the commercial document sign-off boundary before `TASK-024` closes
+- [feature-commercial-documents-1.md](feature-commercial-documents-1.md) for the deferred implementation packet if commercial documents are required before GO
 
 ## Safe Path
 
@@ -43,7 +45,8 @@ If the goal is to get through go-live with the least confusion, follow this path
 2. Use `docs/GO_NOGO_REVIEW.md` only when a step requires live environment evidence, gate status, or sign-off.
 3. Use `plan/2026-04-25-main-landing-consolidated-plan.md` only for branch overlap, merge hygiene, and landing context.
 4. If the customer LIFF intake surface is functionally ready and local validation is green, treat LIFF completion as a deploy-first launch-path item; do not hold that deploy for Wave 5 follow-up architecture such as R2, Studio, AI-provider expansion, or broader backoffice polish.
-5. Do not start Wave 5 while TASK-024 is still open, except for LIFF-specific stabilization work that is explicitly required to make the customer intake path deployable.
+5. Before closing `TASK-024`, record whether commercial documents are `Deferred after launch` or `Required before GO` in `docs/GO_NOGO_REVIEW.md`.
+6. Do not start Wave 5 while TASK-024 is still open, except for LIFF-specific stabilization work that is explicitly required to make the customer intake path deployable.
 
 ### LIFF Deploy-First Slice
 
@@ -64,11 +67,11 @@ Treat LIFF as complete only when all items below are complete. If any item is st
 | LIFF-VAL-001 | Deploy env guard | `npm run check:line-liff-env` in a deploy-like env or confirm the same pass in Vercel build logs. | Complete locally on 2026-04-27; keep Vercel build evidence for launch |
 | LIFF-VAL-002 | Key file health | Keep zero editor/type problems in `src/app/liff/intake/intake-form.tsx`, `src/app/liff/intake/product-type-picker.tsx`, `src/app/liff/intake/intake-page-content.tsx`, `src/app/api/intake/route.ts`, and `src/app/api/customers/prefill/route.ts`. | Complete locally on current branch |
 | LIFF-VAL-003 | Helper regression set | Run `node --test tests/payment-display.test.ts tests/liff-capture.test.ts tests/lead-ai-prompt.test.ts tests/admin-overview-pagination.test.ts`. | Complete locally on 2026-04-27; still helper-only coverage |
-| LIFF-VAL-004 | LIFF endpoint contract | Confirm the registered LINE MINI App endpoint is `<base-url>/liff`, not `/liff/intake`, and `LIFF_ID` matches `NEXT_PUBLIC_LIFF_ID`. | Pending live console evidence |
-| LIFF-VAL-005 | First-time customer path | Run one real LINE -> LIFF -> intake submission and confirm customer, lead, and quote rows are created with product snapshot fields. | Pending live evidence |
-| LIFF-VAL-006 | Returning-customer prefill path | Reopen LIFF with a customer who already has leads and confirm phone plus last document/billing defaults prefill correctly. | Pending live evidence |
-| LIFF-VAL-007 | Company tax-document validation | Submit one company tax-invoice case without branch code and confirm the Thai validation error is shown, then submit the same case with branch code and confirm intake succeeds. | Pending focused run |
-| LIFF-VAL-008 | Runtime catalog path | Confirm the LIFF picker loads runtime catalog items from `/api/intake/product-catalog` and that quote/status/download pages render the imported product label instead of a slug fallback. | Pending focused run |
+| LIFF-VAL-004 | LIFF endpoint contract | Confirm the registered LINE MINI App endpoint is `<base-url>/liff`, not `/liff/intake`, and `LIFF_ID` matches `NEXT_PUBLIC_LIFF_ID`. | Complete via Phase 2 evidence on 2026-05-02 |
+| LIFF-VAL-005 | First-time customer path | Run one real LINE -> LIFF -> intake submission and confirm customer, lead, and quote rows are created with product snapshot fields. | Complete via P3-G05 evidence on 2026-05-02 |
+| LIFF-VAL-006 | Returning-customer prefill path | Reopen LIFF with a customer who already has leads and confirm phone plus last document/billing defaults prefill correctly. | Pending focused operator run |
+| LIFF-VAL-007 | Company tax-document validation | Submit one company tax-invoice case without branch code and confirm the Thai validation error is shown, then submit the same case with branch code and confirm intake succeeds. This proves intake validation only, not tax-invoice issuance. | Pending focused operator run |
+| LIFF-VAL-008 | Runtime catalog path | Confirm the LIFF picker loads runtime catalog items from `/api/intake/product-catalog` and that quote/status/download pages render the imported product label instead of a slug fallback. | Pending focused operator run |
 | LIFF-VAL-009 | Local non-LIFF smoke | Use localhost or `devNoLiff=1` only for form-behavior smoke, and record it explicitly as non-production evidence. | Complete as a dev-only path, not sufficient for launch |
 
 ### Current LIFF Deploy Blocker Snapshot
@@ -87,12 +90,12 @@ Complete now:
 
 Not complete yet:
 
-- `docs/GO_NOGO_REVIEW.md` still shows `P2-G03`, `P2-G05`, `P2-G06`, `P2-G07`, `P3-G04`, and `P3-G05` as pending, so live LIFF readiness is not yet proven.
-- the current automated test set does not cover the new LIFF-only behaviors in `/api/customers/prefill`, runtime product-catalog loading, or the new tax-document branch validation path.
-- the real LINE identity path has not yet been re-run end to end after adding `liffAccessToken`, `liffContextSnapshot`, runtime product snapshots, and new document/billing intake fields.
+- `docs/GO_NOGO_REVIEW.md` now records Phase 2 and Phase 3 as PASS, but launch sign-off is still blocked by `LIFF-VAL-006`, `LIFF-VAL-007`, and `LIFF-VAL-008`.
+- the current automated test set does not replace live proof for returning-customer prefill, company tax-document validation, or runtime product-catalog rendering in the production LIFF session.
 - local success alone is not enough because localhost/dev bypass skips the production LIFF identity and console-registration path by design.
+- commercial document policy v1 is recorded, but billing note, invoice, receipt, tax-ready, and tax-invoice issuance are not implemented; sign-off must explicitly defer them or keep launch blocked.
 
-Execution rule for the current landing candidate: do not expand LIFF scope again until LIFF-VAL-003 through LIFF-VAL-008 are either completed or explicitly waived with written launch reasoning.
+Execution rule for the current landing candidate: do not expand LIFF scope again until LIFF-VAL-006 through LIFF-VAL-008 are either completed or explicitly waived with written launch reasoning.
 
 When in doubt, stop comparing documents and come back to this file.
 
@@ -126,7 +129,7 @@ When in doubt, stop comparing documents and come back to this file.
 - **GOAL-001**: Make the production backoffice safe enough to expose to a real customer team.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
+|---|---|---|---|
 | TASK-001 | Audit and harden backoffice auth in `src/lib/middleware.ts` so `/admin` access requires an authenticated staff/admin account, not just any authenticated user. | Yes | 2026-04-25 |
 | TASK-002 | Replace production reliance on public sign-up by updating `src/app/auth/sign-up/page.tsx`, `src/components/sign-up-form.tsx`, and `src/components/login-form.tsx` to remove or clearly disable self-service admin registration. | Yes | 2026-04-25 |
 | TASK-003 | Define the fastest staff access rule for v1 using an explicit allowlist such as `ADMIN_ALLOWED_EMAILS`, and document it in `.env.example`, `docs/ENV_AND_LINE_SETUP.md`, and `README.md`. | Yes | 2026-04-25 |
@@ -143,8 +146,8 @@ Wave 1 is no longer a greenfield hardening wave. The access lock, sign-up disabl
 | W1-VAL-002 | Unauthorized authenticated user at `/admin` | Non-allowlisted authenticated user is blocked from admin access | Local browser check on `http://localhost:3001`: `g.sepiro@gmail.com` authenticated but was blocked from admin access with the allowlist-deny message on 2026-05-02 | Done |
 | W1-VAL-003 | Protected route continuity at `/protected` | Normal authenticated user can still reach non-admin protected content if intended by current auth model | Short note confirming route outcome | Pending |
 | W1-VAL-004 | Public sign-up posture | Public sign-up is removed or clearly disabled for production use | Local browser check on `http://localhost:3001/auth/sign-up`: page shows `Backoffice Sign-Up Disabled` and sends staff back to login on 2026-05-02 | Done |
-| W1-VAL-005 | App shell compile health | `npm run build` completes successfully after the auth changes | Terminal output summary or exit-code note | Done — exit 0, compiled in 60s, 22 static pages, 2026-04-26 |
-| W1-VAL-006 | Lint health after auth changes | `npm run lint` completes successfully after the auth changes | Terminal output summary or exit-code note | Done — 0 errors, 1 non-blocking Node module-type advisory, 2026-04-26 |
+| W1-VAL-005 | App shell compile health | `npm run build` completes successfully after the auth changes | Terminal output summary or exit-code note | Done - exit 0, compiled in 60s, 22 static pages, 2026-04-26 |
+| W1-VAL-006 | Lint health after auth changes | `npm run lint` completes successfully after the auth changes | Terminal output summary or exit-code note | Done - 0 errors, 1 non-blocking Node module-type advisory, 2026-04-26 |
 
 Latest local signal: `npm run build` exited with code `0`, `npm run lint` exited with code `0`, and `node scripts/workflow-policy-smoke.mjs` exited with code `0` on 2026-04-26. Local browser checks on 2026-05-02 also reconfirmed allowlisted login success, non-allowlisted admin rejection, and disabled public sign-up. Keep the remaining Wave 1 focus on `/protected` continuity evidence.
 
@@ -161,14 +164,14 @@ These items are safe to prepare in parallel because they organize later work wit
 - **GOAL-002**: Make the deployed environment and console configuration deterministic.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-006 | Provision the customer Supabase project and apply migrations under `supabase/migrations/` in order, confirming schema parity with this repo. |  |  |
-| TASK-007 | Configure Vercel project settings and environment variables using `.env.example`, `docs/ENV_AND_LINE_SETUP.md`, and the runtime settings contract in `src/app/api/settings/route.ts`. |  |  |
-| TASK-008 | In LINE Developers Console, register webhook URL as `<base-url>/api/webhook`, verify signature handling, and enable webhook delivery. |  |  |
-| TASK-009 | In LIFF Console, register endpoint as `<base-url>/liff` and verify the LIFF ID used by `src/app/liff/page.tsx` and `src/app/liff/intake/page.tsx`. |  |  |
-| TASK-010 | Verify `/admin/settings` persists runtime configuration correctly through `src/app/admin/settings/settings-form.tsx`, `src/app/api/settings/route.ts`, and `src/lib/app-settings.ts`. |  |  |
-| TASK-011 | Verify company runtime settings automatically derive `webhookUrl` and `liffEndpointUrl` from `base_url` via `src/lib/app-settings.ts`, and document which values are auto-derived versus manually entered. |  |  |
-| TASK-012 | Add or verify `settings.updated` audit logging for runtime settings changes so configuration changes are traceable in production. | Yes | 2026-04-25 |
+|---|---|---|---|
+| TASK-006 | Provision the customer Supabase project and apply migrations under `supabase/migrations/` in order, confirming schema parity with this repo. | Yes | 2026-04-27 |
+| TASK-007 | Configure Vercel project settings and environment variables using `.env.example`, `docs/ENV_AND_LINE_SETUP.md`, and the runtime settings contract in `src/app/api/settings/route.ts`. | Yes | 2026-05-02 |
+| TASK-008 | In LINE Developers Console, register webhook URL as `<base-url>/api/webhook`, verify signature handling, and enable webhook delivery. | Yes | 2026-05-02 |
+| TASK-009 | In LIFF Console, register endpoint as `<base-url>/liff` and verify the LIFF ID used by `src/app/liff/page.tsx` and `src/app/liff/intake/page.tsx`. | Yes | 2026-05-02 |
+| TASK-010 | Verify `/admin/settings` persists runtime configuration correctly through `src/app/admin/settings/settings-form.tsx`, `src/app/api/settings/route.ts`, and `src/lib/app-settings.ts`. | Yes | 2026-05-02 |
+| TASK-011 | Verify company runtime settings automatically derive `webhookUrl` and `liffEndpointUrl` from `base_url` via `src/lib/app-settings.ts`, and document which values are auto-derived versus manually entered. | Yes | 2026-05-02 |
+| TASK-012 | Add or verify `settings.updated` audit logging for runtime settings changes so configuration changes are traceable in production. | Yes | 2026-05-02 |
 
 Wave 2 still needs real-environment verification for console wiring and deployed settings persistence, but the `settings.updated` audit event is now implemented in the landing branch.
 
@@ -181,7 +184,7 @@ Wave 3 execution rule: execute the live run directly from `docs/GO_NOGO_REVIEW.m
 #### Wave 3 To Live-Gate Map
 
 | Wave 3 task | Live gate coverage in `docs/GO_NOGO_REVIEW.md` |
-|------|------|
+|---|---|
 | TASK-013 | P2-G05 plus P3-G04 |
 | TASK-014 | P2-G06 plus P3-G05 |
 | TASK-015 | P3-G06 and the payment-dependent part of P3-G09 |
@@ -191,39 +194,39 @@ Wave 3 execution rule: execute the live run directly from `docs/GO_NOGO_REVIEW.m
 | TASK-019 | P3-G11 |
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-013 | Validate webhook signature acceptance and rejection against `src/app/api/webhook/route.ts` using one valid request and one invalid request. |  |  |
-| TASK-014 | Validate LINE message to LIFF to intake flow, confirming `src/app/api/intake/route.ts` creates lead and quote records and updates conversation state correctly. |  |  |
-| TASK-015 | Validate quote approval outcomes for `credit`, `deposit`, and `prepaid` using `src/app/api/quotes/public/[token]/route.ts`, `src/app/api/quotes/[id]/approve/route.ts`, and `src/lib/quote-workflow.ts`. |  |  |
-| TASK-016 | Validate quote PDF download and print flow through `src/app/quote/[token]/download/page.tsx` and `src/app/quote/[token]/download/print-toolbar.tsx`, including business logo and company settings rendering. |  |  |
-| TASK-017 | Validate admin commercial unlock flow from `WAITING_PAYMENT` to `IN_DESIGN` through `src/app/api/quotes/[id]/commercial/route.ts`. |  |  |
-| TASK-018 | Validate job status progression and customer status rendering using `src/app/api/jobs/[id]/status/route.ts` and `src/app/status/[token]/page.tsx`. |  |  |
-| TASK-019 | Validate escalation keywords and manual-review routing through `src/app/api/webhook/route.ts`, `escalations`, and the admin view in `src/app/admin/page.tsx`. |  |  |
+|---|---|---|---|
+| TASK-013 | Validate webhook signature acceptance and rejection against `src/app/api/webhook/route.ts` using one valid request and one invalid request. | Yes | 2026-05-02 |
+| TASK-014 | Validate LINE message to LIFF to intake flow, confirming `src/app/api/intake/route.ts` creates lead and quote records and updates conversation state correctly. | Yes | 2026-05-02 |
+| TASK-015 | Validate quote approval outcomes for `credit`, `deposit`, and `prepaid` using `src/app/api/quotes/public/[token]/route.ts`, `src/app/api/quotes/[id]/approve/route.ts`, and `src/lib/quote-workflow.ts`. | Yes | 2026-05-02 |
+| TASK-016 | Validate quote PDF download and print flow through `src/app/quote/[token]/download/page.tsx` and `src/app/quote/[token]/download/print-toolbar.tsx`, including business logo and company settings rendering. | Yes | 2026-05-02 |
+| TASK-017 | Validate admin commercial unlock flow from `WAITING_PAYMENT` to `IN_DESIGN` through `src/app/api/quotes/[id]/commercial/route.ts`. | Yes | 2026-05-02 |
+| TASK-018 | Validate job status progression and customer status rendering using `src/app/api/jobs/[id]/status/route.ts` and `src/app/status/[token]/page.tsx`. | Yes | 2026-05-02 |
+| TASK-019 | Validate escalation keywords and manual-review routing through `src/app/api/webhook/route.ts`, `escalations`, and the admin view in `src/app/admin/page.tsx`. | Yes | 2026-05-02 |
 
 ### Implementation Phase 4 — Wave 4 / Evidence And Handoff
 
 - **GOAL-004**: Convert working behavior into handoff-grade evidence and operating instructions.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-020 | Verify `action_ref` generation, actor typing, and route coverage using `supabase/migrations/010_action_log.sql`, `src/lib/action-log.ts`, and the routes already wired for action logging. | Yes | 2026-04-26 |
+|---|---|---|---|
+| TASK-020 | Verify `action_ref` generation, actor typing, and route coverage using `supabase/migrations/010_action_log.sql`, `src/lib/action-log.ts`, and the routes already wired for action logging. | Yes | 2026-05-02 |
 | TASK-021 | Capture build, lint, workflow-smoke, quote PDF, and manual UAT evidence and map it to `plan/process-customer-handoff-1.md` and `plan/action-tracking-plan.md`. | Yes | 2026-04-26 |
 | TASK-022 | Produce customer handoff package including deployed URL, admin URL, env ownership, rotation notes, rollback trigger, and PDF/document access notes. | Yes | 2026-04-26 |
 | TASK-023 | Create operator runbook covering incident triage, redeploy steps, LINE/LIFF reconfiguration, and hypercare support window. | Yes | 2026-04-26 |
-| TASK-024 | Finalize the Go/No-Go review package in `docs/GO_NOGO_REVIEW.md` and collect operator plus customer acceptance sign-off before customer launch. |  |  |
+| TASK-024 | Finalize the Go/No-Go review package in `docs/GO_NOGO_REVIEW.md`, record the commercial document defer-or-block decision, and collect operator plus customer acceptance sign-off before customer launch. |  |  |
 
-Wave 4 note: the review package document exists as of 2026-04-26, but TASK-024 stays open until Phase 2 and Phase 3 gates pass in the real environment and the sign-off section in `docs/GO_NOGO_REVIEW.md` is completed.
+Wave 4 note: the review package document exists as of 2026-04-26. As of 2026-05-02, all Phase 3 gates are PASS; TASK-024 still stays open until LIFF-VAL-006, LIFF-VAL-007, LIFF-VAL-008, the commercial document defer-or-block decision, and the sign-off section in `docs/GO_NOGO_REVIEW.md` are completed.
 
-Wave 4 completion rule: once the live run is complete, update TASK-013 through TASK-019 first, then close TASK-024 last after the Sign-Off table in `docs/GO_NOGO_REVIEW.md` is fully recorded.
+Wave 4 completion rule: once the live run is complete, update TASK-013 through TASK-019 first, then close TASK-024 last after the Sign-Off table and commercial document decision in `docs/GO_NOGO_REVIEW.md` are fully recorded.
 
 ### Implementation Phase 5 — Wave 5 / Controlled Follow-Up
 
 - **GOAL-005**: Execute post-launch improvements without putting the launch path at risk.
 
 | Task | Description | Completed | Date |
-|------|-------------|-----------|------|
+|---|---|---|---|
 | TASK-025 | Add first-class staff ownership model to replace free-text `assigned_to` and `assigned_designer` across `src/lib/backoffice-snapshot.ts`, `src/lib/studio-view.ts`, and related admin surfaces. |  |  |
-| TASK-026 | Implement downloadable invoice and billing document flow based on `docs/INVOICE_FLOW_PATCH.md` and `docs/COMMERCIAL_DOCUMENT_DESIGN_REFERENCE.md`, including `invoices`, `billing_slips`, token pages, payment-driven release behavior, and a shared commercial-document shell that can later extend to receipt and tax-ready document surfaces. |  |  |
+| TASK-026 | Implement commercial document flow from `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md` and `plan/feature-commercial-documents-1.md`, using `docs/COMMERCIAL_DOCUMENT_DESIGN_REFERENCE.md` for visual structure, including billing note, invoice, receipt, tax-ready/tax-invoice validation, receiver/issuer locking, immutable snapshots, document numbering, and token/print surfaces. |  |  |
 | TASK-027 | Design and implement accounting export tables and downloadable export format so finance data can be handed to an external accountant at period end. |  |  |
 | TASK-028 | Refactor AI image generation into a provider adapter by updating `src/lib/ai-images.ts`, `src/lib/app-settings.ts`, `src/app/api/settings/route.ts`, and related schema constraints so `gemini` can be added later without changing workflow logic. |  |  |
 | TASK-029 | Implement `/studio` scene-first operations refactor in `src/app/studio/studio-surface.tsx`, `src/app/globals.css`, and `src/lib/studio-view.ts` after ownership data becomes trustworthy. |  |  |
@@ -240,7 +243,7 @@ Wave 5 implementation note as of 2026-04-27:
 - `/studio` remains a deferred internal surface under TASK-029 and is now intentionally hidden from the main admin navigation until the ownership model and scene-first operations view are ready.
 - Hiding `/studio` does not disable workflow automation. The live automation path still runs through webhook, LIFF intake, quote approval/payment gates, job routes, and the shared backoffice snapshot data layer; `/studio` is only a presentation surface on top of those records.
 - The product-catalog migration path under TASK-030 is no longer theoretical. The branch already contains `product_catalog_items`, a public intake catalog route, an admin CSV import route, and a runtime fallback store; the next execution slice is wiring LIFF/admin surfaces to that runtime path and replacing remaining hardcoded product-label fallbacks with lead snapshots.
-- The commercial-document prep under TASK-026 also has an active schema slice now: requested document type, billing entity, billing address, tax ID, and branch fields are being captured in intake and rendered on quote surfaces, but invoice/billing/receipt document flows remain open work.
+- The commercial-document prep under TASK-026 now has a canonical policy source in `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md`. Requested document type, billing entity, billing address, tax ID, and branch fields are being captured in intake and rendered on quote surfaces, but billing note, invoice, receipt, tax-ready, and tax-invoice issuance remain open work under `plan/feature-commercial-documents-1.md`.
 - Current execution priority inside Wave 5 is not uniform. Finish the LIFF customer intake path first and deploy it as soon as the customer-facing flow is stable; do not bundle that release behind R2 rollout design, Studio work, accounting export planning, or broader post-launch refactors.
 - Fulfillment modeling is still too coarse for real-world operations. The current branch only distinguishes `pickup` vs `delivery`, but the launch backlog now needs a richer handoff model that separates customer pickup, third-party platform shipment (for example Flash), in-house delivery, and on-site installation so pricing, scheduling, proof-of-delivery, and customer instructions do not get mixed together.
 - Delivery/install data is still missing as first-class business data. A follow-up slice should add normalized shipping and service fields on the lead or a dedicated fulfillment record: recipient name, delivery phone, address lines, province/district/sub-district/postcode, delivery notes, platform/provider, tracking or booking reference, requested install date/time window, and site-contact details. Billing/document address must stay separate from delivery/install address.

@@ -38,32 +38,32 @@ type AdminSidebarProps = {
 
 const primaryItems = [
   {
-    title: "Backoffice",
+    title: "CRM Inbox",
     href: "/admin",
     icon: LayoutDashboardIcon,
     isActive: (pathname: string) => pathname === "/admin",
   },
   {
-    title: "Follow Up",
+    title: "Customer Waiting",
     href: "/admin/follow-up",
     icon: ClipboardCheckIcon,
     isActive: (pathname: string) => pathname.startsWith("/admin/follow-up"),
   },
 
   {
-    title: "LIFF Monitor",
+    title: "Intake Ops",
     href: "/admin/liff-monitor",
     icon: SmartphoneIcon,
     isActive: (pathname: string) => pathname.startsWith("/admin/liff-monitor"),
   },
   {
-    title: "Accounting",
+    title: "Finance & Documents",
     href: "/admin/accounting",
     icon: ScrollTextIcon,
     isActive: (pathname: string) => pathname.startsWith("/admin/accounting"),
   },
   {
-    title: "Profile",
+    title: "Teams & Profiles",
     href: "/admin/profile",
     icon: CircleUserRoundIcon,
     isActive: (pathname: string) => pathname.startsWith("/admin/profile"),
@@ -72,14 +72,14 @@ const primaryItems = [
 
 const secondaryItems = [
   {
-    title: "Settings",
+    title: "Automation Settings",
     href: "/admin/settings",
     icon: Settings2Icon,
     isActive: (pathname: string) => pathname.startsWith("/admin/settings"),
     external: false,
   },
   {
-    title: "Workflow",
+    title: "Flow Reference",
     href: "/flow",
     icon: CircleHelpIcon,
     isActive: (pathname: string) => pathname.startsWith("/flow"),
@@ -106,7 +106,7 @@ export default function AdminSidebar({ user }: AdminSidebarProps) {
                 </span>
                 <span className="flex flex-col">
                   <span className="text-sm font-semibold">FOGUS Print & Sign</span>
-                  <span className="text-xs text-sidebar-foreground/70">Admin workspace</span>
+                  <span className="text-xs text-sidebar-foreground/70">B2B operations</span>
                 </span>
               </Link>
             </SidebarMenuButton>

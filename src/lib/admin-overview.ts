@@ -3,10 +3,25 @@ import { signLeadMediaAssetPaths } from "./customer-media";
 import { getLeadAiDisplayPrompt, getLeadDesignRoutingSummary } from "./lead-ai-prompt";
 import { buildProductionLinkUrl } from "./production-links";
 import { getShareableProductionToken, isExpired } from "./production-media";
+import { filterCommercialGateQuotes } from "./backoffice-commercial-gate";
+import {
+  ADMIN_QUEUE_FILTER_KEYS,
+  type AdminQueueFilterKey,
+  type AdminQueueOwnerKey,
+  type AdminQueueRowFilterKey,
+  type AdminReadinessStageKey,
+  isAdminQueueFilterKey,
+  normalizeAdminQueueFilterKey,
+} from "./admin-queue-contract";
 import {
   clampOverviewPage,
   paginateOverviewRows,
 } from "./admin-overview-pagination";
+import { fetchCommercialAdminContextForQuoteIds } from "./commercial-admin-context";
+import type {
+  CommercialOrderReceiverState,
+  CommercialReceiverEntityOption,
+} from "./commercial-receiver-ui";
 import type {
   JobStatus,
   PaymentStatus,
@@ -26,15 +41,7 @@ import type {
 
 export const ADMIN_OVERVIEW_PAGE_SIZE = 25;
 
-export const ADMIN_OVERVIEW_FILTER_KEYS = [
-  "all",
-  "escalation",
-  "blocked",
-  "waiting-customer",
-  "quote",
-  "production-review",
-  "running-job",
-] as const;
+export const ADMIN_OVERVIEW_FILTER_KEYS = ADMIN_QUEUE_FILTER_KEYS;
 
 const ACTIVE_JOB_STATUSES: JobStatus[] = [
   "IN_DESIGN",
@@ -50,14 +57,17 @@ type ConversationBundle = {
   job: SnapshotJob | null;
 };
 
-export type OverviewFilterKey = (typeof ADMIN_OVERVIEW_FILTER_KEYS)[number];
-export type OverviewRowFilterKey = Exclude<OverviewFilterKey, "all">;
+export type OverviewFilterKey = AdminQueueFilterKey;
+export type OverviewRowFilterKey = AdminQueueRowFilterKey;
 
 export type OverviewCounts = Record<OverviewFilterKey, number>;
 
 type BaseOverviewRow = {
   id: string;
   filterKey: OverviewRowFilterKey;
+  ownerKey: AdminQueueOwnerKey;
+  readinessStage: AdminReadinessStageKey;
+  nextActionOwner: "internal" | "customer";
   sortAt: string;
   customerLabel: string;
   productLabel: string;
@@ -72,7 +82,7 @@ type BaseOverviewRow = {
 export type AdminOverviewRow =
   | (BaseOverviewRow & {
       kind: "escalation";
-      filterKey: "escalation";
+  filterKey: "exceptions";
       createdAt: string;
       reason: string;
       conversationId: string | null;
@@ -82,7 +92,7 @@ export type AdminOverviewRow =
     })
   | (BaseOverviewRow & {
       kind: "conversation";
-      filterKey: "blocked" | "waiting-customer";
+      filterKey: "new-leads" | "payment-ops" | "customer-waiting";
       messageAt: string;
       conversationId: string;
       conversationState: WorkflowState;
@@ -93,7 +103,7 @@ export type AdminOverviewRow =
     })
   | (BaseOverviewRow & {
       kind: "quote";
-      filterKey: "quote";
+      filterKey: "quote-decision" | "commercial-gate";
       createdAt: string;
       quoteId: string;
       total: number;
@@ -102,10 +112,11 @@ export type AdminOverviewRow =
       paymentTerms: PaymentTerm;
       paymentStatus: PaymentStatus;
       hasJob: boolean;
+      commercialOrder: CommercialOrderReceiverState | null;
     })
   | (BaseOverviewRow & {
       kind: "production-review";
-      filterKey: "production-review";
+      filterKey: "design-ops";
       createdAt: string;
       eventId: string;
       eventType: SnapshotProductionEvent["event_type"];
@@ -119,7 +130,7 @@ export type AdminOverviewRow =
     })
   | (BaseOverviewRow & {
       kind: "running-job";
-      filterKey: "running-job";
+      filterKey: "production-ops";
       createdAt: string;
       jobId: string;
       leadId: string;
@@ -145,6 +156,7 @@ export type AdminOverviewPage = {
   totalPages: number;
   counts: OverviewCounts;
   rows: AdminOverviewRow[];
+  commercialReceiverEntities: CommercialReceiverEntityOption[];
 };
 
 function rangeEnd(offset: number, limit: number) {
@@ -222,7 +234,64 @@ function getLeadPreviewImageUrl(lead: SnapshotLead | null | undefined) {
 }
 
 export function isOverviewFilterKey(value: string): value is OverviewFilterKey {
-  return (ADMIN_OVERVIEW_FILTER_KEYS as readonly string[]).includes(value);
+  return isAdminQueueFilterKey(value);
+}
+
+export function normalizeOverviewFilterKey(value: string | null | undefined) {
+  return normalizeAdminQueueFilterKey(value);
+}
+
+function getQueueOwnership(filterKey: OverviewRowFilterKey) {
+  switch (filterKey) {
+    case "exceptions":
+      return {
+        ownerKey: "owner" as const,
+        readinessStage: "exception" as const,
+        nextActionOwner: "internal" as const,
+      };
+    case "new-leads":
+      return {
+        ownerKey: "crm" as const,
+        readinessStage: "intake" as const,
+        nextActionOwner: "internal" as const,
+      };
+    case "payment-ops":
+      return {
+        ownerKey: "finance" as const,
+        readinessStage: "payment" as const,
+        nextActionOwner: "internal" as const,
+      };
+    case "customer-waiting":
+      return {
+        ownerKey: "crm" as const,
+        readinessStage: "customer" as const,
+        nextActionOwner: "customer" as const,
+      };
+    case "quote-decision":
+      return {
+        ownerKey: "sales" as const,
+        readinessStage: "quote" as const,
+        nextActionOwner: "internal" as const,
+      };
+    case "commercial-gate":
+      return {
+        ownerKey: "finance" as const,
+        readinessStage: "commercial" as const,
+        nextActionOwner: "internal" as const,
+      };
+    case "design-ops":
+      return {
+        ownerKey: "review" as const,
+        readinessStage: "review" as const,
+        nextActionOwner: "internal" as const,
+      };
+    case "production-ops":
+      return {
+        ownerKey: "production" as const,
+        readinessStage: "production" as const,
+        nextActionOwner: "internal" as const,
+      };
+  }
 }
 
 async function fetchConversationBundles(
@@ -375,6 +444,40 @@ async function fetchStalledQuotesWindow(limit: number) {
     );
 }
 
+async function attachCommercialContextToQuotes(quotes: SnapshotQuote[]) {
+  const quoteIds = quotes.map((quote) => quote.id);
+  const context = await fetchCommercialAdminContextForQuoteIds(quoteIds);
+
+  return quotes.map((quote) => ({
+    ...quote,
+    commercialOrder: context.orderByQuoteId[quote.id] || null,
+  }));
+}
+
+async function fetchCommercialGateQuotesWindow(limit: number) {
+  if (limit <= 0) {
+    return [] as SnapshotQuote[];
+  }
+
+  const supabase = createAdminClient();
+  const quoteSelect = "id, lead_id, status, total, public_token, created_at, payment_terms, payment_status, leads(id, conversation_id, product_type, requested_document_type, billing_entity_type, billing_name, customers(display_name, line_friendship_status, last_liff_context)), jobs!left(id, status, assigned_to)";
+  const { data } = await supabase
+    .from("quotes")
+    .select(quoteSelect)
+    .eq("status", "approved")
+    .in("leads.requested_document_type", ["receipt", "tax_invoice"])
+    .order("created_at", { ascending: false })
+    .range(0, limit - 1);
+
+  const quotes = (data || []) as unknown as SnapshotQuote[];
+  const quotesWithCommercialContext = await attachCommercialContextToQuotes(quotes);
+
+  return filterCommercialGateQuotes(quotesWithCommercialContext).sort(
+    (left, right) =>
+      new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
+  );
+}
+
 async function fetchPendingProductionReviews(
   limit: number,
   offset = 0
@@ -451,10 +554,12 @@ async function fetchOverviewCounts(): Promise<OverviewCounts> {
 
   const [
     escalationRes,
+    newLeadsRes,
     blockedRes,
     waitingCustomerRes,
     sentQuotesRes,
     approvedNoJobQuotesRes,
+    commercialGateQuotes,
     pendingReviewRes,
     runningJobsRes,
   ] = await Promise.all([
@@ -462,6 +567,10 @@ async function fetchOverviewCounts(): Promise<OverviewCounts> {
       .from("escalations")
       .select("id", { count: "exact", head: true })
       .eq("status", "open"),
+    supabase
+      .from("conversations")
+      .select("id", { count: "exact", head: true })
+      .in("state", ["NEW_MESSAGE", "COLLECTING_REQUIREMENTS", "REQUIREMENTS_REVIEW"]),
     supabase
       .from("conversations")
       .select("id", { count: "exact", head: true })
@@ -479,6 +588,7 @@ async function fetchOverviewCounts(): Promise<OverviewCounts> {
       .select("id, jobs!left(id)", { count: "exact", head: true })
       .eq("status", "approved")
       .is("jobs.id", null),
+    fetchCommercialGateQuotesWindow(500),
     supabase
       .from("job_media_events")
       .select("id", { count: "exact", head: true })
@@ -491,21 +601,27 @@ async function fetchOverviewCounts(): Promise<OverviewCounts> {
 
   const counts: OverviewCounts = {
     all: 0,
-    escalation: escalationRes.count || 0,
-    blocked: blockedRes.count || 0,
-    "waiting-customer": waitingCustomerRes.count || 0,
-    quote: (sentQuotesRes.count || 0) + (approvedNoJobQuotesRes.count || 0),
-    "production-review": pendingReviewRes.count || 0,
-    "running-job": runningJobsRes.count || 0,
+    "new-leads": newLeadsRes.count || 0,
+    exceptions: escalationRes.count || 0,
+    "payment-ops": blockedRes.count || 0,
+    "customer-waiting": waitingCustomerRes.count || 0,
+    "quote-decision": (sentQuotesRes.count || 0) + (approvedNoJobQuotesRes.count || 0),
+    "commercial-gate": commercialGateQuotes.length,
+    "design-ops": pendingReviewRes.count || 0,
+    "production-ops": runningJobsRes.count || 0,
   };
 
+  // `commercial-gate` is a focused subset of approved quote work that is already
+  // surfaced inside the quote queue in the all-queues view, so excluding it here
+  // keeps the `all` total non-duplicative.
   counts.all =
-    counts.escalation +
-    counts.blocked +
-    counts["waiting-customer"] +
-    counts.quote +
-    counts["production-review"] +
-    counts["running-job"];
+    counts["new-leads"] +
+    counts.exceptions +
+    counts["payment-ops"] +
+    counts["customer-waiting"] +
+    counts["quote-decision"] +
+    counts["design-ops"] +
+    counts["production-ops"];
 
   return counts;
 }
@@ -524,9 +640,10 @@ function buildEscalationRows(
 
     return {
       ...buildLeadContextMeta(lead),
+      ...getQueueOwnership("exceptions"),
       kind: "escalation",
       id: escalation.id,
-      filterKey: "escalation",
+      filterKey: "exceptions",
       sortAt: escalation.created_at,
       createdAt: escalation.created_at,
       customerLabel: lead
@@ -543,7 +660,7 @@ function buildEscalationRows(
 }
 
 function buildConversationRows(
-  filterKey: "blocked" | "waiting-customer",
+  filterKey: "new-leads" | "payment-ops" | "customer-waiting",
   conversations: SnapshotConversation[],
   bundles: Map<string, ConversationBundle>
 ): AdminOverviewRow[] {
@@ -555,6 +672,7 @@ function buildConversationRows(
 
     return {
       ...buildLeadContextMeta(lead),
+      ...getQueueOwnership(filterKey),
       kind: "conversation",
       id: conversation.id,
       filterKey,
@@ -575,12 +693,20 @@ function buildConversationRows(
 }
 
 function buildQuoteRows(quotes: SnapshotQuote[]): AdminOverviewRow[] {
+  return buildQuoteRowsForFilter(quotes, "quote-decision");
+}
+
+function buildQuoteRowsForFilter(
+  quotes: SnapshotQuote[],
+  filterKey: "quote-decision" | "commercial-gate"
+): AdminOverviewRow[] {
   return quotes.map((quote) => ({
     ...buildLeadContextMeta(quote.leads),
+    ...getQueueOwnership(filterKey),
     kind: "quote",
     id: quote.id,
     quoteId: quote.id,
-    filterKey: "quote",
+    filterKey,
     sortAt: quote.created_at,
     createdAt: quote.created_at,
     customerLabel: customerLabel(quote.leads?.customers),
@@ -591,7 +717,30 @@ function buildQuoteRows(quotes: SnapshotQuote[]): AdminOverviewRow[] {
     paymentTerms: quote.payment_terms,
     paymentStatus: quote.payment_status,
     hasJob: Array.isArray(quote.jobs) && quote.jobs.length > 0,
+    commercialOrder: quote.commercialOrder || null,
   }));
+}
+
+async function attachCommercialOrderContext(
+  rows: AdminOverviewRow[]
+): Promise<{
+  rows: AdminOverviewRow[];
+  commercialReceiverEntities: CommercialReceiverEntityOption[];
+}> {
+  const quoteIds = rows.flatMap((row) => (row.kind === "quote" ? [row.quoteId] : []));
+  const context = await fetchCommercialAdminContextForQuoteIds(quoteIds);
+
+  return {
+    commercialReceiverEntities: context.receiverEntities,
+    rows: rows.map((row) =>
+      row.kind === "quote"
+        ? {
+            ...row,
+            commercialOrder: context.orderByQuoteId[row.quoteId] || null,
+          }
+        : row
+    ),
+  };
 }
 
 function buildProductionReviewRows(
@@ -605,10 +754,11 @@ function buildProductionReviewRows(
 
     return {
       ...buildLeadContextMeta(lead),
+      ...getQueueOwnership("design-ops"),
       kind: "production-review",
       id: event.id,
       eventId: event.id,
-      filterKey: "production-review",
+      filterKey: "design-ops",
       sortAt: event.created_at,
       createdAt: event.created_at,
       customerLabel: customerLabel(lead?.customers),
@@ -641,11 +791,12 @@ function buildRunningJobRows(
 
     return {
       ...buildLeadContextMeta(lead),
+      ...getQueueOwnership("production-ops"),
       kind: "running-job",
       id: job.id,
       jobId: job.id,
       leadId: lead?.id || job.lead_id,
-      filterKey: "running-job",
+      filterKey: "production-ops",
       sortAt: job.created_at,
       createdAt: job.created_at,
       customerLabel: customerLabel(lead?.customers),
@@ -682,7 +833,7 @@ async function fetchRowsForFilter(
 ) {
   const offset = (page - 1) * pageSize;
 
-  if (filter === "escalation") {
+  if (filter === "exceptions") {
     const escalations = await fetchEscalations(pageSize, offset);
     const bundles = await fetchConversationBundles(
       escalations.map((item) => item.conversation_id)
@@ -690,7 +841,19 @@ async function fetchRowsForFilter(
     return buildEscalationRows(escalations, bundles);
   }
 
-  if (filter === "blocked") {
+  if (filter === "new-leads") {
+    const conversations = await fetchConversationsByStates(
+      ["NEW_MESSAGE", "COLLECTING_REQUIREMENTS", "REQUIREMENTS_REVIEW"],
+      pageSize,
+      offset
+    );
+    const bundles = await fetchConversationBundles(
+      conversations.map((item) => item.id)
+    );
+    return buildConversationRows("new-leads", conversations, bundles);
+  }
+
+  if (filter === "payment-ops") {
     const conversations = await fetchConversationsByStates(
       ["WAITING_PAYMENT", "HUMAN_REVIEW_REQUIRED"],
       pageSize,
@@ -699,10 +862,10 @@ async function fetchRowsForFilter(
     const bundles = await fetchConversationBundles(
       conversations.map((item) => item.id)
     );
-    return buildConversationRows("blocked", conversations, bundles);
+    return buildConversationRows("payment-ops", conversations, bundles);
   }
 
-  if (filter === "waiting-customer") {
+  if (filter === "customer-waiting") {
     const conversations = await fetchConversationsByStates(
       ["ON_HOLD_CUSTOMER_INPUT"],
       pageSize,
@@ -711,27 +874,40 @@ async function fetchRowsForFilter(
     const bundles = await fetchConversationBundles(
       conversations.map((item) => item.id)
     );
-    return buildConversationRows("waiting-customer", conversations, bundles);
+    return buildConversationRows("customer-waiting", conversations, bundles);
   }
 
-  if (filter === "quote") {
+  if (filter === "quote-decision") {
     const quotes = await fetchStalledQuotesWindow(offset + pageSize);
     return paginateOverviewRows(buildQuoteRows(quotes), page, pageSize);
   }
 
-  if (filter === "production-review") {
+  if (filter === "commercial-gate") {
+    const quotes = await fetchCommercialGateQuotesWindow(offset + pageSize);
+    return paginateOverviewRows(
+      buildQuoteRowsForFilter(quotes, "commercial-gate"),
+      page,
+      pageSize
+    );
+  }
+
+  if (filter === "design-ops") {
     const events = await fetchPendingProductionReviews(pageSize, offset);
     return buildProductionReviewRows(events, baseUrl);
   }
 
-  if (filter === "running-job") {
+  if (filter === "production-ops") {
     const jobs = await fetchRunningJobs(pageSize, offset);
     return buildRunningJobRows(jobs, baseUrl);
   }
 
   const windowSize = offset + pageSize;
-  const [escalations, blockedConversations, waitingCustomerConversations, quotes, events, jobs] =
+  const [newLeadConversations, escalations, blockedConversations, waitingCustomerConversations, quotes, events, jobs] =
     await Promise.all([
+      fetchConversationsByStates(
+        ["NEW_MESSAGE", "COLLECTING_REQUIREMENTS", "REQUIREMENTS_REVIEW"],
+        windowSize
+      ),
       fetchEscalations(windowSize),
       fetchConversationsByStates(
         ["WAITING_PAYMENT", "HUMAN_REVIEW_REQUIRED"],
@@ -744,6 +920,7 @@ async function fetchRowsForFilter(
     ]);
 
   const bundles = await fetchConversationBundles([
+    ...newLeadConversations.map((item) => item.id),
     ...escalations.map((item) => item.conversation_id),
     ...blockedConversations.map((item) => item.id),
     ...waitingCustomerConversations.map((item) => item.id),
@@ -751,10 +928,11 @@ async function fetchRowsForFilter(
 
   return paginateOverviewRows(
     [
+      ...buildConversationRows("new-leads", newLeadConversations, bundles),
       ...buildEscalationRows(escalations, bundles),
-      ...buildConversationRows("blocked", blockedConversations, bundles),
+      ...buildConversationRows("payment-ops", blockedConversations, bundles),
       ...buildConversationRows(
-        "waiting-customer",
+        "customer-waiting",
         waitingCustomerConversations,
         bundles
       ),
@@ -778,6 +956,7 @@ export async function fetchAdminOverviewPage(input: {
   const totalCount = input.filter === "all" ? counts.all : counts[input.filter];
   const page = clampOverviewPage(input.page, totalCount, pageSize);
   const rows = await fetchRowsForFilter(input.filter, page, pageSize, input.baseUrl);
+  const commercialContext = await attachCommercialOrderContext(rows);
 
   return {
     filter: input.filter,
@@ -786,6 +965,7 @@ export async function fetchAdminOverviewPage(input: {
     totalCount,
     totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
     counts,
-    rows,
+    rows: commercialContext.rows,
+    commercialReceiverEntities: commercialContext.commercialReceiverEntities,
   };
 }

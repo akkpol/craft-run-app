@@ -6,7 +6,7 @@ owner: Delivery Engineering
 status: Active
 ---
 
-# Start Here Context Recovery
+## Start Here Context Recovery
 
 Use this file first when the session context is unstable, including:
 
@@ -20,6 +20,8 @@ Use this file first when the session context is unstable, including:
 1. `plan/README.md`
 2. `plan/process-anti-loop-execution-1.md`
 3. Current active packet file only, one packet at a time
+
+When reading `plan/process-anti-loop-execution-1.md`, always read the `Central Tooling And Environment Matrix` and `Mandatory Work Update Matrix` sections before selecting or resuming a packet. These sections define the shared shell/tool/env baseline and the required update record after complete, incomplete, blocked, or tooling-changing work.
 
 ## Mandatory Worktree Check
 

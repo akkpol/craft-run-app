@@ -12,17 +12,21 @@ export function quoteUnlocksProduction(paymentTerms: string, paymentStatus: stri
 
 export function getConversationActionLabel(
   currentState: string,
-  context: "escalation" | "blocked" | "waiting-customer"
+  context: "new-leads" | "exceptions" | "payment-ops" | "customer-waiting"
 ) {
-  if (context === "escalation") {
+  if (context === "new-leads") {
+    return "เก็บข้อมูลเพิ่ม";
+  }
+
+  if (context === "exceptions") {
     return "ตอบเคสนี้";
   }
 
-  if (context === "blocked") {
-    return "ปลดล็อก workflow";
+  if (context === "payment-ops") {
+    return "เคลียร์ payment gate";
   }
 
-  if (context === "waiting-customer" || currentState === "ON_HOLD_CUSTOMER_INPUT") {
+  if (context === "customer-waiting" || currentState === "ON_HOLD_CUSTOMER_INPUT") {
     return "เช็กคำตอบลูกค้า";
   }
 

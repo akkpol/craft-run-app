@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { buildAdminLoginRedirect } from "@/lib/admin-auth-flow";
+import { resolveAdminAccess } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 
 import AdminSidebar from "./admin-sidebar";
@@ -41,6 +43,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   const user = data.user;
+  const access = resolveAdminAccess({ email: user.email ?? null });
+  if (!access.allowed) {
+    redirect(
+      buildAdminLoginRedirect("/admin", access.loginErrorCode ?? undefined)
+    );
+  }
+
   const displayName = getDisplayName(user.email ?? null, user.user_metadata ?? null);
 
   return (

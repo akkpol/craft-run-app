@@ -8,25 +8,25 @@ import {
   quoteUnlocksProduction,
 } from "../src/lib/admin-action-labels.ts";
 
-test("blocked queue labels stay blocked-first even for human-review conversations", () => {
+test("payment-ops queue keeps the finance-first CTA for human-review conversations", () => {
   assert.equal(
-    getConversationActionLabel("HUMAN_REVIEW_REQUIRED", "blocked"),
-    "ปลดล็อก workflow"
+    getConversationActionLabel("HUMAN_REVIEW_REQUIRED", "payment-ops"),
+    "เคลียร์ payment gate"
   );
   assert.equal(
-    getConversationActionLabel("HUMAN_REVIEW_REQUIRED", "escalation"),
+    getConversationActionLabel("HUMAN_REVIEW_REQUIRED", "exceptions"),
     "ตอบเคสนี้"
   );
 });
 
-test("waiting-customer queue keeps the customer-follow-up CTA", () => {
+test("customer-waiting queue keeps the customer-follow-up CTA", () => {
   assert.equal(
-    getConversationActionLabel("ON_HOLD_CUSTOMER_INPUT", "waiting-customer"),
+    getConversationActionLabel("ON_HOLD_CUSTOMER_INPUT", "customer-waiting"),
     "เช็กคำตอบลูกค้า"
   );
   assert.equal(
-    getConversationActionLabel("ON_HOLD_CUSTOMER_INPUT", "blocked"),
-    "ปลดล็อก workflow"
+    getConversationActionLabel("ON_HOLD_CUSTOMER_INPUT", "payment-ops"),
+    "เคลียร์ payment gate"
   );
 });
 

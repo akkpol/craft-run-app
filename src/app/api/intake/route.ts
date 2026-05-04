@@ -48,6 +48,10 @@ import {
   parseMultipartIntakeFormData,
   parseOptionalNumber,
 } from "@/lib/intake-payload";
+import {
+  formatTaxDocumentIntakeErrors,
+  validateTaxDocumentIntake,
+} from "@/lib/tax-document-intake";
 
 const THAI_SUMMARY_NUMBER_FORMATTER = new Intl.NumberFormat("th-TH-u-nu-latn");
 
@@ -80,6 +84,8 @@ export async function POST(request: NextRequest) {
   const providedLineUserId = data.lineUserId?.trim() || "";
   const providedDisplayName = data.displayName?.trim() || "";
   const providedLiffIdToken = data.liffIdToken?.trim() || "";
+  const allowClientProfileFallback =
+    process.env.NODE_ENV !== "production" && !providedLiffIdToken;
   const liffDebugFingerprint =
     request.headers.get("x-liff-debug-fingerprint")?.trim() || null;
   const earliestDueDate = getBangkokTodayDateString();
@@ -152,7 +158,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-  } else if (process.env.NODE_ENV !== "production" && providedLineUserId) {
+  } else if (allowClientProfileFallback && providedLineUserId) {
     intakeIdentity = {
       userId: providedLineUserId,
       displayName: providedDisplayName || "ลูกค้า",
@@ -173,7 +179,9 @@ export async function POST(request: NextRequest) {
 
   const resolvedLineUserId = intakeIdentity.userId;
   const resolvedDisplayName =
-    intakeIdentity.displayName?.trim() || providedDisplayName || "ลูกค้า";
+    intakeIdentity.displayName?.trim() ||
+    (allowClientProfileFallback ? providedDisplayName : "") ||
+    "ลูกค้า";
   const billingEntityType =
     data.billingEntityType && isBillingEntityType(data.billingEntityType)
       ? data.billingEntityType
@@ -261,14 +269,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (
-    billingEntityType === "company" &&
-    requestedDocumentType === "tax_invoice" &&
-    billingBranchType === "branch" &&
-    !billingBranchCode
-  ) {
+  const taxDocumentValidation = validateTaxDocumentIntake({
+    requestedDocumentType,
+    billingEntityType,
+    billingBranchType,
+    billingBranchCode,
+    billingName,
+    taxId,
+    billingAddress,
+  });
+
+  if (taxDocumentValidation.errors.length > 0) {
     return NextResponse.json(
-      { error: "กรุณาระบุเลขสาขาสำหรับใบกำกับภาษีของนิติบุคคล" },
+      { error: formatTaxDocumentIntakeErrors(taxDocumentValidation.errors) },
       { status: 400 }
     );
   }

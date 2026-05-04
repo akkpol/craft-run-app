@@ -17,6 +17,15 @@ export type WorkflowBundle = {
   job_status?: string;
   has_job?: boolean;
   hold_reason?: string | null;
+  required_document_type?: string | null;
+  required_document_issued?: boolean;
+  commercial_review_required?: boolean;
+  commercial_gate_status?: string | null;
+  payment_receiver_locked?: boolean;
+  payment_receiver_entity_id?: string | null;
+  document_issuer_entity_id?: string | null;
+  selected_receiver_entity_id?: string | null;
+  issuer_entity_id?: string | null;
 };
 
 export type AllowedActionResult = {

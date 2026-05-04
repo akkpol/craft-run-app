@@ -1,4 +1,8 @@
-import { getDesignQueueLeads } from "@/lib/admin-dashboard-queues";
+import { getCommercialGateQuotes } from "./backoffice-commercial-gate";
+import {
+  getAdminQueueContract,
+  type AdminQueueRowFilterKey,
+} from "./admin-queue-contract";
 
 import type {
   BackofficeSnapshot,
@@ -10,7 +14,7 @@ import type {
   SnapshotQuote,
 } from "./backoffice-snapshot";
 
-export type AutomationLaneKey = "sales" | "design" | "production" | "inbox";
+export type AutomationLaneKey = AdminQueueRowFilterKey;
 
 export type AutomationLaneSeverity = "healthy" | "info" | "warning" | "critical";
 
@@ -29,6 +33,7 @@ export type BackofficeAutomationSnapshot = {
     needsHumanNowCount: number;
     waitingOnCustomerCount: number;
     incidentsOpenCount: number;
+    commercialGateCount: number;
   };
   lanes: BackofficeAutomationLane[];
   queues: {
@@ -37,6 +42,7 @@ export type BackofficeAutomationSnapshot = {
     escalations: SnapshotEscalation[];
     blockedConversations: SnapshotConversation[];
     waitingPaymentConversations: SnapshotConversation[];
+    commercialGateQuotes: SnapshotQuote[];
     manualReviewConversations: SnapshotConversation[];
     customerWaitingConversations: SnapshotConversation[];
     customerWaitingLeads: SnapshotLead[];
@@ -47,6 +53,34 @@ export type BackofficeAutomationSnapshot = {
     recentCompletedJobs: SnapshotJob[];
   };
 };
+
+const NEW_LEAD_STATES = new Set([
+  "NEW_MESSAGE",
+  "COLLECTING_REQUIREMENTS",
+  "REQUIREMENTS_REVIEW",
+]);
+
+const DESIGN_OPS_BLOCKING_STATES = new Set([
+  ...NEW_LEAD_STATES,
+  "WAITING_QUOTE_APPROVAL",
+  "WAITING_PAYMENT",
+  "ON_HOLD_CUSTOMER_INPUT",
+  "IN_PRODUCTION",
+  "READY_FOR_FULFILLMENT",
+  "COMPLETED",
+  "CANCELLED",
+]);
+
+const AUTOMATION_LANE_ORDER: AutomationLaneKey[] = [
+  "new-leads",
+  "quote-decision",
+  "payment-ops",
+  "customer-waiting",
+  "commercial-gate",
+  "design-ops",
+  "production-ops",
+  "exceptions",
+];
 
 function getLaneSeverity(
   count: number,
@@ -68,7 +102,28 @@ export function buildBackofficeAutomationSnapshot(
   snapshot: BackofficeSnapshot
 ): BackofficeAutomationSnapshot {
   const activeLeads = snapshot.leads.filter((lead) => !lead.superseded_at);
-  const designQueueLeads = getDesignQueueLeads(snapshot);
+  const newLeadConversations = snapshot.conversations.filter((conversation) =>
+    NEW_LEAD_STATES.has(conversation.state)
+  );
+  const commercialGateQuoteIds = new Set(
+    getCommercialGateQuotes(snapshot).map((quote) => quote.id)
+  );
+  const designOpsLeads = activeLeads.filter((lead) => {
+    if (!lead.conversation_id) {
+      return false;
+    }
+
+    const conversationState = snapshot.conversations.find(
+      (conversation) => conversation.id === lead.conversation_id
+    )?.state;
+
+    if (!conversationState || DESIGN_OPS_BLOCKING_STATES.has(conversationState)) {
+      return false;
+    }
+
+    const designStatus = lead.design_status || "not_started";
+    return ["not_started", "drafting", "revision_requested"].includes(designStatus);
+  });
   const customerWaitingLeads = activeLeads.filter((lead) => {
     const designStatus = lead.design_status || "not_started";
     return designStatus === "preview_sent" || Boolean(lead.hold_reason);
@@ -78,6 +133,9 @@ export function buildBackofficeAutomationSnapshot(
     const hasJob = Array.isArray(quote.jobs) && quote.jobs.length > 0;
     return quote.status === "sent" || (quote.status === "approved" && !hasJob);
   });
+  const commercialGateQuotes = snapshot.quotes.filter((quote) =>
+    commercialGateQuoteIds.has(quote.id)
+  );
 
   const pendingProductionReview = snapshot.productionReviewQueue.filter(
     (event) => event.review_status === "pending"
@@ -103,7 +161,8 @@ export function buildBackofficeAutomationSnapshot(
     snapshot.escalations.length +
     manualReviewConversations.length +
     waitingPaymentConversations.length +
-    pendingProductionReview.length;
+    pendingProductionReview.length +
+    commercialGateQuotes.length;
 
   const waitingOnCustomerCount =
     customerWaitingConversations.length + customerWaitingLeads.length;
@@ -117,45 +176,38 @@ export function buildBackofficeAutomationSnapshot(
   );
 
   const incidentsOpenCount =
-    snapshot.escalations.length + blockedConversations.length + pendingProductionReview.length;
+    snapshot.escalations.length +
+    blockedConversations.length +
+    pendingProductionReview.length +
+    commercialGateQuotes.length;
 
-  const lanes: BackofficeAutomationLane[] = [
-    {
-      key: "sales",
-      label: "Sales",
-      description: "quote ที่ระบบยังปิดให้ไม่ได้หรือยังติด payment gate",
-      count: stalledQuotes.length + waitingPaymentConversations.length,
-      severity: getLaneSeverity(stalledQuotes.length + waitingPaymentConversations.length),
-    },
-    {
-      key: "design",
-      label: "Design",
-      description: "งานแบบที่ยังมี owner ฝั่งคนหรือยังต้องตาม feedback",
-      count: designQueueLeads.length + customerWaitingLeads.length,
-      severity: getLaneSeverity(designQueueLeads.length + customerWaitingLeads.length, 3, 1),
-    },
-    {
-      key: "production",
-      label: "Production",
-      description: "หลักฐานจากหน้างานที่ยังต้องมีคน review หรือ override",
-      count: pendingProductionReview.length,
-      severity: getLaneSeverity(pendingProductionReview.length),
-    },
-    {
-      key: "inbox",
-      label: "Inbox",
-      description: "เคสที่ระบบโยนกลับมาให้คนเพราะติด manual review หรือ escalation",
-      count:
-        snapshot.escalations.length +
-        manualReviewConversations.length +
-        customerWaitingConversations.length,
-      severity: getLaneSeverity(
-        snapshot.escalations.length + manualReviewConversations.length,
-        1,
-        1
-      ),
-    },
-  ];
+  const laneCounts: Record<AutomationLaneKey, number> = {
+    "new-leads": newLeadConversations.length,
+    "quote-decision": stalledQuotes.filter((quote) => !commercialGateQuoteIds.has(quote.id)).length,
+    "payment-ops": waitingPaymentConversations.length + manualReviewConversations.length,
+    "customer-waiting": customerWaitingConversations.length + customerWaitingLeads.length,
+    "commercial-gate": commercialGateQuotes.length,
+    "design-ops": designOpsLeads.length + pendingProductionReview.length,
+    "production-ops": activeJobs.length,
+    exceptions: snapshot.escalations.length,
+  };
+
+  const lanes: BackofficeAutomationLane[] = AUTOMATION_LANE_ORDER.map((key) => {
+    const contract = getAdminQueueContract(key);
+    const count = laneCounts[key];
+    const severity =
+      key === "production-ops" || key === "design-ops"
+        ? getLaneSeverity(count, 3, 1)
+        : getLaneSeverity(count);
+
+    return {
+      key,
+      label: contract.label,
+      description: contract.description,
+      count,
+      severity,
+    };
+  });
 
   return {
     summary: {
@@ -164,6 +216,7 @@ export function buildBackofficeAutomationSnapshot(
       needsHumanNowCount,
       waitingOnCustomerCount,
       incidentsOpenCount,
+      commercialGateCount: commercialGateQuotes.length,
     },
     lanes,
     queues: {
@@ -172,6 +225,7 @@ export function buildBackofficeAutomationSnapshot(
       escalations: snapshot.escalations,
       blockedConversations,
       waitingPaymentConversations,
+      commercialGateQuotes,
       manualReviewConversations,
       customerWaitingConversations,
       customerWaitingLeads,

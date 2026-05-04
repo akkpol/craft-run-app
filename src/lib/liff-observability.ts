@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logSystemAction } from "@/lib/action-log";
 import {
   normalizeLiffContextSnapshot,
+  parseLiffContextSnapshot,
   type LiffContextSnapshot,
 } from "@/lib/liff-capture";
 
@@ -118,11 +119,10 @@ export function normalizeLiffIncidentPayload(input: unknown): LiffIncidentPayloa
     return null;
   }
 
-  const rawContext =
+  const normalizedContext =
     typeof root.liffContextSnapshot === "string"
-      ? JSON.parse(root.liffContextSnapshot)
-      : root.liffContextSnapshot;
-  const normalizedContext = normalizeLiffContextSnapshot(rawContext);
+      ? parseLiffContextSnapshot(root.liffContextSnapshot)
+      : normalizeLiffContextSnapshot(root.liffContextSnapshot);
 
   return {
     fingerprint: sanitizeString(root.fingerprint, MAX_FINGERPRINT_LENGTH),
@@ -134,8 +134,9 @@ export function normalizeLiffIncidentPayload(input: unknown): LiffIncidentPayloa
     userAgent: sanitizeString(root.userAgent, MAX_USER_AGENT_LENGTH),
     sdkPresent: sanitizeBoolean(root.sdkPresent),
     liffIdConfigured: sanitizeBoolean(root.liffIdConfigured),
-    lineUserId: sanitizeString(root.lineUserId, 128),
-    lineUserHint: compactLineUserId(root.lineUserId),
+    lineUserId: null,
+    lineUserHint:
+      sanitizeString(root.lineUserHint, 128) || compactLineUserId(root.lineUserId),
     context: summarizeContext(normalizedContext),
   };
 }

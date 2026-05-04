@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAiImageRuntimeConfig, type AppSettingsRow } from "@/lib/app-settings";
 import { buildLeadAiPreviewStoragePath } from "@/lib/asset-storage-paths";
+import { generateGoogleAiStudioImage } from "./ai-google-studio";
 
 type LeadAiGenerationInput = {
   leadId: string;
@@ -87,13 +88,22 @@ export async function generateLeadAiPreview(
     throw new Error("AI image generation is not configured");
   }
 
-  if (aiConfig.provider !== "openai") {
-    throw new Error("Unsupported AI image provider");
-  }
-
   const prompt = input.prompt.trim();
   if (!prompt) {
     throw new Error("Lead does not have an AI prompt");
+  }
+
+  if (aiConfig.provider === "google") {
+    return generateGoogleAiStudioImage({
+      leadId: input.leadId,
+      prompt,
+      apiKey: aiConfig.apiKey,
+      model: aiConfig.model,
+    });
+  }
+
+  if (aiConfig.provider !== "openai") {
+    throw new Error("Unsupported AI image provider");
   }
 
   const response = await fetch("https://api.openai.com/v1/images/generations", {

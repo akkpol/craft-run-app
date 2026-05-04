@@ -732,7 +732,7 @@ export default function SettingsForm() {
 
       <section className="rounded-3xl border border-violet-200 bg-violet-50 p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-950">AI สร้างรูป</h2>
-        <p className="mt-1 text-sm text-slate-600">แนะนำใช้ OpenAI `gpt-image-1` กับแอป Next.js บน Vercel เพราะเรียกผ่าน route handler ได้ตรงและไม่ต้องเพิ่ม queue/provider เสริมในรอบแรก</p>
+        <p className="mt-1 text-sm text-slate-600">รองรับ OpenAI (gpt-image-1) และ Google AI Studio (Imagen 3) แนะนำให้ใช้ Google AI Studio หากต้องการความประหยัดหรือโควตาฟรี</p>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm text-slate-700">
             <span>เปิดใช้งาน AI Image</span>
@@ -745,16 +745,23 @@ export default function SettingsForm() {
             <span>Provider</span>
             <select value={form.aiImageProvider} onChange={(e) => updateField("aiImageProvider", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400">
               <option value="openai">OpenAI</option>
+              <option value="google">Google AI Studio</option>
             </select>
           </label>
           <label className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>Model</span>
-            <input value={form.aiImageModel} onChange={(e) => updateField("aiImageModel", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="gpt-image-1" />
+            <input value={form.aiImageModel} onChange={(e) => updateField("aiImageModel", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder={form.aiImageProvider === "google" ? "imagen-3.0-generate-002" : "gpt-image-1"} />
           </label>
           <label className="grid gap-2 text-sm text-slate-700 md:col-span-2">
-            <span>OpenAI API Key</span>
-            <input type="password" value={form.aiImageApiKey} onChange={(e) => updateField("aiImageApiKey", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder={form.hasAiImageApiKey ? "มี key ถูกบันทึกไว้แล้ว, กรอกใหม่เมื่อต้องการเปลี่ยน" : "sk-..."} />
-            <p className="text-xs text-slate-500">{form.hasAiImageApiKey ? "ระบบมี API key อยู่แล้ว ถ้าปล่อยว่างจะเก็บค่าปัจจุบันไว้" : "สามารถใส่ผ่าน env OPENAI_API_KEY แทนการบันทึกในฐานข้อมูลได้"}</p>
+            <span>{form.aiImageProvider === "google" ? "Google AI API Key" : "OpenAI API Key"}</span>
+            <input type="password" value={form.aiImageApiKey} onChange={(e) => updateField("aiImageApiKey", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder={form.hasAiImageApiKey ? "มี key ถูกบันทึกไว้แล้ว, กรอกใหม่เมื่อต้องการเปลี่ยน" : "..."} />
+            <p className="text-xs text-slate-500">
+              {form.hasAiImageApiKey
+                ? "ระบบมี API key สำหรับ provider ที่บันทึกอยู่แล้ว ถ้าเปลี่ยน provider ให้กรอก key ใหม่หรือใช้ env ของ provider ใหม่"
+                : form.aiImageProvider === "google"
+                  ? "สามารถใส่ผ่าน env GOOGLE_API_KEY หรือ GEMINI_API_KEY แทนการบันทึกในฐานข้อมูลได้"
+                  : "สามารถใส่ผ่าน env OPENAI_API_KEY แทนการบันทึกในฐานข้อมูลได้"}
+            </p>
           </label>
         </div>
       </section>

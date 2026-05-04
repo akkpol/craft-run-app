@@ -31,6 +31,8 @@ Use this contract as the default execution mode for every packet.
 3. Do not add new work mid-packet. If needed, stop and split to a new packet.
 4. Run impacted-surface tests first. Do not jump to full regression unless release gate requires it.
 5. Report in one-page delta format only: done, remaining, risks.
+6. Read the Central Tooling and Environment Matrix before implementation after every restart, shell change, profile switch, machine change, or tool install.
+7. Update the Mandatory Work Update Matrix after every implementation pass, whether the pass is complete, incomplete, blocked, or rolled back.
 
 When session context may have drifted due to profile switch, checkout, worktree split, or machine restart, read `docs/START_HERE_CONTEXT_RECOVERY.md` before selecting the active packet.
 
@@ -43,6 +45,44 @@ Before selecting or resuming any packet:
 3. In an unstable worktree, do not start new implementation until one coherent slice is chosen and the other slices are explicitly deferred, quarantined, or cleaned up.
 4. Do not reopen a completed packet just because related files still have local changes.
 5. If a packet status and the live worktree disagree, fix the packet status first and only then continue coding.
+
+### Central Tooling And Environment Matrix
+
+This matrix is mandatory shared context on git. Every agent and human operator must read it before starting work after a restart, shell/profile switch, checkout, or tool upgrade. Update it when a required tool, shell behavior, version, environment assumption, or fallback changes.
+
+|ID|Surface|Required Baseline|Fast Check|Update Trigger|
+|---|---|---|---|---|
+|TOOL-001|Shell|Use `pwsh` 7.x as the primary repo shell on Windows. Keep profile lightweight and avoid shell switching mid-packet.|`$PSVersionTable.PSVersion`; `$PROFILE`; `Test-Path $PROFILE.CurrentUserCurrentHost`|PowerShell upgrade, profile edit, shell startup slowdown, terminal corruption workaround|
+|TOOL-002|Search|Use `rg` for content search and `rg --files` or `fd` for file discovery. Avoid slow recursive shell scans.|`Get-Command rg,fd -ErrorAction SilentlyContinue`|Search tool install/remove, large-repo search slowdown, new excluded path requirement|
+|TOOL-003|Structured CLI|Use `jq` for JSON inspection and `gh` for GitHub context when needed. Do not parse JSON with ad hoc text splitting when `jq` is available.|`Get-Command jq,gh -ErrorAction SilentlyContinue`|GitHub CLI login change, jq missing, API output format change|
+|TOOL-004|Runtime|Use the repo `npm` scripts as the canonical app interface: `npm run lint`, `npm run build`, `npm test`, `npm run check:workflow-policy`.|`node -v`; `npm -v`; `npm run`|Node/npm upgrade, package-lock change, script rename, dependency install|
+|TOOL-005|Git Safety|Prefer non-interactive git commands. Recommended local config: `fetch.prune=true`, `rebase.autostash=true`, `rerere.enabled=true`, `core.longpaths=true`, `merge.conflictstyle=zdiff3`.|`git status --porcelain=v1`; `git config --get <key>`|New clone, rebase/merge conflict, branch switch, unexpected line-ending or long-path issue|
+|TOOL-006|Supabase/Vercel|Use Supabase and Vercel tools only for the active packet. Do not run broad migration/deploy commands during implementation slices unless the packet requires it.|`npx supabase --version`; `npx vercel --version`|CLI auth failure, migration drift, deploy target change, env variable ownership change|
+|TOOL-007|Secrets|Never print `.env.local`, Supabase secret keys, LINE tokens, Vercel tokens, or customer secrets in terminal output or docs. Check presence, not values.|Use key-name/presence checks only|Any secret paste, env sync, credential rotation, leaked output risk|
+|TOOL-008|Optional Speedups|Optional helpers `fzf`, `bat`, `delta`, and `pnpm` can improve speed but are not required for correctness. Missing optional tools must not block packets.|`Get-Command fzf,bat,delta,pnpm -ErrorAction SilentlyContinue`|Tool install/remove, team workflow standardization, faster diff/read workflow adopted|
+
+### Mandatory Work Update Matrix
+
+This matrix defines what must be updated after each pass. A pass means any meaningful read-only investigation, code/doc edit, migration draft, validation run, failed attempt, or blocked execution window.
+
+|Outcome|Required Update|Where To Update|Minimum Content|
+|---|---|---|---|
+|Complete slice|Closure or current-slice record|Active packet file|Changed files, commands run, validation scope, result, remaining trigger|
+|Incomplete slice|Resume note|Active packet file or session memory|Last safe point, files touched, next exact task, known failing command or blocker|
+|Blocked slice|Blocker note|Active packet file and one-page delta|Blocker owner, evidence, fallback, decision needed|
+|Tool/env change|Tooling matrix delta|This file, under Central Tooling And Environment Matrix|Tool name/version, reason, fallback, who must read it|
+|Validation run|Evidence note|Active packet file or gate document|Command, scope, pass/fail, stale-when condition|
+|Scope change|Lane or packet split note|Active packet file and `plan/README.md` if a new packet is added|Old scope, new scope, forbidden files, merge order|
+|Release freeze|Freeze record|`docs/GO_NOGO_REVIEW.md` and active packet file|Freeze timestamp, frozen files/contracts, allowed fixes, final regression plan|
+
+### Tooling Anti-Loop Guard Rules
+
+- **TAG-001**: Do not restart full validation because a tool is missing. Use the declared fallback, update the matrix, then continue the active packet.
+- **TAG-002**: Do not install or upgrade tools in the middle of a feature lane unless the packet is blocked by that tool.
+- **TAG-003**: Do not trust old evidence after changing Node, npm, Supabase CLI, Vercel CLI, shell profile, git config, or migration files. Mark only the affected evidence stale.
+- **TAG-004**: Do not run deploy, database push, production migration, or live LIFF/operator validation before release freeze unless the packet is explicitly an environment/config packet.
+- **TAG-005**: If a command fails from environment/tooling rather than product code, record it as tooling risk and do not rewrite product code to hide the tooling failure.
+- **TAG-006**: Every final or handoff update must state whether tool/environment assumptions changed during the pass.
 
 ### One-Page Delta Report Template
 
@@ -64,6 +104,9 @@ Remaining
 Risks
 - <active risk>
 - <fallback or mitigation>
+
+Tool/env changed
+- yes/no; if yes, name the tool/env change and whether the Central Tooling And Environment Matrix was updated
 ```
 
 ### Packet Start Checklist
@@ -91,6 +134,8 @@ Stop immediately and split work into a new packet when one of these happens:
 - **REQ-004**: Retesting must follow impacted-surface strategy first; full regression is only required at release gate.
 - **REQ-005**: Docs status must not be ahead of execution status.
 - **REQ-006**: Every packet must pass a Discovery Gate before coding when business/domain detail is incomplete.
+- **REQ-007**: Tooling and environment assumptions must be centralized in this anti-loop plan and updated after complete, incomplete, blocked, or tooling-changing passes.
+- **REQ-008**: Every validation record must include a stale-when condition so later agents know which evidence survived a code or environment change.
 - **CON-001**: Canonical workflow policy remains `docs/workflow-policy.json`; this file does not allow state-machine shortcuts.
 - **CON-002**: Plan execution order still starts from `plan/process-go-live-waves-1.md`.
 - **CON-003**: Follow-up migration work must obey `docs/SUPABASE_MIGRATION_HISTORY_DRIFT_RUNBOOK.md`; no blind replay.
@@ -105,53 +150,53 @@ Stop immediately and split work into a new packet when one of these happens:
 
 - **GOAL-000**: Convert unknown business detail into explicit implementation constraints before coding starts.
 
-| Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-000D | Run a mandatory worktree drift check before packet selection. If more than one slice is present, stop and isolate one slice before coding. | Yes | 2026-04-30 |
-| TASK-000 | Create a Discovery Gate note for the packet with 5 required fields: `Known Facts`, `Unknowns`, `Assumptions`, `Out of Scope`, `Decision Owner`. | | |
-| TASK-000A | Define acceptance in user language first: what must be true in UI/ops when the packet is done, and what failure is acceptable fallback. | | |
-| TASK-000B | For each unknown, choose one action: `decide now`, `defer with fallback`, or `block and escalate`. Do not start coding while unknowns are unlabeled. | | |
-| TASK-000C | If user/domain owner is unsure, default to non-destructive behavior and observability-first output (clear status, error capture, and manual fallback). | | |
+|Task|Description|Completed|Date|
+|---|---|---|---|
+|TASK-000D|Run a mandatory worktree drift check before packet selection. If more than one slice is present, stop and isolate one slice before coding.|Yes|2026-04-30|
+|TASK-000|Create a Discovery Gate note for the packet with 5 required fields: `Known Facts`, `Unknowns`, `Assumptions`, `Out of Scope`, `Decision Owner`.|||
+|TASK-000A|Define acceptance in user language first: what must be true in UI/ops when the packet is done, and what failure is acceptable fallback.|||
+|TASK-000B|For each unknown, choose one action: `decide now`, `defer with fallback`, or `block and escalate`. Do not start coding while unknowns are unlabeled.|||
+|TASK-000C|If user/domain owner is unsure, default to non-destructive behavior and observability-first output (clear status, error capture, and manual fallback).|||
 
 ### Implementation Phase 1
 
 - **GOAL-001**: Enforce packet contract before implementation starts.
 
-| Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-001 | Add a mandatory Packet Contract block at the top of every active packet file: `Goal`, `In Scope`, `Out of Scope`, `Definition of Done`, `Owner`. | | |
-| TASK-002 | For AI preview scope, require packet references to `plan/feature-liff-ai-prompt-inputs-1.md` and `plan/feature-admin-ai-prompt-source-visibility-1.md` before edits begin. | | |
-| TASK-003 | Require one-line decision log for every mid-packet scope change. If the change crosses packet boundaries, stop and create a new packet instead of silently extending the current one. | | |
+|Task|Description|Completed|Date|
+|---|---|---|---|
+|TASK-001|Add a mandatory Packet Contract block at the top of every active packet file: `Goal`, `In Scope`, `Out of Scope`, `Definition of Done`, `Owner`.|||
+|TASK-002|For AI preview scope, require packet references to `plan/feature-liff-ai-prompt-inputs-1.md` and `plan/feature-admin-ai-prompt-source-visibility-1.md` before edits begin.|||
+|TASK-003|Require one-line decision log for every mid-packet scope change. If the change crosses packet boundaries, stop and create a new packet instead of silently extending the current one.|||
 
 ### Implementation Phase 2
 
 - **GOAL-002**: Replace full restart behavior with impacted-surface validation.
 
-| Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-004 | Define packet test tiers: Tier A (unit/logic for touched helpers), Tier B (route/UI slice checks), Tier C (release-gate full suite). | | |
-| TASK-005 | Require each packet to record exact commands run and reason for each command. No generic "tested" statement allowed. | | |
-| TASK-006 | Block "start over" behavior unless Tier A and Tier B both fail with incompatible root causes. Otherwise continue from latest stable commit point. | | |
+|Task|Description|Completed|Date|
+|---|---|---|---|
+|TASK-004|Define packet test tiers: Tier A (unit/logic for touched helpers), Tier B (route/UI slice checks), Tier C (release-gate full suite).|||
+|TASK-005|Require each packet to record exact commands run and reason for each command. No generic "tested" statement allowed.|||
+|TASK-006|Block "start over" behavior unless Tier A and Tier B both fail with incompatible root causes. Otherwise continue from latest stable commit point.|||
 
 ### Implementation Phase 3
 
 - **GOAL-003**: Synchronize plan status and operational docs with real execution state.
 
-| Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-007 | Add a status consistency pass at packet close: check packet status, `plan/README.md`, and related docs for mismatch (`Ready` vs unfinished tasks). | | |
-| TASK-008 | For AI incident materials, keep `docs/OPERATOR_RUNBOOK.md`, SOP draft, and handoff package section in lock-step with one source-of-truth delta note per update. | | |
-| TASK-009 | Do not mark any handoff artifact as final if acceptance gates in go/no-go are still open. | | |
+|Task|Description|Completed|Date|
+|---|---|---|---|
+|TASK-007|Add a status consistency pass at packet close: check packet status, `plan/README.md`, and related docs for mismatch (`Ready` vs unfinished tasks).|||
+|TASK-008|For AI incident materials, keep `docs/OPERATOR_RUNBOOK.md`, SOP draft, and handoff package section in lock-step with one source-of-truth delta note per update.|||
+|TASK-009|Do not mark any handoff artifact as final if acceptance gates in go/no-go are still open.|||
 
 ### Implementation Phase 4
 
 - **GOAL-004**: Add closure and handoff rules that preserve context for the next executor.
 
-| Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-010 | At packet completion, add a Closure Record section containing: changed files, tests executed, blocked items, and next packet trigger. | | |
-| TASK-011 | Add a "Resume From Here" section with last known good commit/working tree assumptions and unresolved decisions. | | |
-| TASK-012 | If unresolved blockers remain, create exactly one follow-up packet and register it in `plan/README.md`; do not scatter blockers across multiple notes. | | |
+|Task|Description|Completed|Date|
+|---|---|---|---|
+|TASK-010|At packet completion, add a Closure Record section containing: changed files, tests executed, blocked items, and next packet trigger.|||
+|TASK-011|Add a "Resume From Here" section with last known good commit/working tree assumptions and unresolved decisions.|||
+|TASK-012|If unresolved blockers remain, create exactly one follow-up packet and register it in `plan/README.md`; do not scatter blockers across multiple notes.|||
 
 ## 3. Alternatives
 
@@ -183,11 +228,14 @@ Stop immediately and split work into a new packet when one of these happens:
 - **TEST-002**: Execute one packet closure and verify Closure Record plus Resume From Here are present and complete.
 - **TEST-003**: Validate that packet validation commands are recorded as exact commands, not summaries.
 - **TEST-004**: Verify status consistency across packet file, plan index, and related handoff/go-no-go docs.
+- **TEST-005**: Verify that every active packet update includes either `Tool/env changed: yes` with details or `Tool/env changed: no`.
+- **TEST-006**: Verify that any tooling change updates the Central Tooling And Environment Matrix before the next implementation pass.
 
 ## 7. Risks & Assumptions
 
 - **RISK-001**: If owners skip Packet Contract discipline, context drift will continue even with this protocol file present.
 - **RISK-002**: If docs are updated out of sequence, false-ready signals will still cause repeated backtracking.
+- **RISK-003**: If tool and environment assumptions are kept only in chat, a restarted session can repeat slow diagnostics or trust stale validation.
 - **ASSUMPTION-001**: Team members will treat this plan as mandatory coordination policy for active AI and handoff packets.
 
 ## 8. Related Specifications / Further Reading
@@ -195,6 +243,7 @@ Stop immediately and split work into a new packet when one of these happens:
 - `plan/process-go-live-waves-1.md`
 - `plan/process-customer-handoff-1.md`
 - `plan/process-ai-preview-split-drafts-1.md`
+- `plan/process-build-first-anti-loop-gates-1.md`
 - `plan/feature-liff-ai-prompt-inputs-1.md`
 - `plan/feature-admin-ai-prompt-source-visibility-1.md`
 - `docs/GO_NOGO_REVIEW.md`

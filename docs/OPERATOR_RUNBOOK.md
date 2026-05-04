@@ -18,6 +18,7 @@ This runbook covers day-to-day incident triage, scheduled maintenance, and emerg
 - **Platform**: Next.js 16 on Vercel, Supabase (DB + Auth + Storage), LINE Messaging API, LINE MINI App (LIFF)
 - **Deployment trigger**: `git push` to main branch → Vercel auto-deploy
 - **Workflow state machine**: `docs/workflow-policy.json` — do not modify without a full smoke test
+- **Commercial document policy**: `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md` — source of truth for billing note, invoice, receipt, tax-ready, and tax-invoice behavior
 - **Action log**: all significant events write to `action_log` table with `action_ref` format `ACT-YYYYMMDD-NNNN`
 
 ---
@@ -110,7 +111,7 @@ Meaning:
 
 - `ai_image_enabled` is off, or
 - no API key is available from `app_settings.ai_image_api_key`, or
-- no `OPENAI_API_KEY` fallback is available in the server environment
+- no provider-specific fallback is available in the server environment: `OPENAI_API_KEY` for OpenAI, or `GOOGLE_API_KEY` / `GEMINI_API_KEY` for Google AI Studio
 
 Operator action:
 
@@ -147,7 +148,7 @@ Escalation owner:
 
 Typical message:
 
-- provider returns an OpenAI error message in the API response
+- provider returns an OpenAI or Google AI Studio error message in the API response
 - examples may include invalid key, insufficient quota, billing, or auth errors
 
 Meaning:
@@ -237,6 +238,45 @@ When sending the issue onward, include all of the following:
 3. If the message shows upstream/provider failure, stop repeated retries and escalate.
 4. If the provider call works but storage fails, treat it as a Supabase Storage incident.
 5. If one lead fails but others work, inspect the lead prompt/context rather than treating it as a platform outage.
+
+### 2h. Commercial Document / Tax Invoice Request Or Dispute
+
+Use this flow when staff or a customer asks whether the current system can issue a billing note, invoice, receipt, tax-ready document, tax invoice, or combined receipt/tax invoice.
+
+#### Policy source
+
+- Open `docs/COMMERCIAL_DOCUMENT_POLICY_V1.md` first.
+- Core rule: `เงินเข้าใคร → เอกสารออกชื่อนั้น`.
+- Payment receiver entity must equal document issuer entity.
+- Tax invoice can only be issued by a VAT-registered entity that is also the payment receiver.
+- Issued documents must be immutable; corrections require void, credit note, or debit note behavior.
+
+#### Current production boundary
+
+1. The existing quote PDF route proves quotation download only.
+2. Admin must use the `/admin?filter=commercial-gate` queue to find approved quotes that are still waiting for receiver selection or post-payment document issuance.
+3. Admin can now select receiver, confirm payment, and issue runtime commercial documents through the existing admin commercial actions.
+4. Current runtime issuance is limited to `RECEIPT` and `TAX_INVOICE_RECEIPT` after confirmed payment and receiver lock.
+5. `BILLING_NOTE`, `INVOICE`, standalone `TAX_INVOICE`, and correction documents remain outside the current runtime scope.
+6. Production must stay blocked until the required commercial document is issued or an explicit future waiver flow exists.
+
+#### Operator action
+
+1. If the request is only for a quotation, use the existing quote page and download flow.
+2. Check `/admin?filter=commercial-gate` first when a quote is approved but the team is asking why production cannot start yet.
+3. If the quote is waiting for receiver selection, use the admin commercial flow to select the payment receiver before confirming the document path.
+4. If the request is for `RECEIPT` or `TAX_INVOICE_RECEIPT` and payment is already confirmed, use the admin commercial flow to verify receiver lock and issue the document.
+5. If the request is for `BILLING_NOTE`, `INVOICE`, standalone `TAX_INVOICE`, or correction documents, escalate to Delivery Engineering and Business Owner because they are outside current runtime scope.
+6. If receiver/issuer mismatch is present, block issuance and record the mismatch.
+7. If non-VAT entity is selected for a tax invoice, block issuance.
+8. If payment is confirmed but the document is still not issued, do not move the job to production; clear the commercial gate first.
+9. If launch sign-off is in progress, record the decision in `docs/GO_NOGO_REVIEW.md` as either `Deferred after launch` or `Required before GO`.
+
+Escalation owner:
+
+- Delivery Engineering for implementation and data validation.
+- Business Owner / Akkapol for seller entity, receiver channel, and commercial wording decisions.
+- Accounting/legal reviewer for any claim beyond `tax-ready`.
 
 ---
 

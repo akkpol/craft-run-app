@@ -1,5 +1,7 @@
 import { headers } from "next/headers";
 import { getRuntimeAppConfig } from "@/lib/app-settings";
+import { getLiffReadinessSummary } from "@/lib/public-flow-readiness";
+import CustomerFlowCard from "@/components/customer-flow-card";
 import IntakeForm from "./intake-form";
 
 function firstValue(
@@ -42,16 +44,21 @@ export default async function IntakePageContent(props: {
   const disableLiffForLocalTest =
     isLocalHost(requestHost) ||
     (process.env.NODE_ENV !== "production" && firstValue(searchParams.devNoLiff) === "1");
+  const readiness = getLiffReadinessSummary({ intakeMode });
 
   return (
-    <IntakeForm
-      businessName={config.businessName}
-      liffId={disableLiffForLocalTest ? "" : config.liffId}
-      uploadUrl={config.customerUploadUrl}
-      uploadLabel={config.customerUploadLabel}
-      initialCategory={initialCategory}
-      initialProduct={initialProduct}
-      intakeMode={intakeMode}
-    />
+    <div className="space-y-4">
+      <CustomerFlowCard summary={readiness} />
+
+      <IntakeForm
+        businessName={config.businessName}
+        liffId={disableLiffForLocalTest ? "" : config.liffId}
+        uploadUrl={config.customerUploadUrl}
+        uploadLabel={config.customerUploadLabel}
+        initialCategory={initialCategory}
+        initialProduct={initialProduct}
+        intakeMode={intakeMode}
+      />
+    </div>
   );
 }

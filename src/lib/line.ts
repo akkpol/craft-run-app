@@ -4,6 +4,7 @@ import {
   WebhookEvent,
 } from "@line/bot-sdk";
 import { getRuntimeAppConfig } from "@/lib/app-settings";
+import { getLineReplyReadinessSummary } from "@/lib/public-flow-readiness";
 import { getLineLoginChannelIdFromLiffId } from "./line-liff-identity";
 import type { ProductionEventType } from "@/lib/production-review";
 import type { WorkflowState } from "@/lib/types";
@@ -264,6 +265,10 @@ async function buildLiffUrlWithMode(mode?: "resume" | "fresh"): Promise<string> 
   return parseLiffUrl(path);
 }
 
+function formatReadinessText(headline: string, detail: string, nextActionLabel: string) {
+  return [headline, detail, `ขั้นตอนถัดไป: ${nextActionLabel}`].join("\n\n");
+}
+
 // Reply with LIFF intake link + quick reply options
 export async function replyWithIntakeLink(
   replyToken: string,
@@ -271,6 +276,7 @@ export async function replyWithIntakeLink(
 ) {
   const liffUrl = await buildLiffUrlWithMode("resume");
   const lineClient = await getLineClient();
+  const readiness = getLineReplyReadinessSummary("intake_link");
 
   const bubble: messagingApi.FlexBubble = {
     type: "bubble",
@@ -303,7 +309,11 @@ export async function replyWithIntakeLink(
         },
         {
           type: "text",
-          text: "กรุณากรอกรายละเอียดงานที่ต้องการผ่านฟอร์มด้านล่างนะคะ เพื่อให้เราจัดเตรียมใบเสนอราคาให้ค่ะ",
+          text: formatReadinessText(
+            readiness.headline,
+            readiness.detail,
+            readiness.nextActionLabel
+          ),
           size: "sm",
           color: "#666666",
           margin: "md",
@@ -323,7 +333,7 @@ export async function replyWithIntakeLink(
           height: "md",
           action: {
             type: "uri",
-            label: "📋 กรอกรายละเอียดงาน",
+            label: readiness.nextActionLabel,
             uri: liffUrl,
           },
           color: "#1a1a2e",
@@ -345,7 +355,7 @@ export async function replyWithIntakeLink(
 
   const flexMessage: messagingApi.FlexMessage = {
     type: "flex",
-    altText: "กรุณากรอกรายละเอียดงานที่ต้องการค่ะ",
+    altText: readiness.headline,
     contents: bubble,
   };
 
@@ -362,6 +372,7 @@ export async function replyWithResumeOrFreshChoice(
   const resumeUrl = await buildLiffUrlWithMode("resume");
   const freshUrl = await buildLiffUrlWithMode("fresh");
   const lineClient = await getLineClient();
+  const readiness = getLineReplyReadinessSummary("resume_or_fresh");
 
   const bubble: messagingApi.FlexBubble = {
     type: "bubble",
@@ -394,7 +405,7 @@ export async function replyWithResumeOrFreshChoice(
         },
         {
           type: "text",
-          text: "ต้องการทำรายการเดิมต่อจากข้อมูลที่ค้างไว้ หรือเริ่มคำขอใหม่ตั้งแต่ต้นคะ",
+          text: readiness.detail,
           size: "sm",
           color: "#475569",
           margin: "md",
@@ -436,7 +447,7 @@ export async function replyWithResumeOrFreshChoice(
           height: "md",
           action: {
             type: "uri",
-            label: "ทำรายการเดิมต่อ",
+            label: readiness.nextActionLabel,
             uri: resumeUrl,
           },
           color: "#0f766e",
@@ -471,7 +482,7 @@ export async function replyWithResumeOrFreshChoice(
     messages: [
       {
         type: "flex",
-        altText: "เลือกว่าจะทำรายการเดิมต่อหรือเริ่มงานใหม่",
+        altText: readiness.headline,
         contents: bubble,
       },
     ],
@@ -722,6 +733,7 @@ export async function replyWithQuoteApprovalContext(
   quoteToken: string | null
 ): Promise<void> {
   const lineClient = await getLineClient();
+  const readiness = getLineReplyReadinessSummary("quote_approval_context");
 
   if (!quoteToken) {
     await lineClient.replyMessage({
@@ -729,7 +741,11 @@ export async function replyWithQuoteApprovalContext(
       messages: [
         {
           type: "text",
-          text: `สวัสดีค่ะ คุณ${displayName} ✉️\nขณะนี้มีใบเสนอราคารอการยืนยันจากคุณอยู่ค่ะ กรุณาติดต่อทีมงานเพื่อขอลิงก์ใบเสนอราคาค่ะ`,
+          text: `สวัสดีค่ะ คุณ${displayName} ✉️\n${formatReadinessText(
+            readiness.headline,
+            readiness.detail,
+            readiness.nextActionLabel
+          )}\n\nหากยังไม่มีลิงก์ใบเสนอราคา กรุณาติดต่อทีมงานเพื่อขอลิงก์ได้เลยค่ะ`,
           quickReply: {
             items: [
               {
@@ -779,7 +795,11 @@ export async function replyWithQuoteApprovalContext(
         },
         {
           type: "text",
-          text: "ขณะนี้มีใบเสนอราคาจากทีมงาน FOGUS รอการยืนยันจากคุณอยู่ค่ะ กรุณาตรวจสอบและยืนยันเพื่อดำเนินการต่อค่ะ",
+          text: formatReadinessText(
+            readiness.headline,
+            readiness.detail,
+            readiness.nextActionLabel
+          ),
           size: "sm",
           color: "#475569",
           margin: "md",
@@ -799,7 +819,7 @@ export async function replyWithQuoteApprovalContext(
           height: "md",
           action: {
             type: "uri",
-            label: "📄 ดูใบเสนอราคา",
+            label: readiness.nextActionLabel,
             uri: quoteUrl,
           },
           color: "#1a1a2e",
@@ -831,7 +851,7 @@ export async function replyWithQuoteApprovalContext(
 
   await lineClient.replyMessage({
     replyToken,
-    messages: [{ type: "flex", altText: "ใบเสนอราคาจาก FOGUS รอการยืนยันค่ะ", contents: bubble }],
+    messages: [{ type: "flex", altText: readiness.headline, contents: bubble }],
   });
 }
 
@@ -845,6 +865,7 @@ export async function replyWithPaymentContext(
   quoteToken: string | null
 ): Promise<void> {
   const lineClient = await getLineClient();
+  const readiness = getLineReplyReadinessSummary("payment_context");
 
   if (!quoteToken) {
     await lineClient.replyMessage({
@@ -852,7 +873,11 @@ export async function replyWithPaymentContext(
       messages: [
         {
           type: "text",
-          text: `สวัสดีค่ะ คุณ${displayName} 💳\nงานของคุณรอการยืนยันการชำระเงินอยู่ค่ะ กรุณาติดต่อทีมงานเพื่อสอบถามรายละเอียดการชำระเงินค่ะ`,
+          text: `สวัสดีค่ะ คุณ${displayName} 💳\n${formatReadinessText(
+            readiness.headline,
+            readiness.detail,
+            readiness.nextActionLabel
+          )}`,
           quickReply: {
             items: [
               {
@@ -901,7 +926,11 @@ export async function replyWithPaymentContext(
         },
         {
           type: "text",
-          text: "ใบเสนอราคาได้รับการอนุมัติแล้ว ขณะนี้รอการยืนยันการชำระเงินก่อนเริ่มดำเนินการค่ะ ทีมงานจะแจ้งรายละเอียดให้ทราบค่ะ",
+          text: formatReadinessText(
+            readiness.headline,
+            readiness.detail,
+            readiness.nextActionLabel
+          ),
           size: "sm",
           color: "#475569",
           margin: "md",
@@ -943,7 +972,7 @@ export async function replyWithPaymentContext(
 
   await lineClient.replyMessage({
     replyToken,
-    messages: [{ type: "flex", altText: "งานรอยืนยันการชำระเงินค่ะ", contents: bubble }],
+    messages: [{ type: "flex", altText: readiness.headline, contents: bubble }],
   });
 }
 
@@ -966,6 +995,7 @@ export async function replyWithProductionStatus(
 ): Promise<void> {
   const lineClient = await getLineClient();
   const header = PRODUCTION_STATE_HEADERS[conversationState] ?? "📋 งานกำลังดำเนินการ";
+  const readiness = getLineReplyReadinessSummary("production_status");
 
   if (!quoteToken) {
     await lineClient.replyMessage({
@@ -973,7 +1003,11 @@ export async function replyWithProductionStatus(
       messages: [
         {
           type: "text",
-          text: `สวัสดีค่ะ คุณ${displayName} ${header}\nหากต้องการสอบถามเพิ่มเติม สามารถพิมพ์ "คุยกับแอดมิน" ได้เลยค่ะ`,
+          text: `สวัสดีค่ะ คุณ${displayName}\n${header}\n\n${formatReadinessText(
+            readiness.headline,
+            readiness.detail,
+            readiness.nextActionLabel
+          )}`,
           quickReply: {
             items: [
               {
@@ -1022,7 +1056,11 @@ export async function replyWithProductionStatus(
         },
         {
           type: "text",
-          text: "ขอบคุณที่ติดต่อมาค่ะ สามารถติดตามความคืบหน้าได้ที่หน้าสถานะงาน หรือพิมพ์ \"คุยกับแอดมิน\" หากต้องการสอบถามเพิ่มเติมค่ะ",
+          text: formatReadinessText(
+            readiness.headline,
+            readiness.detail,
+            readiness.nextActionLabel
+          ),
           size: "sm",
           color: "#475569",
           margin: "md",
@@ -1064,7 +1102,7 @@ export async function replyWithProductionStatus(
 
   await lineClient.replyMessage({
     replyToken,
-    messages: [{ type: "flex", altText: `${header} — ดูสถานะงานที่นี่ค่ะ`, contents: bubble }],
+    messages: [{ type: "flex", altText: readiness.headline, contents: bubble }],
   });
 }
 
@@ -1079,14 +1117,15 @@ export async function replyWithTerminalFollowUp(
 ): Promise<void> {
   const freshUrl = await buildLiffUrlWithMode("fresh");
   const lineClient = await getLineClient();
+  const readiness = getLineReplyReadinessSummary("terminal_fresh_intake");
 
   const isPrevCompleted = previousState === "COMPLETED";
   const heroText = isPrevCompleted
     ? "🎉 งานก่อนหน้าเสร็จสมบูรณ์แล้ว"
     : "📌 งานก่อนหน้าถูกยกเลิกแล้ว";
   const bodyText = isPrevCompleted
-    ? "ยินดีที่ได้รับใช้ค่ะ หากต้องการสั่งงานใหม่สามารถกดเริ่มงานใหม่ได้เลยค่ะ"
-    : "หากต้องการเริ่มรายการใหม่สามารถกดเริ่มงานใหม่ได้เลย หรือติดต่อทีมงานเพื่อสอบถามเพิ่มเติมค่ะ";
+    ? formatReadinessText(readiness.headline, readiness.detail, readiness.nextActionLabel)
+    : `${formatReadinessText(readiness.headline, readiness.detail, readiness.nextActionLabel)}\n\nหากต้องการข้อมูลเพิ่ม สามารถคุยกับทีมงานต่อในแชตนี้ได้เลยค่ะ`;
   const heroBg = isPrevCompleted ? "#dcfce7" : "#fee2e2";
 
   const bubble: messagingApi.FlexBubble = {

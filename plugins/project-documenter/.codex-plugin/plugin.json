@@ -1,0 +1,50 @@
+{
+  "name": "project-documenter",
+  "version": "1.0.0",
+  "description": "Generate professional project documentation with draw.io architecture diagrams and Word (.docx) output with embedded images. Automatically discovers any project's technology stack and produces Markdown, diagrams, PNG exports, and a formatted Word document.",
+  "author": {
+    "name": "Awesome Copilot Community"
+  },
+  "repository": "https://github.com/github/awesome-copilot",
+  "license": "MIT",
+  "keywords": [
+    "documentation",
+    "architecture-diagrams",
+    "drawio",
+    "word-document",
+    "docx",
+    "png-images",
+    "c4-model",
+    "project-summary",
+    "auto-discovery"
+  ],
+  "agents": [
+    "./agents"
+  ],
+  "skills": [
+    "./skills/drawio",
+    "./skills/md-to-docx"
+  ],
+  "interface": {
+    "displayName": "Project Documenter",
+    "shortDescription": "Generate project summaries with architecture diagrams and Word output.",
+    "longDescription": "Project-agnostic documentation agent that scans a repository, generates draw.io architecture diagrams, writes a Markdown summary, and converts it to a Word document with embedded PNG images.",
+    "developerName": "Awesome Copilot Community",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/github/awesome-copilot",
+    "privacyPolicyURL": "https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement",
+    "termsOfServiceURL": "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+    "defaultPrompt": [
+      "Document this repository with architecture diagrams and a Word document.",
+      "Generate draw.io diagrams for this project and summarize the architecture.",
+      "Create docs/project-summary.md and docs/project-summary.docx for this codebase."
+    ],
+    "brandColor": "#1F3864",
+    "screenshots": []
+  }
+}

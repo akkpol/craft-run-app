@@ -5,6 +5,15 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "account-center-fe.line-scdn.net",
+        pathname: "/images/**",
+      },
+    ],
+  },
   reactCompiler: true,
 };
 

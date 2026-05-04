@@ -18,6 +18,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatBangkokDate } from "@/lib/bangkok-date-time";
 import { resolveProductCatalogLabel } from "@/lib/product-catalog";
+import { fetchCommercialAdminContextForQuoteIds } from "@/lib/commercial-admin-context";
+import { getUiContract } from "@/lib/workflow-policy";
 import {
   BILLING_BRANCH_TYPE_LABELS,
   BILLING_ENTITY_TYPE_LABELS,
@@ -34,6 +36,37 @@ import QuoteApproveButton from "./approve-button";
 import { paymentUnlocksProduction } from "@/lib/quote-workflow";
 import { getPaymentDisplayState } from "@/lib/payment-display";
 import { resolvePaymentProfileFromConfig } from "@/lib/payment-routing";
+import { getQuotePageReadinessSummary } from "@/lib/public-flow-readiness";
+import CustomerFlowCard from "@/components/customer-flow-card";
+import PublicFlowStageStrip, { type PublicFlowStageItem } from "@/components/public-flow-stage-strip";
+
+const QUOTE_FLOW_STAGES: PublicFlowStageItem[] = [
+  {
+    key: "intake",
+    label: "Intake",
+    description: "เก็บ requirement, ข้อมูลเอกสาร และสร้าง lead/quote token",
+  },
+  {
+    key: "quote",
+    label: "Quote Decision",
+    description: "ลูกค้าตรวจราคาและเลือกอนุมัติหรือขอแก้ไข",
+  },
+  {
+    key: "payment",
+    label: "Payment Ops",
+    description: "ยืนยันการชำระและปลด payment gate",
+  },
+  {
+    key: "commercial",
+    label: "Commercial Gate",
+    description: "ล็อกผู้รับเงินและออกเอกสารชื่อเดียวกับผู้รับชำระ",
+  },
+  {
+    key: "production",
+    label: "Status / Production",
+    description: "หลังปลด gate แล้วลูกค้าจะติดตามงานต่อจาก status หน้าเดิม",
+  },
+];
 
 type QuoteStatusMeta = {
   badgeLabel: string;
@@ -139,6 +172,32 @@ function getQuoteStatusMeta({
   };
 }
 
+function getQuoteFlowStageKey({
+  hasJob,
+  waitingPayment,
+  isApproved,
+  commercialGateActive,
+}: {
+  hasJob: boolean;
+  waitingPayment: boolean;
+  isApproved: boolean;
+  commercialGateActive: boolean;
+}) {
+  if (hasJob) {
+    return "production";
+  }
+
+  if (commercialGateActive) {
+    return "commercial";
+  }
+
+  if (waitingPayment || isApproved) {
+    return "payment";
+  }
+
+  return "quote";
+}
+
 export default async function QuotePage(props: { params: Promise<{ token: string }> }) {
   const { token } = await props.params;
   const supabase = createAdminClient();
@@ -222,6 +281,29 @@ export default async function QuotePage(props: { params: Promise<{ token: string
       : "แจ้งชำระเงิน: ส่งสลิปหรือหลักฐานการโอนกลับมาใน LINE แชตนี้เพื่อให้ทีมงานตรวจสอบได้เร็วขึ้น";
   const requestedDocumentType =
     (lead?.requested_document_type as DocumentRequestType | undefined) || "quote";
+  const commercialContext = await fetchCommercialAdminContextForQuoteIds([quote.id]);
+  const commercialOrder = commercialContext.orderByQuoteId[quote.id] || null;
+  const requiredCommercialDocumentType =
+    productionReady || waitingPayment
+      ? requestedDocumentType === "tax_invoice"
+        ? "tax_invoice"
+        : "receipt"
+      : null;
+  const commercialUiContract = getUiContract({
+    actor: "customer",
+    surface: "quote_page",
+    workflow_bundle: {
+      quote_status: quote.status,
+      payment_terms: paymentTerms,
+      payment_status: paymentStatus,
+      required_document_type: requiredCommercialDocumentType,
+      required_document_issued: Boolean(commercialOrder?.issuedDocumentId),
+      commercial_review_required:
+        Boolean(requiredCommercialDocumentType) &&
+        (!commercialOrder?.selectedReceiverEntityId || !commercialOrder?.paymentReceiverLockedAt),
+      payment_receiver_locked: Boolean(commercialOrder?.paymentReceiverLockedAt),
+    },
+  });
   const requestedDocumentLabel =
     DOCUMENT_REQUEST_TYPE_LABELS[requestedDocumentType] || requestedDocumentType;
   const billingEntityType =
@@ -244,10 +326,26 @@ export default async function QuotePage(props: { params: Promise<{ token: string
   const StatusIcon = statusMeta.icon;
   const showActionPanel = (!hasJob && !isApproved && !isRejected && !isExpired) ||
     (waitingPayment && canRescopeQuote);
+  const commercialGateActive = commercialUiContract.show_sections.includes("commercial_gate_panel");
+  const publicReadiness = getQuotePageReadinessSummary({
+    hasJob,
+    waitingPayment,
+    isApproved,
+    isRejected,
+    isExpired,
+    commercialGateActive,
+    commercialHeadline: commercialUiContract.copy_guidance.headline || null,
+  });
+  const quoteFlowStageKey = getQuoteFlowStageKey({
+    hasJob,
+    waitingPayment,
+    isApproved,
+    commercialGateActive,
+  });
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] px-4 py-8">
-      <div className="mx-auto max-w-lg overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.12)]">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] px-4 py-6 sm:py-10">
+      <div className="mx-auto max-w-4xl overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.12)]">
         <div className="border-b border-gray-100 bg-[linear-gradient(180deg,rgba(248,250,252,0.96)_0%,rgba(255,255,255,1)_100%)] px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-4">
@@ -285,8 +383,26 @@ export default async function QuotePage(props: { params: Promise<{ token: string
           </div>
         </div>
 
+        <div className="border-b border-slate-100 bg-white px-6 py-4">
+          <PublicFlowStageStrip
+            title="ตอนนี้งานอยู่ช่วงไหนของ flow"
+            description="หน้า quote คือจุดตัดสินใจเรื่องราคา การชำระ และเอกสารก่อนปล่อยต่อไปหน้า status/production"
+            items={QUOTE_FLOW_STAGES}
+            activeKey={quoteFlowStageKey}
+          />
+        </div>
+
+        <div className="border-b border-slate-100 bg-white px-6 py-4">
+          <CustomerFlowCard
+            summary={publicReadiness}
+            actionHref={showActionPanel ? "#quote-actions" : `/status/${token}`}
+            secondaryHref={showActionPanel ? `/status/${token}` : undefined}
+            secondaryLabel={showActionPanel ? "ดูสถานะงาน" : undefined}
+          />
+        </div>
+
         <div className="border-b border-gray-100 bg-white px-6 py-4">
-          <h2 className="mb-3 text-sm font-medium text-gray-500">ข้อมูลลูกค้า / Bill To</h2>
+          <h2 className="mb-3 text-sm font-medium text-gray-500">ข้อมูลลูกค้าและออกเอกสาร</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-sm">
               <p className="font-semibold text-slate-950">{billingName}</p>
@@ -370,7 +486,7 @@ export default async function QuotePage(props: { params: Promise<{ token: string
                   <Landmark className="size-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-900">ช่องทางชำระเงิน / Payment Instructions</p>
+                  <p className="text-sm font-semibold text-slate-900">ช่องทางชำระเงิน</p>
                   <p className="mt-1 text-xs leading-relaxed text-slate-600">{paymentHelpText}</p>
                   {paymentRoutingNote ? (
                     <p className="mt-2 text-xs font-medium text-sky-700">{paymentRoutingNote}</p>
@@ -423,7 +539,7 @@ export default async function QuotePage(props: { params: Promise<{ token: string
                 </div>
               ) : (
                 <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm leading-relaxed text-slate-600 ring-1 ring-slate-200/70">
-                  ยังไม่ได้ตั้งค่าบัญชีรับโอนในระบบ กรุณาติดต่อทีมงาน
+                  กรุณาติดต่อทีมงานเพื่อยืนยันช่องทางชำระเงินสำหรับรายการนี้
                   {paymentContact ? ` ที่ ${paymentContact}` : " ผ่าน LINE แชตนี้"}
                 </div>
               )}
@@ -434,6 +550,50 @@ export default async function QuotePage(props: { params: Promise<{ token: string
             </div>
           </div>
         </div>
+
+        {commercialUiContract.show_sections.includes("commercial_gate_panel") ? (
+          <div className="bg-white px-6 py-4 border-b border-gray-100">
+            <div className="overflow-hidden rounded-[24px] border border-emerald-200 bg-emerald-50/80">
+              <div className="flex flex-col gap-3 p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 ring-1 ring-emerald-200/80">
+                    <ShieldCheck className="size-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-emerald-950">
+                      {commercialUiContract.copy_guidance.headline || "ทีมงานกำลังตรวจสอบเอกสารหลังรับชำระ"}
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-emerald-900/80">
+                      {commercialOrder?.paymentReceiverLockedAt
+                        ? "ทีมงานยืนยันผู้รับเงินแล้ว และกำลังออกเอกสารจากชื่อเดียวกับบัญชีที่รับชำระ"
+                        : "ทีมงานกำลังตรวจสอบผู้รับเงินและเงื่อนไขเอกสารก่อนปลดล็อกขั้นตอนถัดไป"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-white/80 px-4 py-3 text-xs leading-relaxed text-emerald-950 ring-1 ring-emerald-200/70">
+                  {commercialOrder?.issuedDocumentNumber
+                    ? `เอกสารออกแล้วเลขที่ ${commercialOrder.issuedDocumentNumber}`
+                    : requiredCommercialDocumentType === "tax_invoice"
+                      ? "หากคุณขอใบกำกับภาษี ระบบจะออกใบเสร็จรับเงิน/ใบกำกับภาษีหลังทีมงานตรวจสอบครบแล้ว"
+                      : "หลังทีมงานยืนยันรับชำระครบ ระบบจะออกใบเสร็จรับเงินตามนโยบายบริษัท"}
+                </div>
+
+                {commercialUiContract.show_ctas.includes("contact_admin") ? (
+                  <div>
+                    <Link
+                      href={`/status/${token}`}
+                      prefetch={false}
+                      className="inline-flex rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800"
+                    >
+                      ดูสถานะล่าสุด
+                    </Link>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {quote.valid_until && (
           <div className="bg-white px-6 py-3 border-b border-gray-100">
@@ -498,7 +658,7 @@ export default async function QuotePage(props: { params: Promise<{ token: string
               </div>
 
               {showActionPanel ? (
-                <div className="mt-5 border-t border-slate-200/80 pt-5">
+                <div id="quote-actions" className="mt-5 border-t border-slate-200/80 pt-5 scroll-mt-6">
                   <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">
                     การดำเนินการ
                   </p>

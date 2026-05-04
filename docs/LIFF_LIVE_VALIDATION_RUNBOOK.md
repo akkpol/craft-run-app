@@ -9,6 +9,7 @@ source_refs:
   - plan/process-go-live-waves-1.md
   - docs/GO_NOGO_REVIEW.md
   - docs/ENV_AND_LINE_SETUP.md
+  - docs/COMMERCIAL_DOCUMENT_POLICY_V1.md
 ---
 
 # LIFF Live Validation Runbook
@@ -132,6 +133,12 @@ FAIL เมื่อ:
 
 - Thai validation สำหรับกรณีบริษัท + tax invoice + branch code ทำงานถูกต้องทั้ง fail และ pass path
 
+Policy boundary:
+
+- Scenario นี้ตรวจแค่ intake validation ว่าข้อมูล tax-document เบื้องต้นไม่หลุดเข้า lead ผิดเงื่อนไข
+- Scenario นี้ยังไม่ใช่ proof ว่าระบบออกใบกำกับภาษีได้จริง
+- ก่อนออก billing note, invoice, receipt, tax-ready, หรือ tax invoice ต้องใช้ [COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md) และ implementation packet [../plan/feature-commercial-documents-1.md](../plan/feature-commercial-documents-1.md)
+
 ขั้นตอน fail path:
 
 1. เปิด LIFF
@@ -159,6 +166,7 @@ PASS เมื่อ:
 
 - fail path แสดง error ไทยถูกต้อง
 - pass path submit ผ่านด้วยข้อมูลเดียวกันเมื่อเติม branch code
+- evidence ระบุชัดว่า tax invoice issuance ยังเป็น policy-guarded implementation ไม่ใช่สิ่งที่ scenario นี้ปิดแล้ว
 
 ## Scenario 4 — LIFF-VAL-008 Runtime Catalog Path
 

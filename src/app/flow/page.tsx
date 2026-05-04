@@ -68,6 +68,170 @@ const paymentThaiLabel: Record<string, string> = {
   prepaid: "ชำระเต็มจำนวน",
 };
 
+const runtimeSurfaces = [
+  {
+    title: "LINE OA / webhook",
+    route: "LINE chat + /api/webhook",
+    description:
+      "จุดเริ่มของ conversation จริง ระบบจะตีความ intent แล้วส่งลูกค้าไป intake ใหม่, resume flow หรือหน้า quote/status ตามบริบทเดิม",
+  },
+  {
+    title: "LIFF intake",
+    route: "/liff/intake?devNoLiff=1",
+    description:
+      "ฟอร์มรับ requirement บนมือถือที่ใส่ข้อมูลการออกเอกสาร, billing และไฟล์อ้างอิงได้ครบก่อนสร้าง lead/quote",
+  },
+  {
+    title: "Customer portal lookup",
+    route: "/status",
+    description:
+      "ทางเข้ากลางสำหรับลูกค้าที่มี tracking token อยู่แล้วและต้องการกลับเข้า quote หรือ status โดยตรง",
+  },
+  {
+    title: "Quote + Status token pages",
+    route: "/quote/[token] + /status/[token]",
+    description:
+      "หน้าจริงที่ลูกค้าใช้อนุมัติราคา, ดู commercial gate, ตอบกลับเรื่องแบบ และติดตามการผลิตต่อจนจบงาน",
+  },
+] as const;
+
+const runtimeFlowStages = [
+  {
+    title: "1. Intake เข้าระบบ",
+    state: "NEW_MESSAGE -> COLLECTING_REQUIREMENTS",
+    detail:
+      "ลูกค้าเริ่มจาก LINE หรือ LIFF แล้วระบบเก็บ requirement, profile และข้อมูลเอกสารให้พร้อมก่อนออก quote",
+  },
+  {
+    title: "2. Quote Decision",
+    state: "WAITING_QUOTE_APPROVAL",
+    detail:
+      "ลูกค้าตรวจราคา, approve/reject, และตัดสินใจว่าต้องแก้อะไรเพิ่มหรือพร้อมเดินต่อด้านการชำระเงิน",
+  },
+  {
+    title: "3. Payment + Commercial Gate",
+    state: "WAITING_PAYMENT / commercial review",
+    detail:
+      "ตรวจ payment status, receiver lock และเอกสารหลังรับชำระเพื่อยืนยันว่าเงินเข้าใครเอกสารต้องออกชื่อนั้น",
+  },
+  {
+    title: "4. Design / Production",
+    state: "IN_DESIGN -> IN_PRODUCTION",
+    detail:
+      "หลังปลด gate แล้ว flow จะวิ่งเข้าคิว design ops หรือ production ops พร้อมอัปเดตกลับไปหน้า status เดิมของลูกค้า",
+  },
+  {
+    title: "5. Fulfillment",
+    state: "READY_FOR_FULFILLMENT -> COMPLETED",
+    detail:
+      "ระบบปิดท้ายด้วยการส่งมอบ, ติดตั้ง หรือรับงาน พร้อมให้ลูกค้าเห็นสถานะสุดท้ายจาก token เดิม",
+  },
+] as const;
+
+const queueOwnershipLanes = [
+  {
+    title: "New Leads",
+    owner: "CRM / intake ops",
+    description: "เก็บ requirement ให้พร้อมก่อนสร้าง quote หรือผลักเข้าสู่เคสยกเว้น",
+  },
+  {
+    title: "Quote Decision",
+    owner: "Sales / admin",
+    description: "ตามใบเสนอราคา, การอนุมัติ, และการ rescope ก่อนเข้า payment lane",
+  },
+  {
+    title: "Payment Ops",
+    owner: "Finance",
+    description: "ยืนยันการชำระ, manual review และปลด payment gate ก่อน flow จะวิ่งต่อ",
+  },
+  {
+    title: "Commercial Gate",
+    owner: "Finance & documents",
+    description: "คุม receiver lock และเอกสาร receipt/tax invoice หลังรับชำระให้ตรงคนรับเงิน",
+  },
+  {
+    title: "Customer Waiting",
+    owner: "CRM / follow-up",
+    description: "พัก flow แบบชัดเจนเมื่อกำลังรอข้อมูล, หลักฐาน หรือ feedback จากลูกค้า",
+  },
+  {
+    title: "Design Ops / Production Ops",
+    owner: "Design QA / fulfillment",
+    description: "คุม proof, revision, production links และ fulfillment จนเสร็จสมบูรณ์",
+  },
+  {
+    title: "Exceptions",
+    owner: "Owner / reviewer",
+    description: "เคสผิด policy หรือผิดเส้นทางจะถูกดึงออกมาให้คนตัดสินใจทันที ไม่ปล่อยไหลไปต่อ",
+  },
+] as const;
+
+const documentSystemRails = [
+  {
+    title: "Document intent from intake",
+    route: "/liff/intake + requested_document_type",
+    description:
+      "ลูกค้าเลือกตั้งแต่ intake ว่าต้องการใบเสนอราคา, receipt หรือ tax invoice และข้อมูล billing จะถูกเก็บเป็นต้นทางของเอกสารทั้งหมด",
+  },
+  {
+    title: "Receiver selection",
+    route: "/api/commercial/select-receiver",
+    description:
+      "ระบบเลือกผู้รับเงินและกันการเปลี่ยนชื่อเอกสารมั่วหลังยืนยัน payment เพื่อคุม invariant เงินเข้าใคร -> เอกสารออกชื่อนั้น",
+  },
+  {
+    title: "Payment confirmation lock",
+    route: "/api/payments/confirm",
+    description:
+      "เมื่อ payment ถูกยืนยัน ระบบจะล็อก receiver และเตรียม commercial order ให้พร้อมสำหรับการออกเอกสารหลังรับชำระ",
+  },
+  {
+    title: "Commercial document issue",
+    route: "/api/commercial/documents/issue",
+    description:
+      "ขั้นตอนนี้ตรวจ payment, receiver lock และสิทธิ์ของ entity ก่อนออก receipt หรือ tax invoice จริง",
+  },
+  {
+    title: "Document delivery",
+    route: "/commercial/documents/[id]/download",
+    description:
+      "เอกสารที่ออกแล้วจะถูกอ้างอิงกลับทั้งจากหน้า quote/status และฝั่งแอดมินเพื่อให้ audit trail ครบ",
+  },
+] as const;
+
+const promptProductionRails = [
+  {
+    title: "Prompt seed from intake",
+    route: "ai_image_prompt + ai_prompt_snapshot",
+    description:
+      "ดีไซน์เริ่มจาก prompt ที่มากับ design brief, note และ product context ไม่ได้เริ่มลอย ๆ ตอนถึงคิวออกแบบ",
+  },
+  {
+    title: "Studio / prompt builder",
+    route: "/studio",
+    description:
+      "ทีมใช้ studio surface กับ prompt actions เพื่อดู routing, prompt ที่ compose แล้ว และตัดสินใจว่าจะ generate หรือส่ง preview แบบไหน",
+  },
+  {
+    title: "AI preview generation",
+    route: "/api/leads/[id]/ai-preview",
+    description:
+      "เมื่อมี prompt พร้อม ระบบสร้างภาพตัวอย่างและเก็บสถานะ AI preview เพื่อให้เห็นว่า lead นี้อยู่ในช่วง design assist หรือยัง",
+  },
+  {
+    title: "Preview to customer",
+    route: "/api/leads/[id]/send-preview",
+    description:
+      "หลังคัดตัวอย่างแล้ว ทีมส่ง preview กลับไปให้ลูกค้าทาง flow เดิม และสถานะจะเชื่อมกับ customer waiting / design ops",
+  },
+  {
+    title: "Production link + media review",
+    route: "/production/[token] + job_media_events",
+    description:
+      "พอเข้า production ระบบจะมี production link, asset upload, review_status และหลักฐานส่งลูกค้าเป็นอีก rail หนึ่งที่วิ่งคู่กับ status page",
+  },
+] as const;
+
 function toThaiStateLabel(state: string) {
   return stateThaiLabel[state] ?? state;
 }
@@ -121,6 +285,26 @@ function StatePill({
   );
 }
 
+function RuntimeSurfaceCard({
+  title,
+  route,
+  description,
+}: {
+  title: string;
+  route: string;
+  description: string;
+}) {
+  return (
+    <div className="flow-theme-soft p-4">
+      <p className="text-sm font-semibold text-foreground">{title}</p>
+      <div className="mt-3 inline-flex rounded-full bg-card px-3 py-1 text-xs font-semibold text-sky-700 [font-family:var(--font-flow-mono)]">
+        {route}
+      </div>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
 export default function FlowPage() {
   const policy = getWorkflowPolicy() as WorkflowPolicyData;
   const flowPageActions = getAllowedActions({
@@ -149,14 +333,14 @@ export default function FlowPage() {
       <section className="flow-theme-hero px-6 py-16">
         <div className="mx-auto max-w-6xl">
           <div className="inline-flex rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/90">
-            คู่มือ Workflow FOGUS
+            Runtime Workflow FOGUS
           </div>
           <h1 className="mt-5 max-w-4xl text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-            คู่มือขั้นตอนงานฉบับภาษาไทย
+            Full flow map ของลูกค้าและทีมปฏิบัติการ
           </h1>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/85 sm:text-base">
-            หน้านี้ช่วยให้ลูกค้าและทีมงานเข้าใจว่า งานอยู่ขั้นตอนไหน ต้องทำอะไรต่อ และจะเดินไปสถานะไหนได้บ้าง
-            โดยแสดงข้อมูลจาก policy จริงของระบบแบบอ่านง่าย
+            หน้านี้ไม่ได้สรุปแค่ policy แล้ว แต่พยายามผูกของจริงในระบบเข้าด้วยกัน: surface ที่ลูกค้าเห็น,
+            queue ที่ทีมดูแล, และ gate เชิงพาณิชย์ที่ต้องผ่านก่อนปล่อยงานเข้าผลิต
           </p>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
@@ -165,7 +349,7 @@ export default function FlowPage() {
                 หมายเหตุการใช้งาน
               </p>
               <p className="mt-2 rounded-xl bg-white/80 px-3 py-3 font-semibold">
-                หน้านี้เป็น &quot;คู่มืออธิบาย&quot; ไม่ได้ใช้แก้สถานะงานโดยตรง
+                หน้านี้เป็น runtime map แบบ read-only ใช้ดู flow เต็ม ไม่ได้ใช้คลิกแก้สถานะงานโดยตรง
               </p>
             </div>
 
@@ -190,6 +374,11 @@ export default function FlowPage() {
       <nav className="flow-theme-nav sticky top-0 z-20 px-4">
         <div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto py-3 text-sm text-muted-foreground">
           {[
+            ["#runtime-surfaces", "surface จริง"],
+            ["#runtime-path", "runtime path"],
+            ["#queue-lanes", "owner lanes"],
+            ["#document-rail", "document rail"],
+            ["#prompt-rail", "prompt rail"],
             ["#quick-guide", "เริ่มต้นใช้งาน"],
             ["#main-path", "เส้นทางหลัก"],
             ["#branches", "ทางแยก/ข้อยกเว้น"],
@@ -209,6 +398,108 @@ export default function FlowPage() {
       </nav>
 
       <div className="mx-auto max-w-6xl space-y-10 px-5 py-10 sm:px-6">
+        <section id="runtime-surfaces" className="flow-theme-card scroll-mt-24 p-6">
+          <SectionTitle
+            eyebrow="Runtime surfaces"
+            title="หน้าจริงที่ flow นี้วิ่งผ่าน"
+            description="นี่คือ surface ที่ลูกค้าและทีมใช้จริงใน packet ปัจจุบัน ไม่ใช่หน้าสมมติสำหรับอธิบายอย่างเดียว"
+          />
+
+          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+            {runtimeSurfaces.map((surface) => (
+              <RuntimeSurfaceCard key={surface.route} {...surface} />
+            ))}
+          </div>
+        </section>
+
+        <section id="runtime-path" className="flow-theme-card scroll-mt-24 p-6">
+          <SectionTitle
+            eyebrow="Runtime path"
+            title="เส้นทางจริงตั้งแต่เริ่มคุยจนจบงาน"
+            description="มุมนี้สรุปให้เห็นทั้ง customer journey และ internal handoff ในลำดับเดียว โดยยึด flow packet ที่ใช้อยู่ตอนนี้"
+          />
+
+          <div className="grid gap-4 xl:grid-cols-5">
+            {runtimeFlowStages.map((stage, index) => (
+              <div key={stage.title} className="flow-theme-soft p-4">
+                <p className="text-sm font-semibold text-foreground">{stage.title}</p>
+                <div className="mt-3">
+                  <StatePill label={stage.state} tone={index === runtimeFlowStages.length - 1 ? "terminal" : "default"} />
+                </div>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">{stage.detail}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flow-theme-note mt-4 p-4 text-sm leading-7 text-amber-950">
+            <p className="font-semibold">Commercial invariant</p>
+            <p className="mt-2">
+              เงินเข้าใคร -&gt; เอกสารออกชื่อนั้น. ดังนั้น approval อย่างเดียวไม่พอ ถ้า receiver lock หรือเอกสารหลังรับชำระยังไม่ครบ
+              ระบบต้องค้างไว้ที่ payment/commercial lane ก่อนเสมอ
+            </p>
+          </div>
+        </section>
+
+        <section id="queue-lanes" className="flow-theme-card scroll-mt-24 p-6">
+          <SectionTitle
+            eyebrow="Owner lanes"
+            title="คิว ownership ที่ต้องเห็นใน runtime packet นี้"
+            description="ส่วนนี้ทำให้หน้า /flow สะท้อน queue model ใหม่ ไม่ใช่หยุดอยู่แค่ conversation state ใน policy file"
+          />
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {queueOwnershipLanes.map((lane) => (
+              <div key={lane.title} className="flow-theme-soft p-4">
+                <p className="text-sm font-semibold text-foreground">{lane.title}</p>
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">{lane.owner}</p>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">{lane.description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section id="document-rail" className="flow-theme-card scroll-mt-24 p-6">
+          <SectionTitle
+            eyebrow="Document rail"
+            title="เอกสารเชิงพาณิชย์เป็น flow ย่อยที่วิ่งคู่กับ quote"
+            description="ส่วนนี้คือสิ่งที่หายไปถ้ามองแค่ customer page: เอกสารไม่ได้ตามมาทีหลังแบบ manual แต่มีระบบ receiver lock, payment confirm และ issue route ที่คุมอยู่จริง"
+          />
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {documentSystemRails.map((rail) => (
+              <RuntimeSurfaceCard key={rail.route} {...rail} />
+            ))}
+          </div>
+
+          <div className="flow-theme-note mt-4 p-4 text-sm leading-7 text-amber-950">
+            <p className="font-semibold">สิ่งที่ flow นี้ป้องกัน</p>
+            <p className="mt-2">
+              ถ้าลูกค้าอนุมัติแล้วแต่ payment receiver ยังไม่ถูก lock หรือเอกสารยังไม่ถูก issue ระบบต้องไม่ปล่อย job เข้า production แม้ quote จะ approved แล้วก็ตาม
+            </p>
+          </div>
+        </section>
+
+        <section id="prompt-rail" className="flow-theme-card scroll-mt-24 p-6">
+          <SectionTitle
+            eyebrow="Prompt rail"
+            title="ระบบ prompt, preview และ production proof ก็เป็นอีก flow หนึ่ง"
+            description="นอกจากเอกสารแล้ว งานออกแบบของระบบนี้มี rail ของตัวเองตั้งแต่ prompt seed, studio routing, AI preview ไปจนถึง production media review"
+          />
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {promptProductionRails.map((rail) => (
+              <RuntimeSurfaceCard key={rail.route} {...rail} />
+            ))}
+          </div>
+
+          <div className="flow-theme-note mt-4 p-4 text-sm leading-7 text-amber-950">
+            <p className="font-semibold">ความหมายเชิงระบบ</p>
+            <p className="mt-2">
+              คิว Design Ops และ Production Ops ไม่ได้หมายถึงแค่คนไปทำงานต่อ แต่รวม prompt พร้อมใช้, preview ที่ส่งลูกค้า, production link และหลักฐาน review ที่ย้อนกลับมาในระบบด้วย
+            </p>
+          </div>
+        </section>
+
         <section id="quick-guide" className="flow-theme-card scroll-mt-24 p-6">
           <SectionTitle
             eyebrow="Quick guide"

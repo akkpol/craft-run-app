@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { LogoutButton } from "@/components/logout-button";
 import { Badge } from "@/components/ui/badge";
+import { buildAdminLoginRedirect } from "@/lib/admin-auth-flow";
 import {
   getAdminAllowedEmails,
   hasConfiguredAdminAllowlist,
@@ -130,9 +131,19 @@ export default async function AdminProfilePage() {
 
   const user = data.user;
   const email = user.email ?? null;
-  const displayName = getDisplayName(user);
-  const adminAllowed = isAdminEmailAllowed(email);
   const allowlistConfigured = hasConfiguredAdminAllowlist();
+  const adminAllowed = isAdminEmailAllowed(email);
+
+  if (!allowlistConfigured || !adminAllowed) {
+    redirect(
+      buildAdminLoginRedirect(
+        "/admin/profile",
+        !allowlistConfigured ? "admin_allowlist_missing" : "admin_not_allowed"
+      )
+    );
+  }
+
+  const displayName = getDisplayName(user);
   const allowedEmailsCount = getAdminAllowedEmails().length;
   const avatarUrl =
     typeof user.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : "";
@@ -278,7 +289,7 @@ export default async function AdminProfilePage() {
                 <QuickLink
                   href="/admin"
                   label="กลับไป Dashboard"
-                  description="ดูคิว sales, design, production และ inbox จากหน้าหลักหลังบ้าน"
+                  description="ดู CRM inbox และคิวตาม owner อย่าง New Leads, Payment Ops, Design Ops และ Production Ops"
                 />
                 <QuickLink
                   href="/admin/settings"
