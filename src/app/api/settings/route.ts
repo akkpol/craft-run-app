@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveAdminAccess } from "@/lib/admin-auth";
 import {
   APP_SETTINGS_ID,
   getAppSettings,
@@ -315,8 +316,18 @@ export async function POST(request: NextRequest) {
 
   const authClient = await createClient();
   const { data: authData } = await authClient.auth.getClaims();
+  const access = resolveAdminAccess(authData?.claims);
+
+  if (!access.authenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!access.allowed) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const adminClaims = authData?.claims;
-  const adminEmail = typeof adminClaims?.email === "string" ? adminClaims.email : null;
+  const adminEmail = access.email;
   const adminActorId =
     adminEmail || (typeof adminClaims?.sub === "string" ? adminClaims.sub : undefined);
 

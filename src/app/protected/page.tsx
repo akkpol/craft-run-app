@@ -1,27 +1,24 @@
 import { redirect } from 'next/navigation'
 
-import {
-  hasConfiguredAdminAllowlist,
-  isAdminEmailAllowed,
-} from '@/lib/admin-access'
+import { buildAdminLoginRedirect } from '@/lib/admin-auth-flow'
+import { resolveAdminAccess } from '@/lib/admin-auth'
 import { createClient } from '@/lib/supabase/server'
 
 export default async function ProtectedPage() {
   const supabase = await createClient()
 
   const { data, error } = await supabase.auth.getClaims()
-  if (error || !data?.claims) {
+  if (error) {
     redirect('/auth/login')
   }
 
-  const email = typeof data.claims.email === 'string' ? data.claims.email : null
-
-  if (!hasConfiguredAdminAllowlist()) {
-    redirect('/auth/login?error=admin_allowlist_missing')
+  const access = resolveAdminAccess(data?.claims)
+  if (!access.authenticated) {
+    redirect('/auth/login')
   }
 
-  if (!isAdminEmailAllowed(email)) {
-    redirect('/auth/login?error=admin_not_allowed')
+  if (!access.allowed) {
+    redirect(buildAdminLoginRedirect('/admin', access.loginErrorCode ?? undefined))
   }
 
   redirect('/admin')

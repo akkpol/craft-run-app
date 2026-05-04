@@ -7,9 +7,8 @@
  */
 
 import { readFileSync, writeFileSync, readdirSync, statSync } from "fs";
-import { join, basename, resolve } from "path";
+import { join, resolve } from "path";
 import { spawnSync } from "child_process";
-import { inflateRawSync } from "zlib";
 import puppeteer from "puppeteer-core";
 
 function buildViewerHtml(rawFileContent) {

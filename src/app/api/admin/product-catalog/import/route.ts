@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveAdminAccess } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logHumanAction } from "@/lib/action-log";
@@ -28,10 +29,19 @@ export async function POST(request: NextRequest) {
 
   const authClient = await createClient();
   const { data: authData } = await authClient.auth.getClaims();
-  const claims = authData?.claims;
-  const adminEmail = typeof claims?.email === "string" ? claims.email : null;
+  const access = resolveAdminAccess(authData?.claims);
+
+  if (!access.authenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!access.allowed) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const adminEmail = access.email;
   const adminActorId =
-    adminEmail || (typeof claims?.sub === "string" ? claims.sub : undefined);
+    adminEmail || (typeof authData?.claims?.sub === "string" ? authData.claims.sub : undefined);
 
   const supabase = createAdminClient();
   const values = Array.from(new Set(items.map((item) => item.value)));

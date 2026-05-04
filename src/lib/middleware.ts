@@ -1,11 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+import { resolveAdminAccess } from '@/lib/admin-auth'
 import { buildAdminLoginRedirect } from '@/lib/admin-auth-flow'
-import {
-  hasConfiguredAdminAllowlist,
-  isAdminEmailAllowed,
-} from '@/lib/admin-access'
 
 const PUBLIC_ROUTE_PREFIXES = [
   '/auth',
@@ -75,13 +72,9 @@ export async function updateSession(request: NextRequest) {
   // IMPORTANT: If you remove getClaims() and you use server-side rendering
   // with the Supabase client, your users may be randomly logged out.
   const { data } = await supabase.auth.getClaims()
-  const claims = data?.claims
-  const email = typeof claims?.email === 'string' ? claims.email : null
+  const access = resolveAdminAccess(data?.claims)
 
-  if (
-    !claims &&
-    !request.nextUrl.pathname.startsWith('/login')
-  ) {
+  if (!access.authenticated && !request.nextUrl.pathname.startsWith('/login')) {
     // no user, potentially respond by redirecting the user to the login page
     return NextResponse.redirect(
       new URL(
@@ -91,7 +84,7 @@ export async function updateSession(request: NextRequest) {
     )
   }
 
-  if (!hasConfiguredAdminAllowlist()) {
+  if (!access.allowlistConfigured) {
     return NextResponse.redirect(
       new URL(
         buildAdminLoginRedirect(
@@ -103,7 +96,7 @@ export async function updateSession(request: NextRequest) {
     )
   }
 
-  if (!isAdminEmailAllowed(email)) {
+  if (!access.allowed) {
     return NextResponse.redirect(
       new URL(
         buildAdminLoginRedirect(

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   BadgeCheck,
@@ -427,7 +428,7 @@ function resolveProductTypeLabel(value: string) {
 async function loadImageElement(file: File) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
-    const image = new Image();
+    const image = new window.Image();
 
     image.onload = () => {
       URL.revokeObjectURL(objectUrl);
@@ -1953,12 +1954,13 @@ export default function IntakeForm({
                       onClick={handleCommonProfileQuickFill}
                       className="block"
                     >
-                      <img
+                      <Image
                         src={QUICK_FILL_TYPE_D_BUTTON.url}
                         alt={QUICK_FILL_TYPE_D_BUTTON.alt}
                         width={QUICK_FILL_TYPE_D_BUTTON.width}
                         height={QUICK_FILL_TYPE_D_BUTTON.height}
                         className="block"
+                        unoptimized
                       />
                     </button>
                     {commonProfileMessage ? (
