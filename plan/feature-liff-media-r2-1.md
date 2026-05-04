@@ -29,6 +29,7 @@ Deploy sequencing rule: if the customer LIFF intake UX is stable before the stor
 Known Facts
 
 - Customer reference media already has a provider-aware path in `src/lib/customer-media-storage.ts`.
+- Staff production evidence already has a separate private upload/review path through `job_media_events`, `job_media_assets`, and Supabase Storage bucket `job-media`.
 - Cloudflare R2 is used automatically when the required `CLOUDFLARE_R2_*` server environment variables are present.
 - AI image generation already supports OpenAI and Google AI Studio through `src/lib/ai-images.ts`, `src/lib/ai-google-studio.ts`, `/api/settings`, and `/admin/settings`.
 - Production Vercel has the R2 environment variable names configured; AI image generation was disabled in runtime settings during discovery.
@@ -37,18 +38,21 @@ Unknowns
 
 - Whether R2 credentials should ever be editable from app settings, or remain Vercel/server-only.
 - Whether generated AI preview images should move from the existing `app-assets` Supabase storage path to R2 in a later packet.
+- Whether staff production evidence should also move from Supabase `job-media` to R2 in a later packet.
 
 Assumptions
 
 - Do not start over; continue from the existing R2 and Google AI provider implementation.
 - Keep R2 secrets server-only and expose readiness/status in Settings instead of secret values.
 - Keep generated AI preview storage unchanged in this slice.
+- Keep staff production evidence storage unchanged in this slice; only expose its status and purpose in Settings.
 
 Out of Scope
 
 - New database columns for R2 secrets.
 - Moving AI-generated image storage to R2.
 - Direct browser-to-R2 uploads from LIFF.
+- Moving staff production evidence storage to R2.
 
 Decision Owner
 
@@ -59,7 +63,9 @@ Decision Owner
 Done
 
 - Added `/api/settings` runtime status for customer media storage without exposing R2 secret values.
-- Added `/admin/settings` visibility for active customer media provider, required R2 env key readiness, and AI provider/key status.
+- Added `/admin/settings` visibility for active customer media provider, staff production evidence storage, required R2 env key readiness, and AI provider/key status.
+- Added `/admin/settings` upload/status for a commercial document appendix image.
+- Locked the document appendix image into newly issued commercial document snapshots and rendered it as a trailing print/download page.
 - Kept existing Google AI Studio provider path and existing customer media R2 path; no restart/rebuild-from-scratch path was used.
 
 Validation
@@ -70,12 +76,14 @@ Validation
 
 Remaining
 
-- Browser-test `/admin/settings` after preview/production deploy of this branch.
+- Browser-test `/admin/settings` and a commercial document download after preview/production deploy of this branch.
 - Decide later whether generated AI preview images should use R2 instead of Supabase `app-assets`.
+- Decide later whether staff production evidence should use R2 instead of Supabase `job-media`.
 
 Risks
 
 - R2 credentials remain controlled by Vercel environment variables; app Settings can show readiness but cannot edit those secrets in this slice.
+- New `document_appendix_image_url` and `document_appendix_image_name` columns require migration `20260504042703_add_document_appendix_settings.sql` before the upload field can save in production.
 
 Tool/env changed
 

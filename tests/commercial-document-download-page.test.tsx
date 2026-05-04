@@ -71,6 +71,10 @@ describe("commercial document download page", () => {
                     vat_amount: 63,
                     grand_total: 963,
                   },
+                  document_appendix: {
+                    image_url: "https://example.com/document-appendix.png",
+                    image_name: "billing-appendix.png",
+                  },
                 },
               },
               error: null,
@@ -94,6 +98,8 @@ describe("commercial document download page", () => {
     expect(html).toContain("ใบเสร็จรับเงิน/ใบกำกับภาษี");
     expect(html).toContain("Snapshot VAT Co., Ltd.");
     expect(html).toContain("Snapshot Customer Co., Ltd.");
+    expect(html).toContain("รูปแนบท้ายเอกสาร");
+    expect(html).toContain("billing-appendix.png");
   });
 
   it("falls back to notFound when the snapshot is missing or invalid", async () => {

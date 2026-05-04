@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAppAssetsBucketName } from "@/lib/ai-images";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const DOCUMENT_APPENDIX_SCHEMA_ERROR =
+  "Database schema is missing document appendix settings columns. Run migration 20260504042703_add_document_appendix_settings.sql before uploading a document appendix image.";
 
 function getFieldForAssetType(assetType: string): { urlField: string; nameField?: string; folder: string } | null {
   if (assetType === "logo") {
@@ -26,6 +28,14 @@ function getFieldForAssetType(assetType: string): { urlField: string; nameField?
     return {
       urlField: "payment_secondary_qr_code_url",
       folder: "payment/qr-secondary",
+    };
+  }
+
+  if (assetType === "documentAppendixImage") {
+    return {
+      urlField: "document_appendix_image_url",
+      nameField: "document_appendix_image_name",
+      folder: "documents/appendix",
     };
   }
 
@@ -77,6 +87,10 @@ export async function POST(request: NextRequest) {
 
   const { error: saveError } = await supabase.from("app_settings").upsert(payload, { onConflict: "id" });
   if (saveError) {
+    if (/document_appendix_image_(url|name)/i.test(saveError.message)) {
+      return NextResponse.json({ error: DOCUMENT_APPENDIX_SCHEMA_ERROR }, { status: 409 });
+    }
+
     return NextResponse.json({ error: saveError.message }, { status: 500 });
   }
 

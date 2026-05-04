@@ -109,6 +109,26 @@ test("buildCommercialDocumentPrintModel labels personal-account receipts as paym
   assert.equal(model.titleEn, "Receipt");
 });
 
+test("buildCommercialDocumentPrintModel exposes a locked document appendix image", () => {
+  const model = buildCommercialDocumentPrintModel({
+    id: "document-appendix",
+    status: "ISSUED",
+    snapshot_json: {
+      ...snapshot,
+      document_appendix: {
+        image_url: "https://example.com/document-appendix.png",
+        image_name: "billing-appendix.png",
+      },
+    },
+  });
+
+  assert.ok(model);
+  assert.deepEqual(model.documentAppendix, {
+    imageUrl: "https://example.com/document-appendix.png",
+    imageName: "billing-appendix.png",
+  });
+});
+
 test("buildCommercialDocumentPrintModel rejects missing snapshots", () => {
   assert.equal(
     buildCommercialDocumentPrintModel({

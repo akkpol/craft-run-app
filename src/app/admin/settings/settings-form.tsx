@@ -31,6 +31,29 @@ type CustomerMediaStorageStatus = {
   fallbackProvider: "supabase";
 };
 
+type ProductionMediaStorageStatus = {
+  activeProvider: "supabase";
+  bucket: string;
+  metadataTables: string[];
+  uploadEnabled: boolean;
+  customerSendEnabled: boolean;
+  retentionDays: number;
+};
+
+type DocumentAppendixStorageStatus = {
+  activeProvider: "supabase";
+  bucket: string;
+  imageConfigured: boolean;
+  imageName: string;
+};
+
+type SettingsAssetType =
+  | "logo"
+  | "catalog"
+  | "paymentQr"
+  | "paymentSecondaryQr"
+  | "documentAppendixImage";
+
 type SettingsState = {
   businessName: string;
   businessPhone: string;
@@ -57,9 +80,13 @@ type SettingsState = {
   businessLogoUrl: string;
   businessCatalogUrl: string;
   businessCatalogName: string;
+  documentAppendixImageUrl: string;
+  documentAppendixImageName: string;
   customerUploadUrl: string;
   customerUploadLabel: string;
   customerMediaStorage: CustomerMediaStorageStatus;
+  productionMediaStorage: ProductionMediaStorageStatus;
+  documentAppendixStorage: DocumentAppendixStorageStatus;
   productionUploadEnabled: boolean;
   productionCustomerAutoSendEnabled: boolean;
   productionAssetRetentionDays: number;
@@ -105,6 +132,8 @@ const emptyState: SettingsState = {
   businessLogoUrl: "",
   businessCatalogUrl: "",
   businessCatalogName: "",
+  documentAppendixImageUrl: "",
+  documentAppendixImageName: "",
   customerUploadUrl: "",
   customerUploadLabel: "ส่งไฟล์งาน / รูปอ้างอิง",
   customerMediaStorage: {
@@ -123,6 +152,20 @@ const emptyState: SettingsState = {
       "CLOUDFLARE_R2_SECRET_ACCESS_KEY",
     ],
     fallbackProvider: "supabase",
+  },
+  productionMediaStorage: {
+    activeProvider: "supabase",
+    bucket: "job-media",
+    metadataTables: ["job_media_events", "job_media_assets"],
+    uploadEnabled: true,
+    customerSendEnabled: false,
+    retentionDays: 30,
+  },
+  documentAppendixStorage: {
+    activeProvider: "supabase",
+    bucket: "app-assets",
+    imageConfigured: false,
+    imageName: "",
   },
   productionUploadEnabled: true,
   productionCustomerAutoSendEnabled: false,
@@ -147,7 +190,7 @@ export default function SettingsForm() {
   const [form, setForm] = useState<SettingsState>(emptyState);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingAsset, setUploadingAsset] = useState<"" | "logo" | "catalog" | "paymentQr" | "paymentSecondaryQr">("");
+  const [uploadingAsset, setUploadingAsset] = useState<"" | SettingsAssetType>("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [importingCatalog, setImportingCatalog] = useState(false);
@@ -182,7 +225,7 @@ export default function SettingsForm() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function handleAssetUpload(assetType: "logo" | "catalog" | "paymentQr" | "paymentSecondaryQr", file: File | null) {
+  async function handleAssetUpload(assetType: SettingsAssetType, file: File | null) {
     if (!file) return;
 
     setUploadingAsset(assetType);
@@ -219,6 +262,19 @@ export default function SettingsForm() {
 
       if (assetType === "paymentSecondaryQr") {
         setForm((prev) => ({ ...prev, paymentSecondaryQrCodeUrl: data.url }));
+      }
+
+      if (assetType === "documentAppendixImage") {
+        setForm((prev) => ({
+          ...prev,
+          documentAppendixImageUrl: data.url,
+          documentAppendixImageName: data.fileName,
+          documentAppendixStorage: {
+            ...prev.documentAppendixStorage,
+            imageConfigured: true,
+            imageName: data.fileName,
+          },
+        }));
       }
 
       setMessage("อัปโหลดไฟล์เรียบร้อยแล้ว");
@@ -541,6 +597,26 @@ export default function SettingsForm() {
             </div>
             {form.businessCatalogName ? <p className="text-xs text-slate-500">ไฟล์ล่าสุด: {form.businessCatalogName}</p> : null}
           </div>
+          <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
+            <span>รูปแนบท้ายเอกสารการค้า</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <input type="file" accept="image/png,image/jpeg,image/webp" aria-label="อัปโหลดรูปแนบท้ายเอกสารการค้า" title="อัปโหลดรูปแนบท้ายเอกสารการค้า" onChange={(e) => handleAssetUpload("documentAppendixImage", e.target.files?.[0] || null)} className="block text-sm" />
+              {uploadingAsset === "documentAppendixImage" ? <span className="text-xs text-slate-500">กำลังอัปโหลด...</span> : null}
+              {form.documentAppendixImageUrl ? <a href={form.documentAppendixImageUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">เปิดรูปแนบท้าย</a> : null}
+            </div>
+            {form.documentAppendixImageUrl ? (
+              <Image
+                src={form.documentAppendixImageUrl}
+                alt="Document appendix image"
+                width={360}
+                height={240}
+                unoptimized
+                className="mt-2 h-44 w-full max-w-sm rounded-2xl border border-slate-200 bg-white object-contain p-2"
+              />
+            ) : null}
+            {form.documentAppendixImageName ? <p className="text-xs text-slate-500">ไฟล์ล่าสุด: {form.documentAppendixImageName}</p> : null}
+            <p className="text-xs text-slate-500">เอกสารการค้าที่ issue หลังจากตั้งค่านี้จะล็อกรูปนี้ไว้ใน snapshot และพิมพ์เป็นหน้าท้ายของใบวางบิล/ใบเสร็จ/ใบกำกับภาษี</p>
+          </div>
           <label className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>ลิงก์รับไฟล์จากลูกค้า</span>
             <input value={form.customerUploadUrl} onChange={(e) => updateField("customerUploadUrl", e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400" placeholder="https://drive.google.com/... หรือ Dropbox/OneDrive file request" />
@@ -553,14 +629,33 @@ export default function SettingsForm() {
           <div className="rounded-[24px] border border-sky-200 bg-sky-50/80 p-4 md:col-span-2">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-950">ที่เก็บรูป/ไฟล์ลูกค้า</p>
+                <p className="text-sm font-semibold text-slate-950">คลังไฟล์ของระบบ</p>
                 <p className="mt-1 text-xs leading-5 text-slate-600">
-                  ไฟล์ที่ลูกค้าอัปโหลดใน LIFF จะผ่าน server route ก่อน แล้วบันทึก metadata ไว้ใน Supabase เสมอ
+                  แยกให้เห็นชัดระหว่างไฟล์ลูกค้า, ไฟล์พนักงานสำหรับยืนยันงาน, และรูปแนบท้ายเอกสาร
                 </p>
               </div>
               <span className={form.customerMediaStorage.r2Configured ? "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800" : "rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800"}>
-                ใช้งานจริง: {form.customerMediaStorage.activeProvider === "r2" ? "Cloudflare R2" : "Supabase Storage"}
+                ไฟล์ลูกค้า: {form.customerMediaStorage.activeProvider === "r2" ? "Cloudflare R2" : "Supabase Storage"}
               </span>
+            </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              <div className="rounded-2xl border border-white/80 bg-white px-4 py-3 text-xs leading-5 text-slate-600">
+                <p className="font-semibold text-slate-950">ลูกค้าอัปโหลดจาก LIFF</p>
+                <p>metadata: lead_media_assets</p>
+                <p>bucket/provider: {form.customerMediaStorage.activeProvider === "r2" ? "Cloudflare R2 customer-media" : "Supabase customer-media"}</p>
+              </div>
+              <div className="rounded-2xl border border-white/80 bg-white px-4 py-3 text-xs leading-5 text-slate-600">
+                <p className="font-semibold text-slate-950">พนักงานยืนยันงานกับลูกค้า</p>
+                <p>metadata: {form.productionMediaStorage.metadataTables.join(" + ")}</p>
+                <p>bucket/provider: Supabase {form.productionMediaStorage.bucket}</p>
+                <p>review/send: {form.productionUploadEnabled ? "เปิดใช้" : "ปิดอยู่"} / {form.productionCustomerAutoSendEnabled ? "ส่งอัตโนมัติ" : "แอดมินกดส่ง"}</p>
+              </div>
+              <div className="rounded-2xl border border-white/80 bg-white px-4 py-3 text-xs leading-5 text-slate-600">
+                <p className="font-semibold text-slate-950">รูปแนบท้ายเอกสาร</p>
+                <p>bucket/provider: Supabase {form.documentAppendixStorage.bucket}</p>
+                <p>สถานะ: {form.documentAppendixStorage.imageConfigured ? "มีรูปแล้ว" : "ยังไม่มีรูป"}</p>
+                <p>เอกสารใหม่จะล็อกรูปลง snapshot ตอน issue</p>
+              </div>
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {form.customerMediaStorage.requiredR2EnvKeys.map((key) => {

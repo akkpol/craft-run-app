@@ -41,6 +41,8 @@ export type AppSettingsRow = {
   business_logo_url: string | null;
   business_catalog_url: string | null;
   business_catalog_name: string | null;
+  document_appendix_image_url: string | null;
+  document_appendix_image_name: string | null;
   customer_upload_url: string | null;
   customer_upload_label: string | null;
   production_upload_enabled: boolean | null;
@@ -86,6 +88,8 @@ export type RuntimeAppConfig = {
   businessLogoUrl: string;
   businessCatalogUrl: string;
   businessCatalogName: string;
+  documentAppendixImageUrl: string;
+  documentAppendixImageName: string;
   customerUploadUrl: string;
   customerUploadLabel: string;
   productionUploadEnabled: boolean;
@@ -194,6 +198,8 @@ export async function getRuntimeAppConfig(): Promise<RuntimeAppConfig> {
     businessLogoUrl: normalizeUrl(settings?.business_logo_url),
     businessCatalogUrl: normalizeUrl(settings?.business_catalog_url),
     businessCatalogName: normalizeText(settings?.business_catalog_name),
+    documentAppendixImageUrl: normalizeUrl(settings?.document_appendix_image_url),
+    documentAppendixImageName: normalizeText(settings?.document_appendix_image_name),
     customerUploadUrl,
     customerUploadLabel: normalizeText(settings?.customer_upload_label) || "ส่งไฟล์งาน / รูปอ้างอิง",
     productionUploadEnabled:
