@@ -109,6 +109,11 @@ export async function POST(request: NextRequest) {
     errors.push("requestedDocumentType is invalid");
   }
   if (
+    data.requestedDocumentTypes !== undefined &&
+    !Array.isArray(data.requestedDocumentTypes)
+  ) {
+    errors.push("requestedDocumentTypes must be an array");
+  } else if (
     data.requestedDocumentTypes?.some(
       (type) => !isDocumentRequestType(type)
     )

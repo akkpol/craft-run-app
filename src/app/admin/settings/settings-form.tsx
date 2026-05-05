@@ -187,6 +187,27 @@ const emptyState: SettingsState = {
   updatedAt: null,
 };
 
+function normalizeBaseUrl(value: string) {
+  return value.trim().replace(/\/$/, "");
+}
+
+function buildDerivedLineUrl(baseUrl: string, path: string) {
+  return baseUrl ? `${baseUrl}${path}` : "";
+}
+
+function isHttpsUrl(value: string) {
+  if (!value) {
+    return false;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export default function SettingsForm() {
   const [form, setForm] = useState<SettingsState>(emptyState);
   const [loading, setLoading] = useState(true);
@@ -331,14 +352,24 @@ export default function SettingsForm() {
       }
 
       setMessage("บันทึกการตั้งค่าเรียบร้อยแล้ว");
-      setForm((prev) => ({
-        ...prev,
-        webhookUrl: `${(prev.baseUrl || "").replace(/\/$/, "")}/api/webhook`,
-        liffEndpointUrl: `${(prev.baseUrl || "").replace(/\/$/, "")}/liff`,
-        updatedAt: new Date().toISOString(),
-        hasAiImageApiKey: prev.hasAiImageApiKey || Boolean(prev.aiImageApiKey),
-        aiImageApiKey: "",
-      }));
+      setForm((prev) => {
+        const normalizedBaseUrl = normalizeBaseUrl(prev.baseUrl || "");
+
+        return {
+          ...prev,
+          webhookUrl: buildDerivedLineUrl(normalizedBaseUrl, "/api/webhook"),
+          liffEndpointUrl: buildDerivedLineUrl(normalizedBaseUrl, "/liff"),
+          updatedAt: new Date().toISOString(),
+          hasAiImageApiKey: prev.hasAiImageApiKey || Boolean(prev.aiImageApiKey),
+          hasLineChannelAccessToken:
+            prev.hasLineChannelAccessToken || Boolean(prev.lineChannelAccessToken.trim()),
+          hasLineChannelSecret:
+            prev.hasLineChannelSecret || Boolean(prev.lineChannelSecret.trim()),
+          aiImageApiKey: "",
+          lineChannelAccessToken: "",
+          lineChannelSecret: "",
+        };
+      });
     } catch {
       setError("บันทึกไม่สำเร็จ");
     } finally {
@@ -397,12 +428,19 @@ export default function SettingsForm() {
     return <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500">กำลังโหลดการตั้งค่า...</div>;
   }
 
-  const normalizedBaseUrl = (form.baseUrl || "").replace(/\/$/, "");
-  const webhookUrl = form.webhookUrl || (normalizedBaseUrl ? `${normalizedBaseUrl}/api/webhook` : "");
-  const liffEndpointUrl = form.liffEndpointUrl || (normalizedBaseUrl ? `${normalizedBaseUrl}/liff` : "");
-  const lineReceiveReady = Boolean(form.hasLineChannelSecret && webhookUrl);
-  const lineSendReady = form.hasLineChannelAccessToken;
-  const liffReady = Boolean(form.liffId && liffEndpointUrl);
+  const normalizedBaseUrl = normalizeBaseUrl(form.baseUrl || "");
+  const webhookUrl = buildDerivedLineUrl(normalizedBaseUrl, "/api/webhook");
+  const liffEndpointUrl = buildDerivedLineUrl(normalizedBaseUrl, "/liff");
+  const hasCurrentLineChannelSecret =
+    form.hasLineChannelSecret || Boolean(form.lineChannelSecret.trim());
+  const hasCurrentLineChannelAccessToken =
+    form.hasLineChannelAccessToken || Boolean(form.lineChannelAccessToken.trim());
+  const hasCurrentLiffId = Boolean(form.liffId.trim());
+  const lineWebhookUrlReady = isHttpsUrl(webhookUrl);
+  const lineLiffUrlReady = isHttpsUrl(liffEndpointUrl);
+  const lineReceiveReady = hasCurrentLineChannelSecret && lineWebhookUrlReady;
+  const lineSendReady = hasCurrentLineChannelAccessToken;
+  const liffReady = hasCurrentLiffId && lineLiffUrlReady;
   const lineConnectionReady = lineReceiveReady && lineSendReady && liffReady;
 
   const LineStatusIcon = lineConnectionReady ? CheckCircle2 : TriangleAlert;
@@ -419,7 +457,11 @@ export default function SettingsForm() {
       description: "ใช้ Webhook URL และ Channel Secret เพื่อ verify event ที่เข้าระบบ",
       ready: lineReceiveReady,
       readyLabel: "พร้อมรับ webhook",
-      missingLabel: form.hasLineChannelSecret ? "รอ Base URL" : "ยังขาด Channel Secret",
+      missingLabel: !hasCurrentLineChannelSecret
+        ? "ยังขาด Channel Secret"
+        : lineWebhookUrlReady
+          ? "รอเปิดใช้ webhook"
+          : "Base URL ต้องเป็น HTTPS",
       icon: MessageCircle,
     },
     {
@@ -435,7 +477,11 @@ export default function SettingsForm() {
       description: "ใช้ LIFF ID และ endpoint `/liff` เพื่อเปิด intake form ใน LINE browser",
       ready: liffReady,
       readyLabel: "พร้อมเปิด LIFF",
-      missingLabel: form.liffId ? "รอ Base URL" : "ยังขาด LIFF ID",
+      missingLabel: !hasCurrentLiffId
+        ? "ยังขาด LIFF ID"
+        : lineLiffUrlReady
+          ? "รอผูก LIFF endpoint"
+          : "Base URL ต้องเป็น HTTPS",
       icon: Smartphone,
     },
   ];

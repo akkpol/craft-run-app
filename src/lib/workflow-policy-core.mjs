@@ -1,4 +1,7 @@
-import workflowPolicy from "../../docs/workflow-policy.json" with { type: "json" };
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const workflowPolicy = require("../../docs/workflow-policy.json");
 
 let cachedPolicy = null;
 
