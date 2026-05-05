@@ -17,9 +17,10 @@ Use this file first when the session context is unstable, including:
 
 ## Mandatory First Read Order
 
-1. `plan/README.md`
-2. `plan/process-anti-loop-execution-1.md`
-3. Current active packet file only, one packet at a time
+1. `docs/AUTO_RUN_FLOW_OWNER_MAP.md` for the compact state, owner, automation, and decision map
+2. `plan/README.md`
+3. `plan/process-anti-loop-execution-1.md`
+4. Current active packet file only, one packet at a time
 
 When reading `plan/process-anti-loop-execution-1.md`, always read the `Central Tooling And Environment Matrix` and `Mandatory Work Update Matrix` sections before selecting or resuming a packet. These sections define the shared shell/tool/env baseline and the required update record after complete, incomplete, blocked, or tooling-changing work.
 

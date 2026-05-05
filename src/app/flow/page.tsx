@@ -77,9 +77,9 @@ const runtimeSurfaces = [
   },
   {
     title: "LIFF intake",
-    route: "/liff/intake?devNoLiff=1",
+    route: "/liff/intake",
     description:
-      "ฟอร์มรับ requirement บนมือถือที่ใส่ข้อมูลการออกเอกสาร, billing และไฟล์อ้างอิงได้ครบก่อนสร้าง lead/quote",
+      "ฟอร์มรับ requirement บนมือถือที่ใส่ข้อมูลการออกเอกสาร, billing และไฟล์อ้างอิงได้ครบก่อนสร้าง lead/quote โดย production path นี้ควรเปิดผ่าน LINE/LIFF ส่วน devNoLiff ใช้สำหรับ local หรือ non-production เท่านั้น",
   },
   {
     title: "Customer portal lookup",

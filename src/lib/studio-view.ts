@@ -11,6 +11,7 @@ import {
 } from "@/lib/types";
 import { hasLeadAiSeedPrompt } from "@/lib/lead-ai-prompt";
 import { getQuoteApprovalState } from "@/lib/quote-workflow";
+import { getWorkflowOwnerContract } from "@/lib/workflow-owner-map";
 import type {
   BackofficeSnapshot,
   SnapshotConversation,
@@ -160,6 +161,44 @@ const STUDIO_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat("th-TH", {
   timeZone: "Asia/Bangkok",
 });
 
+const STUDIO_STOP_REASON_LABELS: Record<string, string> = {
+  unclear_requirement: "รายละเอียดงานยังไม่ชัด",
+  unsupported_product: "สินค้ายังไม่อยู่ใน flow ที่รองรับ",
+  missing_customer_identity: "ยังไม่ยืนยันตัวตนลูกค้า",
+  pricing_exception: "ต้องให้คนตรวจราคา",
+  missing_dimensions: "ขนาดงานยังไม่ครบ",
+  ambiguous_reference: "reference ยังไม่ชัดพอออก quote",
+  customer_rescope_request: "ลูกค้าขอปรับ scope งาน",
+  quote_expired: "ใบเสนอราคาหมดอายุ",
+  custom_discount_review: "ส่วนลดต้องให้คนอนุมัติ",
+  payment_not_confirmed: "ยังไม่ยืนยันการชำระ",
+  deposit_missing: "ยอดมัดจำยังไม่ถึงเกณฑ์เปิดงาน",
+  payment_receiver_mismatch: "ผู้รับชำระไม่ตรงกับผู้ออกเอกสาร",
+  visual_quality_review: "ต้องมีคนตรวจคุณภาพภาพ",
+  prompt_needs_edit: "ต้องแก้ prompt ก่อนส่งต่อ",
+  ai_generation_failed: "AI สร้างภาพไม่สำเร็จ",
+  customer_revision_requested: "ลูกค้าขอแก้แบบ",
+  production_qc_needed: "ต้องตรวจคุณภาพก่อนส่งมอบ",
+  material_or_file_issue: "ไฟล์หรือวัสดุยังมีปัญหา",
+  commercial_gate_not_satisfied: "เอกสารการค้ายังไม่เคลียร์",
+  delivery_or_pickup_pending: "ยังไม่ยืนยันการส่งมอบ",
+  completion_package_review: "ต้องเช็กชุดปิดงานก่อน",
+  missing_customer_input: "รอข้อมูลจากลูกค้า",
+  revision_details_needed: "รอรายละเอียดการแก้แบบ",
+  follow_up_overdue: "follow-up เกินเวลาแล้ว",
+  customer_requested_human: "ลูกค้าขอคุยกับคน",
+  policy_conflict: "ติด policy conflict",
+  system_error: "ระบบต้องให้คนช่วยแก้",
+  high_risk_decision: "เป็นเคสเสี่ยงสูงต้องให้คนตัดสินใจ",
+};
+
+const STUDIO_NEXT_ACTION_OWNER_LABELS = {
+  internal: "ทีมงาน",
+  customer: "ลูกค้า",
+  system: "ระบบ",
+  none: "ไม่มี action ต่อ",
+} as const;
+
 function formatStudioTimestamp(value: string) {
   const parsedDate = new Date(value);
 
@@ -196,6 +235,19 @@ export type StudioToken = {
   quote: SnapshotQuote | null;
   job: SnapshotJob | null;
   escalation: SnapshotEscalation | null;
+};
+
+export type StudioTokenMeta = {
+  stateLabel: string;
+  designStatusLabel: string | null;
+  jobStatusLabel: string | null;
+  paymentSummary: string | null;
+  ownerLabel: string;
+  stopReasonLabel: string;
+  workflowSummary: string;
+  nextActionOwnerLabel: string;
+  primarySurfaceLabel: string;
+  primarySurfaceHref: string;
 };
 
 export type StudioStation = StationDef & {
@@ -559,11 +611,56 @@ export function getStudioTokenMeta(token: StudioToken) {
     ? JOB_STATUS_LABELS[token.job.status as keyof typeof JOB_STATUS_LABELS] ||
       token.job.status
     : null;
+  const workflowContract = getWorkflowOwnerContract(token.state);
+
+  let stopReasonLabel = token.note || workflowContract.summary;
+
+  if (workflowContract.humanGateReasons.length > 0) {
+    const priorityReason = workflowContract.humanGateReasons.find((reason) => {
+      if (reason === "deposit_missing" && token.quote?.payment_status === "partial") {
+        return true;
+      }
+
+      if (reason === "payment_not_confirmed" && token.quote?.payment_status === "unpaid") {
+        return true;
+      }
+
+      if (reason === "customer_requested_human" && token.escalation) {
+        return true;
+      }
+
+      if (reason === "missing_customer_input" && token.state === "ON_HOLD_CUSTOMER_INPUT") {
+        return true;
+      }
+
+      if (reason === "production_qc_needed" && token.state === "IN_PRODUCTION") {
+        return true;
+      }
+
+      if (reason === "delivery_or_pickup_pending" && token.state === "READY_FOR_FULFILLMENT") {
+        return true;
+      }
+
+      return false;
+    });
+
+    const chosenReason = priorityReason || workflowContract.humanGateReasons[0];
+    if (chosenReason && STUDIO_STOP_REASON_LABELS[chosenReason]) {
+      stopReasonLabel = STUDIO_STOP_REASON_LABELS[chosenReason];
+    }
+  }
 
   return {
     stateLabel: WORKFLOW_STATE_LABELS[token.state],
     designStatusLabel,
     jobStatusLabel,
     paymentSummary: token.paymentSummary,
-  };
+    ownerLabel: workflowContract.ownerLabel,
+    stopReasonLabel,
+    workflowSummary: workflowContract.summary,
+    nextActionOwnerLabel:
+      STUDIO_NEXT_ACTION_OWNER_LABELS[workflowContract.nextActionOwner],
+    primarySurfaceLabel: workflowContract.primarySurface.label,
+    primarySurfaceHref: workflowContract.primarySurface.href,
+  } satisfies StudioTokenMeta;
 }
