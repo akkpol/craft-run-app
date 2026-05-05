@@ -315,7 +315,9 @@ function fallbackStopReason(row: AdminOverviewRow, workflowState: WorkflowState 
     return WORKFLOW_STATE_LABELS[workflowState];
   }
 
-  return getAdminQueueContract(row.filterKey).description;
+  const exhaustiveRow: never = row;
+  void exhaustiveRow;
+  return "รอตรวจสถานะ workflow";
 }
 
 function getStopReasonLabel(row: AdminOverviewRow, workflowState: WorkflowState | null) {
@@ -355,10 +357,6 @@ function getStopReasonLabel(row: AdminOverviewRow, workflowState: WorkflowState 
 
       if (row.kind === "production-review") {
         return reason === "visual_quality_review" || reason === "prompt_needs_edit";
-      }
-
-      if (row.kind === "escalation") {
-        return reason === "customer_requested_human" || reason === "high_risk_decision";
       }
 
       return false;
