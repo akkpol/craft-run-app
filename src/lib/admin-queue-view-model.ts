@@ -458,6 +458,26 @@ function getPrimaryActionLabel(row: AdminOverviewRow) {
   return getJobActionLabel(row.jobStatus);
 }
 
+function resolvePrimarySurfaceHref(
+  row: AdminOverviewRow,
+  href: string
+) {
+  if (!href.includes("[token]")) {
+    return href;
+  }
+
+  const token =
+    row.kind === "quote"
+      ? row.publicToken
+      : row.kind === "production-review"
+        ? row.statusToken
+        : row.kind === "running-job"
+          ? row.publicToken
+          : null;
+
+  return token ? href.replace("[token]", token) : `/admin?filter=${row.filterKey}`;
+}
+
 function getPrimarySurface(row: AdminOverviewRow, workflowState: WorkflowState | null) {
   if (row.kind === "quote" && row.filterKey === "commercial-gate") {
     return {
@@ -469,7 +489,7 @@ function getPrimarySurface(row: AdminOverviewRow, workflowState: WorkflowState |
   if (workflowState) {
     const contract = getWorkflowOwnerContract(workflowState);
     return {
-      href: contract.primarySurface.href,
+      href: resolvePrimarySurfaceHref(row, contract.primarySurface.href),
       label: contract.primarySurface.label,
     };
   }

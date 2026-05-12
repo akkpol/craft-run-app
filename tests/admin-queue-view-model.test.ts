@@ -77,6 +77,7 @@ test("quote-decision cards explain customer approval work and keep customer wait
   assert.equal(card.primaryActionLabel, "ติดตามการอนุมัติ");
   assert.equal(card.stopReasonLabel, "รอลูกค้าตัดสินใจ quote");
   assert.equal(card.workflowLabel, "รออนุมัติใบเสนอราคา");
+  assert.equal(card.primarySurfaceHref, "/quote/quote-token");
 });
 
 test("customer-waiting cards preserve the customer note as the stop reason", () => {

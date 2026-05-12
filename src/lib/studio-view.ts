@@ -268,6 +268,15 @@ export type StudioViewModel = {
   };
 };
 
+function resolveStudioPrimarySurfaceHref(token: StudioToken, href: string) {
+  if (!href.includes("[token]")) {
+    return href;
+  }
+
+  const publicToken = token.quote?.public_token || null;
+  return publicToken ? href.replace("[token]", publicToken) : "/admin";
+}
+
 const STATE_TO_STATION = Object.fromEntries(
   STUDIO_STATIONS.flatMap((station) =>
     station.states.map((state) => [state, station.id])
@@ -615,7 +624,10 @@ export function getStudioTokenMeta(token: StudioToken) {
 
   let stopReasonLabel = token.note || workflowContract.summary;
 
-  if (workflowContract.humanGateReasons.length > 0) {
+  if (
+    workflowContract.automationMode === "human_gate" &&
+    workflowContract.humanGateReasons.length > 0
+  ) {
     const priorityReason = workflowContract.humanGateReasons.find((reason) => {
       if (reason === "deposit_missing" && token.quote?.payment_status === "partial") {
         return true;
@@ -661,6 +673,9 @@ export function getStudioTokenMeta(token: StudioToken) {
     nextActionOwnerLabel:
       STUDIO_NEXT_ACTION_OWNER_LABELS[workflowContract.nextActionOwner],
     primarySurfaceLabel: workflowContract.primarySurface.label,
-    primarySurfaceHref: workflowContract.primarySurface.href,
+    primarySurfaceHref: resolveStudioPrimarySurfaceHref(
+      token,
+      workflowContract.primarySurface.href
+    ),
   } satisfies StudioTokenMeta;
 }
