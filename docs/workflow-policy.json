@@ -17,14 +17,14 @@
       "NEW_MESSAGE",
       "COLLECTING_REQUIREMENTS",
       "REQUIREMENTS_REVIEW",
-      "WAITING_QUOTE_APPROVAL",
-      "WAITING_PAYMENT|IN_DESIGN",
+      "QUOTE_PENDING_APPROVAL",
+      "PAYMENT_PENDING|IN_DESIGN",
       "IN_PRODUCTION",
       "READY_FOR_FULFILLMENT",
       "COMPLETED"
     ],
     "branches": [
-      "ON_HOLD_CUSTOMER_INPUT",
+      "ON_HOLD",
       "HUMAN_REVIEW_REQUIRED",
       "CANCELLED"
     ],
@@ -40,12 +40,12 @@
       "NEW_MESSAGE",
       "COLLECTING_REQUIREMENTS",
       "REQUIREMENTS_REVIEW",
-      "WAITING_QUOTE_APPROVAL",
-      "WAITING_PAYMENT",
+      "QUOTE_PENDING_APPROVAL",
+      "PAYMENT_PENDING",
       "IN_DESIGN",
       "IN_PRODUCTION",
       "READY_FOR_FULFILLMENT",
-      "ON_HOLD_CUSTOMER_INPUT",
+      "ON_HOLD",
       "HUMAN_REVIEW_REQUIRED",
       "COMPLETED",
       "CANCELLED"
@@ -66,33 +66,33 @@
         "CANCELLED"
       ],
       "REQUIREMENTS_REVIEW": [
-        "WAITING_QUOTE_APPROVAL",
-        "ON_HOLD_CUSTOMER_INPUT",
+        "QUOTE_PENDING_APPROVAL",
+        "ON_HOLD",
         "HUMAN_REVIEW_REQUIRED",
         "CANCELLED"
       ],
-      "WAITING_QUOTE_APPROVAL": [
+      "QUOTE_PENDING_APPROVAL": [
         "REQUIREMENTS_REVIEW",
-        "WAITING_PAYMENT",
+        "PAYMENT_PENDING",
         "IN_DESIGN",
         "HUMAN_REVIEW_REQUIRED",
         "CANCELLED"
       ],
-      "WAITING_PAYMENT": [
+      "PAYMENT_PENDING": [
         "REQUIREMENTS_REVIEW",
         "IN_DESIGN",
         "HUMAN_REVIEW_REQUIRED",
         "CANCELLED"
       ],
       "IN_DESIGN": [
-        "ON_HOLD_CUSTOMER_INPUT",
+        "ON_HOLD",
         "HUMAN_REVIEW_REQUIRED",
         "IN_PRODUCTION",
         "CANCELLED"
       ],
       "IN_PRODUCTION": [
         "READY_FOR_FULFILLMENT",
-        "ON_HOLD_CUSTOMER_INPUT",
+        "ON_HOLD",
         "HUMAN_REVIEW_REQUIRED",
         "CANCELLED"
       ],
@@ -101,7 +101,7 @@
         "HUMAN_REVIEW_REQUIRED",
         "CANCELLED"
       ],
-      "ON_HOLD_CUSTOMER_INPUT": [
+      "ON_HOLD": [
         "COLLECTING_REQUIREMENTS",
         "REQUIREMENTS_REVIEW",
         "IN_DESIGN",
@@ -111,8 +111,8 @@
       "HUMAN_REVIEW_REQUIRED": [
         "COLLECTING_REQUIREMENTS",
         "REQUIREMENTS_REVIEW",
-        "WAITING_QUOTE_APPROVAL",
-        "WAITING_PAYMENT",
+        "QUOTE_PENDING_APPROVAL",
+        "PAYMENT_PENDING",
         "IN_DESIGN",
         "IN_PRODUCTION",
         "READY_FOR_FULFILLMENT",
