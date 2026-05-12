@@ -121,6 +121,11 @@ FAIL เมื่อ:
 3. รอหน้า form โหลด prefill
 4. ตรวจว่าค่าที่เคยเก็บไว้ถูกเติมกลับมา
 
+Server-side precheck ที่ควรผ่านก่อนเริ่ม run นี้:
+
+- `GET /api/customers/prefill` ต้องไม่ถูก auth middleware redirect ไป `/auth/login` เพราะ route นี้ถูกเรียกจาก public LIFF flow โดยตรง
+- ถ้า desktop smoke ยังได้ `307 /auth/login?next=%2Fapi%2Fcustomers%2Fprefill` ให้ถือว่า `LIFF-VAL-006` ยังติด route-gating bug และยังไม่ควรส่ง operator ปิด run นี้
+
 ต้องตรวจผลอย่างน้อย:
 
 - `phone`
@@ -149,6 +154,12 @@ Policy boundary:
 - Scenario นี้ตรวจแค่ intake validation ว่าข้อมูล tax-document เบื้องต้นไม่หลุดเข้า lead ผิดเงื่อนไข
 - Scenario นี้ยังไม่ใช่ proof ว่าระบบออกใบกำกับภาษีได้จริง
 - ก่อนออก billing note, invoice, receipt, tax-ready, หรือ tax invoice ต้องใช้ [COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md) และ implementation packet [../plan/feature-commercial-documents-1.md](../plan/feature-commercial-documents-1.md)
+
+Security note:
+
+- การยิง `POST /api/intake` จาก desktop/browser automation หรือ server-side smoke โดยไม่มี `liffIdToken` ที่ verify ได้ จะต้อง fail ก่อนถึง tax validation ด้วยข้อความประมาณ `LINE identity verification is required. Please reopen the form from LINE.`
+- ให้ถือว่านี่เป็น expected security behavior ไม่ใช่ proof ว่า fail path ของ tax-document validation ผ่านแล้ว
+- หลักฐานปิด `LIFF-VAL-007` ต้องมาจาก LINE WebView / LIFF browser จริงบนอุปกรณ์หรือ operator session ที่มี LIFF identity ใช้งานได้เท่านั้น
 
 ขั้นตอน fail path:
 
@@ -186,6 +197,19 @@ PASS เมื่อ:
 - product picker โหลด runtime catalog จริง
 - quote/status/download แสดง imported product label ไม่ใช่ slug ดิบ
 
+Production proof rules:
+
+- `GET /api/intake/product-catalog` ต้องตอบ `source: "database"` ไม่ใช่ `fallback`
+- ตาราง `public.product_catalog_items` ต้องมี `active = true` อย่างน้อย 1 แถวก่อนเริ่ม run นี้
+- lead ที่สร้างจาก run นี้ต้องมี `product_label_snapshot` ไม่เป็น `null` เพื่อพิสูจน์ว่าหน้า quote/status/download อ่าน label จาก runtime catalog snapshot ได้จริง ไม่ใช่ fallback mapping
+
+Intended production import path:
+
+- primary path: ให้ staff import CSV จากหน้า `/admin/settings` ใน section `Product Catalog Runtime`
+- template file อยู่ที่ [public/templates/product-catalog-template.csv](public/templates/product-catalog-template.csv)
+- route ที่รับ import คือ `/api/admin/product-catalog/import`
+- ถ้าต้อง bootstrap production ก่อนเปิดหน้า admin ให้ใช้ SQL จาก [supabase/seeds/product_catalog_runtime_minimum.sql](supabase/seeds/product_catalog_runtime_minimum.sql) แล้วค่อยใช้ admin CSV import เป็นวิธีดูแลข้อมูลประจำวัน
+
 ขั้นตอน:
 
 1. เปิด LIFF แล้วดู product picker
@@ -205,11 +229,14 @@ PASS เมื่อ:
 
 - picker โหลดรายการได้
 - 3 หน้าแสดง imported product label ตรงกัน
+- proof query ของ lead ที่สร้างจาก run นี้แสดง `product_label_snapshot` ตรงกับ label ที่เห็นบน UI
 
 FAIL เมื่อ:
 
 - picker โหลดไม่ได้
 - หน้าใดหน้าหนึ่งกลับไปแสดง slug fallback
+- `/api/intake/product-catalog` ยังตอบ `source: "fallback"`
+- lead ที่เพิ่งสร้างยังมี `product_label_snapshot = null`
 
 ## Failure Triage Order
 
