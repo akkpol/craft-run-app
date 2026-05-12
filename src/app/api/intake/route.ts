@@ -613,7 +613,7 @@ export async function POST(request: NextRequest) {
       height_mm: heightMm,
       qty,
       due_date: data.dueDate || null,
-      ...buildLeadPromptFields(data),
+      ...buildLeadPromptFields(leadPromptInput),
       requested_document_type: requestedDocumentType,
       requested_document_types: requestedDocumentTypes,
       billing_entity_type: billingEntityType,
