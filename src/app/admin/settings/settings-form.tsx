@@ -1,11 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Building2,
   CheckCircle2,
   Clipboard,
+  CloudUpload,
+  FileImage,
+  FileSpreadsheet,
+  FileText,
   KeyRound,
   Link2,
   MessageCircle,
@@ -28,7 +32,12 @@ import {
   PAYMENT_ROUTING_TERM_SCOPES,
 } from "@/lib/payment-routing";
 import { formatBangkokDateTime } from "@/lib/bangkok-date-time";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 type ProductCatalogImportResult = {
   importedCount: number;
@@ -123,6 +132,8 @@ type SettingsState = {
 
 type SettingsFormMode = "general" | "ai";
 
+type UploadFieldKind = "image" | "document" | "spreadsheet" | "mixed";
+
 const emptyState: SettingsState = {
   businessName: "",
   businessPhone: "",
@@ -212,6 +223,312 @@ function isHttpsUrl(value: string) {
   } catch {
     return false;
   }
+}
+
+type UploadFieldProps = {
+  accept: string;
+  buttonLabel: string;
+  formatLabel: string;
+  emptyLabel: string;
+  currentLabel?: string;
+  helperText?: string;
+  kind?: UploadFieldKind;
+  openHref?: string;
+  openLabel?: string;
+  pending?: boolean;
+  pendingLabel?: string;
+  onSelect: (file: File | null) => void;
+};
+
+const uploadFieldKindMeta: Record<
+  UploadFieldKind,
+  {
+    label: string;
+    icon: LucideIcon;
+    badgeClassName: string;
+    iconClassName: string;
+    cardClassName: string;
+    railClassName: string;
+    hint: string;
+  }
+> = {
+  image: {
+    label: "ไฟล์ภาพ",
+    icon: FileImage,
+    badgeClassName: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700",
+    iconClassName:
+      "bg-gradient-to-br from-fuchsia-500/15 via-white to-sky-500/15 text-fuchsia-700 ring-fuchsia-200/80",
+    cardClassName: "bg-gradient-to-br from-fuchsia-50/90 via-white to-sky-50/80",
+    railClassName: "from-fuchsia-400 via-sky-400 to-cyan-300",
+    hint: "เหมาะกับ asset ที่ต้อง preview ทันที เช่น QR, โลโก้ หรือภาพแนบท้ายเอกสาร",
+  },
+  document: {
+    label: "เอกสาร",
+    icon: FileText,
+    badgeClassName: "border-amber-200 bg-amber-50 text-amber-700",
+    iconClassName:
+      "bg-gradient-to-br from-amber-500/15 via-white to-rose-500/10 text-amber-700 ring-amber-200/80",
+    cardClassName: "bg-gradient-to-br from-amber-50/85 via-white to-rose-50/70",
+    railClassName: "from-amber-400 via-orange-400 to-rose-300",
+    hint: "ใช้กับ company profile หรือไฟล์อ้างอิงที่แอดมินต้องเปิดเช็กก่อนส่งต่อ",
+  },
+  spreadsheet: {
+    label: "CSV Runtime",
+    icon: FileSpreadsheet,
+    badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    iconClassName:
+      "bg-gradient-to-br from-emerald-500/15 via-white to-cyan-500/10 text-emerald-700 ring-emerald-200/80",
+    cardClassName: "bg-gradient-to-br from-emerald-50/90 via-white to-cyan-50/80",
+    railClassName: "from-emerald-400 via-cyan-400 to-sky-300",
+    hint: "อัปโหลด CSV ชุดล่าสุดเพื่อรีเฟรช catalog runtime แบบ bulk import",
+  },
+  mixed: {
+    label: "ไฟล์ทั่วไป",
+    icon: CloudUpload,
+    badgeClassName: "border-slate-200 bg-slate-50 text-slate-700",
+    iconClassName:
+      "bg-gradient-to-br from-slate-400/15 via-white to-blue-500/10 text-slate-700 ring-slate-200/80",
+    cardClassName: "bg-gradient-to-br from-slate-50/90 via-white to-blue-50/70",
+    railClassName: "from-slate-400 via-slate-300 to-blue-300",
+    hint: "รองรับการลากไฟล์มาวางบนการ์ดนี้โดยตรง แล้วใช้ปุ่มเลือกจากเครื่องเป็น fallback",
+  },
+};
+
+function UploadField({
+  accept,
+  buttonLabel,
+  formatLabel,
+  emptyLabel,
+  currentLabel,
+  helperText,
+  kind = "mixed",
+  openHref,
+  openLabel,
+  pending = false,
+  pendingLabel,
+  onSelect,
+}: UploadFieldProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState("");
+  const kindMeta = uploadFieldKindMeta[kind];
+  const KindIcon = kindMeta.icon;
+  const hasCurrentFile = Boolean(currentLabel || openHref);
+
+  const statusLabel = pending
+    ? pendingLabel || "กำลังอัปโหลด..."
+    : isDragging
+      ? "ปล่อยไฟล์เพื่ออัปโหลด"
+      : hasCurrentFile
+        ? "มีไฟล์พร้อมใช้งาน"
+        : "พร้อมรับไฟล์";
+  const StatusIcon = pending
+    ? Upload
+    : isDragging
+      ? CloudUpload
+      : hasCurrentFile
+        ? CheckCircle2
+        : CloudUpload;
+  const statusBadgeVariant = pending || isDragging ? "info" : hasCurrentFile ? "success" : "outline";
+  const summaryLabel = pending && selectedFileName
+    ? `กำลังอัปโหลด ${selectedFileName}`
+    : hasCurrentFile
+      ? currentLabel || "มีไฟล์ปัจจุบันแล้ว"
+      : selectedFileName
+        ? `ไฟล์ล่าสุดที่เลือก: ${selectedFileName}`
+        : emptyLabel;
+  const statusDescription = pending
+    ? "ระบบกำลังประมวลผลไฟล์นี้และจะอัปเดตสถานะให้ทันทีเมื่อเสร็จ"
+    : isDragging
+      ? "ปล่อยไฟล์บนการ์ดนี้เพื่อเริ่มอัปโหลดทันที"
+      : hasCurrentFile
+        ? "สามารถแทนที่ไฟล์เดิมได้ โดย flow หลังบ้านจะใช้ไฟล์ล่าสุดอัตโนมัติ"
+        : "ลากไฟล์จากเครื่องมาวางบนการ์ดนี้ หรือกดปุ่มเพื่อเลือกไฟล์แบบเดิม";
+  const detailLabel = !hasCurrentFile && selectedFileName
+    ? `ไฟล์ล่าสุด: ${selectedFileName}`
+    : `รองรับ ${formatLabel}`;
+  const footerNote = pending
+    ? "ระหว่างอัปโหลด ระบบจะล็อกการเลือกไฟล์ใหม่ชั่วคราวเพื่อกันสถานะสับสน"
+    : openHref
+      ? "เปิดไฟล์ปัจจุบันเพื่อตรวจสอบก่อนแทนที่ได้ทุกเวลา"
+      : "ยังไม่มีไฟล์ในระบบสำหรับรายการนี้";
+
+  function forwardSelection(file: File | null) {
+    if (!file) {
+      onSelect(null);
+      return;
+    }
+
+    if (pending) {
+      return;
+    }
+
+    setSelectedFileName(file.name);
+    onSelect(file);
+  }
+
+  return (
+    <Card
+      size="sm"
+      className={cn(
+        "gap-0 overflow-hidden border py-0 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.45)] transition-all duration-200",
+        kindMeta.cardClassName,
+        isDragging && "border-sky-300 shadow-[0_24px_60px_-32px_rgba(14,165,233,0.55)] ring-2 ring-sky-100/80",
+        pending && "border-blue-200 shadow-[0_24px_60px_-32px_rgba(59,130,246,0.45)]",
+        !pending && !isDragging && hasCurrentFile && "border-emerald-200"
+      )}
+    >
+      <div className={cn("h-1.5 w-full bg-linear-to-r", kindMeta.railClassName)} />
+      <CardContent className="px-5 py-5">
+        <div
+          className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+          onDragEnter={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!pending) {
+              setIsDragging(true);
+            }
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!pending) {
+              setIsDragging(true);
+            }
+          }}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const nextTarget = event.relatedTarget;
+            if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+              return;
+            }
+
+            setIsDragging(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setIsDragging(false);
+            forwardSelection(event.dataTransfer.files?.[0] || null);
+            event.dataTransfer.clearData();
+          }}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept={accept}
+            aria-label={buttonLabel}
+            title={buttonLabel}
+            className="sr-only"
+            onChange={(event) => {
+              forwardSelection(event.target.files?.[0] || null);
+              event.currentTarget.value = "";
+            }}
+          />
+          <div className="flex min-w-0 items-start gap-4">
+            <div
+              className={cn(
+                "flex size-14 shrink-0 items-center justify-center rounded-[20px] ring-1 ring-inset shadow-sm transition-transform duration-200",
+                kindMeta.iconClassName,
+                isDragging && "scale-105 ring-sky-200",
+                pending && "animate-pulse"
+              )}
+            >
+              <KindIcon className="size-7" />
+            </div>
+            <div className="min-w-0 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={statusBadgeVariant}>
+                  <StatusIcon data-icon="inline-start" className={cn(pending && "animate-pulse")} />
+                  {statusLabel}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className={cn("border-white/80 bg-white/85", kindMeta.badgeClassName)}
+                >
+                  <KindIcon data-icon="inline-start" />
+                  {kindMeta.label}
+                </Badge>
+                <Badge variant="outline" className="border-slate-200 bg-white/85 text-slate-600">
+                  {formatLabel}
+                </Badge>
+              </div>
+              <div className="space-y-1">
+                <p className="truncate text-sm font-semibold text-slate-950 sm:text-[15px]">
+                  {summaryLabel}
+                </p>
+                <p className="text-xs leading-5 text-slate-600">{statusDescription}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <span className="rounded-full border border-white/80 bg-white/80 px-3 py-1 font-medium text-slate-600">
+                  {detailLabel}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+            <Button
+              type="button"
+              size="sm"
+              disabled={pending}
+              className={cn(
+                "h-10 rounded-full px-4 shadow-sm",
+                isDragging ? "bg-sky-600 text-white hover:bg-sky-700" : "bg-slate-950 text-white hover:bg-slate-800"
+              )}
+              onClick={() => inputRef.current?.click()}
+            >
+              <CloudUpload data-icon="inline-start" />
+              {buttonLabel}
+            </Button>
+            {openHref ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-10 rounded-full border-white/80 bg-white/85 px-4 text-slate-700 shadow-sm hover:bg-white"
+                asChild
+              >
+                <a href={openHref} target="_blank" rel="noreferrer">
+                  <Link2 data-icon="inline-start" />
+                  {openLabel || "เปิดไฟล์"}
+                </a>
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </CardContent>
+      <Separator className="bg-slate-200/80" />
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 text-xs">
+        <div className="space-y-1 text-slate-500">
+          <p className="font-medium text-slate-700">{helperText || kindMeta.hint}</p>
+          <p>{footerNote}</p>
+        </div>
+        <div
+          className={cn(
+            "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 font-medium",
+            isDragging
+              ? "border-sky-200 bg-sky-50 text-sky-700"
+              : pending
+                ? "border-blue-200 bg-blue-50 text-blue-700"
+                : hasCurrentFile
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 bg-white/80 text-slate-600"
+          )}
+        >
+          <CloudUpload className="size-3.5" />
+          {isDragging
+            ? "ปล่อยไฟล์ได้เลย"
+            : pending
+              ? "กำลังประมวลผล"
+              : hasCurrentFile
+                ? "มีไฟล์พร้อมใช้"
+                : "พร้อม drag & drop"}
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 export default function SettingsForm({
@@ -603,11 +920,20 @@ export default function SettingsForm({
           </label>
           <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>QR Code สำหรับชำระเงิน</span>
-            <div className="flex flex-wrap items-center gap-3">
-              <input type="file" accept="image/png,image/jpeg,image/webp" aria-label="อัปโหลด QR Code สำหรับชำระเงิน" title="อัปโหลด QR Code สำหรับชำระเงิน" onChange={(e) => handleAssetUpload("paymentQr", e.target.files?.[0] || null)} className="block text-sm" />
-              {uploadingAsset === "paymentQr" ? <span className="text-xs text-slate-500">กำลังอัปโหลด...</span> : null}
-              {form.paymentQrCodeUrl ? <a href={form.paymentQrCodeUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">เปิด QR Code</a> : null}
-            </div>
+            <UploadField
+              accept="image/png,image/jpeg,image/webp"
+              buttonLabel="อัปโหลด QR Code"
+              formatLabel="PNG, JPG, WEBP"
+              emptyLabel="ยังไม่มี QR Code สำหรับช่องทางชำระเงิน"
+              currentLabel={form.paymentQrCodeUrl ? "มี QR Code สำหรับชำระเงินปัจจุบันแล้ว" : undefined}
+              kind="image"
+              openHref={form.paymentQrCodeUrl || undefined}
+              openLabel="เปิด QR Code"
+              pending={uploadingAsset === "paymentQr"}
+              onSelect={(file) => {
+                void handleAssetUpload("paymentQr", file);
+              }}
+            />
             {form.paymentQrCodeUrl ? (
               <Image
                 src={form.paymentQrCodeUrl}
@@ -712,11 +1038,20 @@ export default function SettingsForm({
               </label>
               <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
                 <span>QR Code ของบัญชีรอง</span>
-                <div className="flex flex-wrap items-center gap-3">
-                  <input type="file" accept="image/png,image/jpeg,image/webp" aria-label="อัปโหลด QR Code บัญชีสำรอง" title="อัปโหลด QR Code บัญชีสำรอง" onChange={(e) => handleAssetUpload("paymentSecondaryQr", e.target.files?.[0] || null)} className="block text-sm" />
-                  {uploadingAsset === "paymentSecondaryQr" ? <span className="text-xs text-slate-500">กำลังอัปโหลด...</span> : null}
-                  {form.paymentSecondaryQrCodeUrl ? <a href={form.paymentSecondaryQrCodeUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">เปิด QR บัญชีรอง</a> : null}
-                </div>
+                <UploadField
+                  accept="image/png,image/jpeg,image/webp"
+                  buttonLabel="อัปโหลด QR บัญชีรอง"
+                  formatLabel="PNG, JPG, WEBP"
+                  emptyLabel="ยังไม่มี QR Code ของบัญชีรอง"
+                  currentLabel={form.paymentSecondaryQrCodeUrl ? "มี QR Code ของบัญชีรองปัจจุบันแล้ว" : undefined}
+                  kind="image"
+                  openHref={form.paymentSecondaryQrCodeUrl || undefined}
+                  openLabel="เปิด QR บัญชีรอง"
+                  pending={uploadingAsset === "paymentSecondaryQr"}
+                  onSelect={(file) => {
+                    void handleAssetUpload("paymentSecondaryQr", file);
+                  }}
+                />
                 {form.paymentSecondaryQrCodeUrl ? (
                   <Image
                     src={form.paymentSecondaryQrCodeUrl}
@@ -735,11 +1070,20 @@ export default function SettingsForm({
           </div>
           <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>โลโก้ร้าน</span>
-            <div className="flex flex-wrap items-center gap-3">
-              <input type="file" accept="image/png,image/jpeg,image/webp" aria-label="อัปโหลดโลโก้ร้าน" title="อัปโหลดโลโก้ร้าน" onChange={(e) => handleAssetUpload("logo", e.target.files?.[0] || null)} className="block text-sm" />
-              {uploadingAsset === "logo" ? <span className="text-xs text-slate-500">กำลังอัปโหลด...</span> : null}
-              {form.businessLogoUrl ? <a href={form.businessLogoUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">เปิดไฟล์โลโก้</a> : null}
-            </div>
+            <UploadField
+              accept="image/png,image/jpeg,image/webp"
+              buttonLabel="อัปโหลดโลโก้ร้าน"
+              formatLabel="PNG, JPG, WEBP"
+              emptyLabel="ยังไม่มีโลโก้ร้าน"
+              currentLabel={form.businessLogoUrl ? "มีโลโก้ร้านปัจจุบันแล้ว" : undefined}
+              kind="image"
+              openHref={form.businessLogoUrl || undefined}
+              openLabel="เปิดโลโก้"
+              pending={uploadingAsset === "logo"}
+              onSelect={(file) => {
+                void handleAssetUpload("logo", file);
+              }}
+            />
             {form.businessLogoUrl ? (
               <Image
                 src={form.businessLogoUrl}
@@ -753,20 +1097,38 @@ export default function SettingsForm({
           </div>
           <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>ไฟล์ร้าน / Company Profile</span>
-            <div className="flex flex-wrap items-center gap-3">
-              <input type="file" accept="application/pdf,image/png,image/jpeg" aria-label="อัปโหลดไฟล์ร้านหรือ Company Profile" title="อัปโหลดไฟล์ร้านหรือ Company Profile" onChange={(e) => handleAssetUpload("catalog", e.target.files?.[0] || null)} className="block text-sm" />
-              {uploadingAsset === "catalog" ? <span className="text-xs text-slate-500">กำลังอัปโหลด...</span> : null}
-              {form.businessCatalogUrl ? <a href={form.businessCatalogUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">เปิดไฟล์ร้าน</a> : null}
-            </div>
+            <UploadField
+              accept="application/pdf,image/png,image/jpeg"
+              buttonLabel="อัปโหลดไฟล์ร้าน"
+              formatLabel="PDF, PNG, JPG"
+              emptyLabel="ยังไม่มีไฟล์ร้านหรือ Company Profile"
+              currentLabel={form.businessCatalogName ? `ไฟล์ล่าสุด: ${form.businessCatalogName}` : form.businessCatalogUrl ? "มีไฟล์ร้านปัจจุบันแล้ว" : undefined}
+              kind="document"
+              openHref={form.businessCatalogUrl || undefined}
+              openLabel="เปิดไฟล์ร้าน"
+              pending={uploadingAsset === "catalog"}
+              onSelect={(file) => {
+                void handleAssetUpload("catalog", file);
+              }}
+            />
             {form.businessCatalogName ? <p className="text-xs text-slate-500">ไฟล์ล่าสุด: {form.businessCatalogName}</p> : null}
           </div>
           <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>รูปแนบท้ายเอกสารการค้า</span>
-            <div className="flex flex-wrap items-center gap-3">
-              <input type="file" accept="image/png,image/jpeg,image/webp" aria-label="อัปโหลดรูปแนบท้ายเอกสารการค้า" title="อัปโหลดรูปแนบท้ายเอกสารการค้า" onChange={(e) => handleAssetUpload("documentAppendixImage", e.target.files?.[0] || null)} className="block text-sm" />
-              {uploadingAsset === "documentAppendixImage" ? <span className="text-xs text-slate-500">กำลังอัปโหลด...</span> : null}
-              {form.documentAppendixImageUrl ? <a href={form.documentAppendixImageUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">เปิดรูปแนบท้าย</a> : null}
-            </div>
+            <UploadField
+              accept="image/png,image/jpeg,image/webp"
+              buttonLabel="อัปโหลดรูปแนบท้าย"
+              formatLabel="PNG, JPG, WEBP"
+              emptyLabel="ยังไม่มีรูปแนบท้ายเอกสาร"
+              currentLabel={form.documentAppendixImageName ? `ไฟล์ล่าสุด: ${form.documentAppendixImageName}` : form.documentAppendixImageUrl ? "มีรูปแนบท้ายเอกสารปัจจุบันแล้ว" : undefined}
+              kind="image"
+              openHref={form.documentAppendixImageUrl || undefined}
+              openLabel="เปิดรูปแนบท้าย"
+              pending={uploadingAsset === "documentAppendixImage"}
+              onSelect={(file) => {
+                void handleAssetUpload("documentAppendixImage", file);
+              }}
+            />
             {form.documentAppendixImageUrl ? (
               <Image
                 src={form.documentAppendixImageUrl}
@@ -1015,21 +1377,21 @@ export default function SettingsForm({
             </a>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <input
-              type="file"
+          <div className="mt-4">
+            <UploadField
               accept=".csv,text/csv"
-              aria-label="อัปโหลด CSV product catalog"
-              title="อัปโหลด CSV product catalog"
-              onChange={(event) => {
-                void handleProductCatalogImport(event.target.files?.[0] || null);
-                event.currentTarget.value = "";
+              buttonLabel="อัปโหลด CSV"
+              formatLabel="CSV"
+              emptyLabel="เลือกไฟล์ CSV เพื่อ bulk import รายการสินค้า"
+              currentLabel={catalogImportSummary ? `นำเข้าล่าสุด ${catalogImportSummary.importedCount} รายการ` : undefined}
+              helperText="เลือกไฟล์ล่าสุด แล้วระบบจะเริ่ม import ทันที"
+              kind="spreadsheet"
+              pending={importingCatalog}
+              pendingLabel="กำลังนำเข้า CSV..."
+              onSelect={(file) => {
+                void handleProductCatalogImport(file);
               }}
-              className="block text-sm"
             />
-            {importingCatalog ? (
-              <span className="text-xs text-slate-500">กำลังนำเข้า CSV...</span>
-            ) : null}
           </div>
 
           {catalogImportMessage ? (
