@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   BadgeCheck,
@@ -15,7 +14,6 @@ import {
   Paperclip,
   PhoneCall,
   Ruler,
-  ScrollText,
   Truck,
   X,
 } from "lucide-react";
@@ -27,6 +25,8 @@ import {
   DOCUMENT_REQUEST_TYPES,
   DOCUMENT_REQUEST_TYPE_LABELS,
   FULFILLMENT_MODE_LABELS,
+  getPrimaryDocumentRequestType,
+  normalizeDocumentRequestTypes,
   PRODUCT_TYPES,
   UNITS,
   type BillingBranchType,
@@ -123,12 +123,6 @@ const MAX_REFERENCE_FILES = 5;
 const MAX_REFERENCE_FILE_SIZE = 10 * 1024 * 1024;
 const AUTO_RESIZE_IMAGE_MAX_DIMENSION = 1800;
 const AUTO_RESIZE_TARGET_FILE_SIZE = 2 * 1024 * 1024;
-const QUICK_FILL_TYPE_D_BUTTON = {
-  url: "https://account-center-fe.line-scdn.net/images/quick_fill_button_LINE_white.png",
-  alt: "LINEで自動入力しますか？氏名、電話番号、メールアドレス、住所など。自動入力",
-  width: 288,
-  height: 66,
-};
 const COMMON_PROFILE_BASE_SCOPES: CommonProfileScope[] = ["tel"];
 const COMMON_PROFILE_ADDRESS_SCOPES: CommonProfileScope[] = [
   "postal-code",
@@ -142,19 +136,6 @@ type LiffConsoleLevel = "info" | "warn" | "error";
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
-}
-
-function compactLineUserIdForDebug(value: string | null | undefined) {
-  if (!value) {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  if (trimmed.length <= 12) {
-    return trimmed;
-  }
-
-  return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`;
 }
 
 function createLiffDebugFingerprint() {
@@ -282,7 +263,6 @@ function sendLiffIncident(payload: {
   userAgent: string;
   sdkPresent: boolean;
   liffIdConfigured: boolean;
-  lineUserHint?: string;
   liffContextSnapshot?: string;
 }) {
   if (typeof window === "undefined") {
@@ -291,7 +271,6 @@ function sendLiffIncident(payload: {
 
   const body = JSON.stringify({
     ...payload,
-    lineUserHint: payload.lineUserHint || null,
     liffContextSnapshot: payload.liffContextSnapshot || null,
   });
 
@@ -647,7 +626,6 @@ export default function IntakeForm({
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitWarning, setSubmitWarning] = useState("");
   const [error, setError] = useState("");
-  const [lineUserId, setLineUserId] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [liffIdToken, setLiffIdToken] = useState("");
   const [liffAccessToken, setLiffAccessToken] = useState("");
@@ -665,8 +643,8 @@ export default function IntakeForm({
   const [billingBranchType, setBillingBranchType] =
     useState<BillingBranchType>("head_office");
   const [billingBranchCode, setBillingBranchCode] = useState("");
-  const [requestedDocumentType, setRequestedDocumentType] =
-    useState<DocumentRequestType>("quote");
+  const [requestedDocumentTypes, setRequestedDocumentTypes] =
+    useState<DocumentRequestType[]>(["quote"]);
   const [billingName, setBillingName] = useState("");
   const [taxId, setTaxId] = useState("");
   const [billingAddress, setBillingAddress] = useState("");
@@ -691,18 +669,12 @@ export default function IntakeForm({
   const [commonProfileFilling, setCommonProfileFilling] = useState(false);
   const [commonProfileMessage, setCommonProfileMessage] = useState("");
   const [showOptionalDetails, setShowOptionalDetails] = useState(false);
-  const [showDocumentDetails, setShowDocumentDetails] = useState(false);
   const previewUrlsRef = useRef<string[]>([]);
   const commonProfilePluginInstalledRef = useRef(false);
   const reportedLiffIncidentKeysRef = useRef<Set<string>>(new Set());
   const liffConsoleFingerprintRef = useRef(createLiffDebugFingerprint());
-  const latestLineUserIdRef = useRef(lineUserId);
   const latestLiffContextSnapshotRef = useRef(liffContextSnapshot);
   const earliestDueDate = getBangkokTodayDateString();
-
-  useEffect(() => {
-    latestLineUserIdRef.current = lineUserId;
-  }, [lineUserId]);
 
   useEffect(() => {
     latestLiffContextSnapshotRef.current = liffContextSnapshot;
@@ -729,7 +701,6 @@ export default function IntakeForm({
         userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
         sdkPresent: typeof window !== "undefined" && Boolean(window.liff),
         liffIdConfigured: Boolean(liffId),
-        lineUserHint: compactLineUserIdForDebug(latestLineUserIdRef.current),
         liffContextSnapshot: latestLiffContextSnapshotRef.current,
       });
     },
@@ -757,13 +728,12 @@ export default function IntakeForm({
           searchParamKeys:
             typeof window !== "undefined" ? getSearchParamKeys(window.location.search) : [],
           liffIdConfigured: Boolean(liffId),
-          lineUserIdHint: compactLineUserIdForDebug(lineUserId),
           ...details,
         },
         level
       );
     },
-    [intakeMode, liffId, lineUserId]
+    [intakeMode, liffId]
   );
 
   const installCommonProfilePlugin = useCallback(() => {
@@ -794,6 +764,17 @@ export default function IntakeForm({
   }, [intakeMode, logIntakeLiffConsole]);
 
   const selectedUnitLabel = UNITS.find((item) => item.value === unit)?.label || unit;
+  const requestedDocumentType = useMemo(
+    () => getPrimaryDocumentRequestType(requestedDocumentTypes),
+    [requestedDocumentTypes]
+  );
+  const hasBillingDocumentRequest = requestedDocumentTypes.some(
+    (type) => type !== "quote"
+  );
+  const showBillingDetails =
+    hasBillingDocumentRequest ||
+    billingEntityType === "company" ||
+    Boolean(billingName || billingBranchCode || taxId || billingAddress);
   const billingBranchSummary =
     billingEntityType === "company"
       ? billingBranchType === "branch"
@@ -805,12 +786,12 @@ export default function IntakeForm({
   const commonProfileScopes = useMemo(() => {
     const scopes = [...COMMON_PROFILE_BASE_SCOPES];
 
-    if (requiresFulfillmentAddress) {
+    if (requiresFulfillmentAddress || showBillingDetails) {
       scopes.push(...COMMON_PROFILE_ADDRESS_SCOPES);
     }
 
     return Array.from(new Set(scopes));
-  }, [requiresFulfillmentAddress]);
+  }, [requiresFulfillmentAddress, showBillingDetails]);
   const fulfillmentAddressSummary = compactSummaryText(
     [
       fulfillmentAddressLine1,
@@ -829,7 +810,9 @@ export default function IntakeForm({
     fulfillmentLatitude && fulfillmentLongitude ? "มีพิกัดแล้ว" : null,
   ].filter(Boolean) as string[];
   const documentSummary = [
-    DOCUMENT_REQUEST_TYPE_LABELS[requestedDocumentType],
+    requestedDocumentTypes
+      .map((type) => DOCUMENT_REQUEST_TYPE_LABELS[type])
+      .join(" · "),
     compactSummaryText(billingName, 18),
     billingBranchSummary,
     taxId ? `Tax ${taxId}` : null,
@@ -838,6 +821,7 @@ export default function IntakeForm({
     () =>
       validateTaxDocumentIntake({
         requestedDocumentType,
+        requestedDocumentTypes,
         billingEntityType,
         billingBranchType,
         billingBranchCode,
@@ -853,8 +837,19 @@ export default function IntakeForm({
       billingName,
       taxId,
       billingAddress,
+      requestedDocumentTypes,
     ]
   );
+
+  const toggleRequestedDocumentType = useCallback((type: DocumentRequestType) => {
+    setRequestedDocumentTypes((current) => {
+      const next = current.includes(type)
+        ? current.filter((item) => item !== type)
+        : [...current, type];
+
+      return normalizeDocumentRequestTypes(next);
+    });
+  }, []);
 
   useEffect(() => {
     setSelectedProductLabel(productType ? resolveProductTypeLabel(productType) : "");
@@ -970,7 +965,7 @@ export default function IntakeForm({
           setFulfillmentPostalCode((current) => current || postalCode);
         }
 
-        if (showDocumentDetails) {
+        if (showBillingDetails) {
           const billingAddressFromProfile = [
             addressLine1,
             addressLevel2,
@@ -1017,7 +1012,7 @@ export default function IntakeForm({
     logIntakeLiffConsole,
     reportLiffIncident,
     requiresFulfillmentAddress,
-    showDocumentDetails,
+    showBillingDetails,
   ]);
 
   useEffect(() => {
@@ -1081,14 +1076,11 @@ export default function IntakeForm({
           }
         }
 
-        setLineUserId(profile.userId);
         setDisplayName(profile.displayName);
         setLiffIdToken(idToken || "");
         setLiffAccessToken(accessToken || "");
 
         logIntakeLiffConsole("session_captured", {
-          lineUserId: compactLineUserIdForDebug(profile.userId),
-          displayName: profile.displayName,
           contextType: context?.type || null,
           viewType: context?.viewType || null,
           lineVersion,
@@ -1126,7 +1118,6 @@ export default function IntakeForm({
             context: context
               ? {
                   type: context.type || null,
-                  userId: context.userId || null,
                   liffId: context.liffId || null,
                   viewType: context.viewType || null,
                   endpointUrl: context.endpointUrl || null,
@@ -1145,9 +1136,12 @@ export default function IntakeForm({
         );
 
         // Prefill returning customer data (skip for fresh/restart mode)
-        const devLineUserId = new URLSearchParams(window.location.search)
-          .get("lineUserId")
-          ?.trim();
+        const devLineUserId =
+          process.env.NODE_ENV !== "production"
+            ? new URLSearchParams(window.location.search)
+                .get("lineUserId")
+                ?.trim()
+            : undefined;
 
         if (intakeMode !== "fresh" && (idToken || devLineUserId)) {
           try {
@@ -1181,6 +1175,16 @@ export default function IntakeForm({
               const summary: string[] = [];
               const lastRequestedDocumentType = prefill.lastValues
                 ?.requestedDocumentType as DocumentRequestType | null | undefined;
+              const hasLastRequestedDocumentSelection = Boolean(
+                lastRequestedDocumentType ||
+                  (Array.isArray(prefill.lastValues?.requestedDocumentTypes) &&
+                    prefill.lastValues.requestedDocumentTypes.length > 0)
+              );
+              const lastRequestedDocumentTypes = normalizeDocumentRequestTypes(
+                Array.isArray(prefill.lastValues?.requestedDocumentTypes)
+                  ? prefill.lastValues.requestedDocumentTypes
+                  : lastRequestedDocumentType
+              );
               const lastBillingEntityType = prefill.lastValues
                 ?.billingEntityType as BillingEntityType | null | undefined;
               const lastBillingBranchType = prefill.lastValues
@@ -1213,17 +1217,20 @@ export default function IntakeForm({
                 summary.push(`จำนวน ${prefill.lastValues.qty}`);
               }
 
-              if (lastRequestedDocumentType) {
-                setRequestedDocumentType((current) =>
-                  current === "quote"
-                    ? lastRequestedDocumentType
+              if (hasLastRequestedDocumentSelection) {
+                setRequestedDocumentTypes((current) =>
+                  current.length === 1 && current[0] === "quote"
+                    ? lastRequestedDocumentTypes
                     : current
                 );
-                if (lastRequestedDocumentType === "tax_invoice") {
+                if (lastRequestedDocumentTypes.includes("tax_invoice")) {
                   setShowOptionalDetails(true);
-                  setShowDocumentDetails(true);
                 }
-                summary.push(DOCUMENT_REQUEST_TYPE_LABELS[lastRequestedDocumentType]);
+                summary.push(
+                  lastRequestedDocumentTypes
+                    .map((type) => DOCUMENT_REQUEST_TYPE_LABELS[type])
+                    .join(" · ")
+                );
               }
               if (lastBillingEntityType) {
                 setBillingEntityType((current) =>
@@ -1549,7 +1556,6 @@ export default function IntakeForm({
       }
       if (taxDocumentValidation.errors.length > 0) {
         setShowOptionalDetails(true);
-        setShowDocumentDetails(true);
         setError(formatTaxDocumentIntakeErrors(taxDocumentValidation.errors));
         setLoading(false);
         return;
@@ -1571,12 +1577,6 @@ export default function IntakeForm({
       try {
         const formData = new FormData();
         formData.append("liffIdToken", liffIdToken || "");
-        if (!liffIdToken && lineUserId) {
-          formData.append("lineUserId", lineUserId);
-        }
-        if (!liffIdToken && displayName) {
-          formData.append("displayName", displayName);
-        }
         formData.append("productType", productType);
         formData.append("width", String(Number(width)));
         formData.append("height", String(Number(height)));
@@ -1594,6 +1594,9 @@ export default function IntakeForm({
         formData.append("fulfillmentLatitude", requiresFulfillmentAddress ? fulfillmentLatitude : "");
         formData.append("fulfillmentLongitude", requiresFulfillmentAddress ? fulfillmentLongitude : "");
         formData.append("requestedDocumentType", requestedDocumentType);
+        requestedDocumentTypes.forEach((type) => {
+          formData.append("requestedDocumentTypes", type);
+        });
         formData.append("billingEntityType", billingEntityType);
         formData.append(
           "billingBranchType",
@@ -1687,6 +1690,7 @@ export default function IntakeForm({
       fulfillmentLatitude,
       fulfillmentLongitude,
       requestedDocumentType,
+      requestedDocumentTypes,
       billingEntityType,
       billingBranchType,
       billingBranchCode,
@@ -1698,8 +1702,6 @@ export default function IntakeForm({
       note,
       referenceInfo,
       referenceFiles,
-      lineUserId,
-      displayName,
       liffId,
       liffIdToken,
       liffAccessToken,
@@ -1771,7 +1773,7 @@ export default function IntakeForm({
                   {displayName ? <SummaryChip label={`คุณ ${displayName}`} tone="emerald" /> : null}
                   {prefillSummary.length > 0 ? (
                     <SummaryChip
-                      icon={<ScrollText className="size-3.5" aria-hidden="true" />}
+                      icon={<FileText className="size-3.5" aria-hidden="true" />}
                       label="ดึงข้อมูลล่าสุดแล้ว"
                       tone="sky"
                     />
@@ -1948,20 +1950,15 @@ export default function IntakeForm({
                 </div>
 
                 {commonProfileReady ? (
-                  <div className="md:col-span-2 p-2.5" aria-live="polite">
+                  <div className="md:col-span-2 rounded-2xl border border-sky-100 bg-sky-50/70 p-3" aria-live="polite">
                     <button
                       type="button"
                       onClick={handleCommonProfileQuickFill}
-                      className="block"
+                      disabled={commonProfileFilling}
+                      className="pressable-native inline-flex w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      <Image
-                        src={QUICK_FILL_TYPE_D_BUTTON.url}
-                        alt={QUICK_FILL_TYPE_D_BUTTON.alt}
-                        width={QUICK_FILL_TYPE_D_BUTTON.width}
-                        height={QUICK_FILL_TYPE_D_BUTTON.height}
-                        className="block"
-                        unoptimized
-                      />
+                      <BadgeCheck className="size-4" aria-hidden="true" />
+                      {commonProfileFilling ? "กำลังเติมข้อมูลจาก LINE" : "เติมเบอร์/ที่อยู่จาก LINE"}
                     </button>
                     {commonProfileMessage ? (
                       <p className="mt-3 text-xs font-medium leading-5 text-slate-500">
@@ -2177,7 +2174,7 @@ export default function IntakeForm({
                 </div>
 
                 <div className="md:col-span-2">
-                  <FieldLabel htmlFor="billingEntityType" label="ออกใบเสนอราคาในนาม" />
+                  <FieldLabel htmlFor="billingEntityType" label="ออกเอกสารในนาม" />
                   <div id="billingEntityType" className="grid grid-cols-2 gap-2">
                     {BILLING_ENTITY_TYPES.map((type) => (
                       <SelectorChip
@@ -2192,34 +2189,33 @@ export default function IntakeForm({
                 </div>
 
                 <div className="md:col-span-2 rounded-[20px] border border-slate-200 bg-white/92 p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 shadow-sm">
-                      <ScrollText className="size-5" aria-hidden="true" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-slate-900">เอกสารและข้อมูลออกบิล</p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        เลือกประเภทเอกสารตั้งแต่ตอนส่งข้อมูล เพื่อให้ชื่อบนเอกสารตรงกับผู้รับชำระในขั้นถัดไป
-                      </p>
-                    </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">เอกสารและข้อมูลออกบิล</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      เลือกได้มากกว่าหนึ่งรายการ เช่น ใบเสนอราคาและใบกำกับภาษีในงานเดียวกัน
+                    </p>
                   </div>
 
                   <div className="mt-4">
-                    <FieldLabel htmlFor="requestedDocumentType" label="เอกสารที่ต้องการ" />
-                    <div id="requestedDocumentType" className="flex flex-wrap gap-2">
+                    <FieldLabel htmlFor="requestedDocumentTypes" label="เอกสารที่ต้องการ" />
+                    <div id="requestedDocumentTypes" className="grid gap-2 sm:grid-cols-2">
                       {DOCUMENT_REQUEST_TYPES.map((type) => (
-                        <SelectorChip
+                        <label
                           key={type}
-                          active={requestedDocumentType === type}
-                          onClick={() => {
-                            setRequestedDocumentType(type as DocumentRequestType);
-                            if (type !== "quote") {
-                              setShowDocumentDetails(true);
-                            }
-                          }}
+                          className={`flex items-center gap-3 rounded-2xl border px-3 py-3 text-sm font-semibold transition ${
+                            requestedDocumentTypes.includes(type)
+                              ? "border-sky-300 bg-sky-50 text-sky-900 shadow-sm"
+                              : "border-slate-200 bg-white text-slate-700"
+                          }`}
                         >
+                          <input
+                            type="checkbox"
+                            checked={requestedDocumentTypes.includes(type)}
+                            onChange={() => toggleRequestedDocumentType(type)}
+                            className="size-4 rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+                          />
                           {DOCUMENT_REQUEST_TYPE_LABELS[type]}
-                        </SelectorChip>
+                        </label>
                       ))}
                     </div>
                   </div>
@@ -2243,21 +2239,13 @@ export default function IntakeForm({
                     ))}
                   </div>
 
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
                     <p className="text-xs leading-5 text-slate-600">
                       {documentSummary.length > 0 ? documentSummary.join(" · ") : "ใบเสนอราคา"}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => setShowDocumentDetails((current) => !current)}
-                      className="pressable-native inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                    >
-                      {showDocumentDetails ? <ChevronUp className="size-4" aria-hidden="true" /> : <ChevronDown className="size-4" aria-hidden="true" />}
-                      {showDocumentDetails ? "ซ่อนข้อมูลบิล" : "เพิ่มข้อมูลบิล"}
-                    </button>
                   </div>
 
-                  {showDocumentDetails ? (
+                  {showBillingDetails ? (
                     <div className="mt-4 grid gap-4 md:grid-cols-2">
                       <div className="md:col-span-2">
                         <FieldLabel

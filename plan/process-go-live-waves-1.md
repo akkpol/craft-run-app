@@ -142,7 +142,7 @@ Wave 1 is no longer a greenfield hardening wave. The access lock, sign-up disabl
 
 | Check ID | Scope | Expected Result | Evidence To Capture | Status |
 |---|---|---|---|---|
-| W1-VAL-001 | Valid staff login at `/auth/login` | Allowed staff account reaches the intended protected destination without loop or error state | Local browser check on `http://localhost:3001`: allowlisted account `akkapol.kumpapug@gmail.com` reached `/admin` after login on 2026-05-02 | Done |
+| W1-VAL-001 | Valid staff login at `/auth/login` | Allowed staff account reaches the intended protected destination without loop or error state | Local browser check on `http://localhost:3001`: the allowlisted admin account reached `/admin` after login on 2026-05-02 | Done |
 | W1-VAL-002 | Unauthorized authenticated user at `/admin` | Non-allowlisted authenticated user is blocked from admin access | Local browser check on `http://localhost:3001`: `g.sepiro@gmail.com` authenticated but was blocked from admin access with the allowlist-deny message on 2026-05-02 | Done |
 | W1-VAL-003 | Protected route continuity at `/protected` | Normal authenticated user can still reach non-admin protected content if intended by current auth model | Short note confirming route outcome | Pending |
 | W1-VAL-004 | Public sign-up posture | Public sign-up is removed or clearly disabled for production use | Local browser check on `http://localhost:3001/auth/sign-up`: page shows `Backoffice Sign-Up Disabled` and sends staff back to login on 2026-05-02 | Done |

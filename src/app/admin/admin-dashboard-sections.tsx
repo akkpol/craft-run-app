@@ -26,9 +26,12 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type {
   AdminOverviewPage,
-  AdminOverviewRow,
   OverviewFilterKey,
 } from "@/lib/admin-overview";
+import {
+  buildAdminOverviewCardGroups,
+  type AdminOverviewCardModel,
+} from "@/lib/admin-queue-view-model";
 import {
   ADMIN_QUEUE_FILTER_KEYS,
   getAdminQueueContract,
@@ -38,11 +41,6 @@ import {
   getLeadAiDisplayPrompt,
   hasLeadAiSeedPrompt,
 } from "@/lib/lead-ai-prompt";
-import {
-  getConversationActionLabel,
-  getJobActionLabel,
-  getQuoteActionLabel,
-} from "@/lib/admin-action-labels";
 import type {
   BackofficeSnapshot,
   SnapshotConversation,
@@ -54,16 +52,12 @@ import type {
 } from "@/lib/backoffice-snapshot";
 import { PRODUCTION_EVENT_TYPE_LABELS } from "@/lib/production-review";
 import {
-  BILLING_ENTITY_TYPE_LABELS,
   DESIGN_STATUS_LABELS,
-  DOCUMENT_REQUEST_TYPE_LABELS,
   JOB_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
   PAYMENT_TERM_LABELS,
   PRODUCT_TYPES,
   WORKFLOW_STATE_LABELS,
-  type BillingEntityType,
-  type DocumentRequestType,
 } from "@/lib/types";
 import { formatBangkokDate, formatBangkokDateTime } from "@/lib/bangkok-date-time";
 import { cn, firstRow } from "@/lib/utils";
@@ -107,8 +101,6 @@ const THAI_NUMBER_FORMATTER = new Intl.NumberFormat("th-TH-u-nu-latn");
 const OVERVIEW_ACTION_LINK_CLASS =
   "inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 shadow-[0_1px_0_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50";
 
-type OverviewAccentTone = "neutral" | "info" | "warning" | "danger" | "success" | "accent";
-
 function formatLeadDimensions(
   lead: Pick<SnapshotLead, "width_mm" | "height_mm" | "qty">
 ) {
@@ -148,62 +140,6 @@ function OverviewInlinePill({
   );
 }
 
-function OverviewCellFrame({
-  children,
-  tone = "neutral",
-  className,
-}: {
-  children: ReactNode;
-  tone?: OverviewAccentTone;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-[20px] border px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]",
-        tone === "danger" && "border-rose-100 bg-white/88",
-        tone === "warning" && "border-amber-100 bg-white/88",
-        tone === "info" && "border-sky-100 bg-white/88",
-        tone === "success" && "border-emerald-100 bg-white/88",
-        tone === "accent" && "border-violet-100 bg-white/88",
-        tone === "neutral" && "border-slate-200/80 bg-white/82",
-        className
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-function OverviewMobileLabel({ children }: { children: ReactNode }) {
-  return (
-    <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 xl:hidden">
-      {children}
-    </p>
-  );
-}
-
-function getOverviewCellClassName(className?: string) {
-  return cn(
-    "block px-4 py-3 align-top whitespace-normal xl:table-cell xl:px-4 xl:py-4",
-    className
-  );
-}
-
-function getOverviewActionCellClassName(className?: string) {
-  return cn(
-    "block border-t border-slate-200/70 px-4 pt-3 pb-4 align-top whitespace-normal xl:table-cell xl:border-0 xl:px-4 xl:py-4",
-    className
-  );
-}
-
-function getOverviewRowClassName(className?: string) {
-  return cn(
-    "group block overflow-hidden rounded-[24px] border shadow-[0_16px_34px_rgba(15,23,42,0.06)] transition-colors xl:table-row xl:rounded-none xl:border-x-0 xl:border-t-0 xl:shadow-none",
-    className
-  );
-}
-
 function OverviewActionRail({
   children,
   className,
@@ -233,39 +169,6 @@ function getLeadStatusLabel(status: string) {
 
 function getQuoteStatusLabel(status: string) {
   return QUOTE_STATUS_LABELS[status] || status;
-}
-
-function getRequestedDocumentLabel(value: string | null | undefined) {
-  if (!value) {
-    return null;
-  }
-
-  return DOCUMENT_REQUEST_TYPE_LABELS[value as DocumentRequestType] || value;
-}
-
-function getBillingEntityLabel(value: string | null | undefined) {
-  if (!value) {
-    return null;
-  }
-
-  return BILLING_ENTITY_TYPE_LABELS[value as BillingEntityType] || value;
-}
-
-function formatLiffContextType(value: string | null | undefined) {
-  switch (value) {
-    case "utou":
-      return "LIFF 1:1";
-    case "group":
-      return "LIFF Group";
-    case "room":
-      return "LIFF Room";
-    case "external":
-      return "External Browser";
-    case "none":
-      return "Other LINE Surface";
-    default:
-      return null;
-  }
 }
 
 function getReviewStatusLabel(status: string) {
@@ -322,63 +225,6 @@ function formatTrackingCode(token: string | null | undefined) {
 
 function formatCurrency(value: number | string) {
   return `฿${THAI_NUMBER_FORMATTER.format(Number(value))}`;
-}
-
-function getOverviewMetaChips(
-  row: Pick<
-    AdminOverviewRow,
-    | "documentRequestType"
-    | "billingEntityType"
-    | "liffContextType"
-    | "liffAppLanguage"
-    | "lineFriendshipStatus"
-  >
-) {
-  const chips = [
-    getRequestedDocumentLabel(row.documentRequestType),
-    getBillingEntityLabel(row.billingEntityType),
-    formatLiffContextType(row.liffContextType),
-    row.liffAppLanguage ? `lang ${row.liffAppLanguage}` : null,
-    row.lineFriendshipStatus === true
-      ? "OA friend"
-      : row.lineFriendshipStatus === false
-        ? "OA not-friend"
-        : null,
-  ].filter((value): value is string => Boolean(value));
-
-  return chips;
-}
-
-function OverviewMetaChips({
-  row,
-}: {
-  row: Pick<
-    AdminOverviewRow,
-    | "documentRequestType"
-    | "billingEntityType"
-    | "liffContextType"
-    | "liffAppLanguage"
-    | "lineFriendshipStatus"
-  >;
-}) {
-  const chips = getOverviewMetaChips(row);
-
-  if (chips.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
-      {chips.map((chip) => (
-        <span
-          key={chip}
-          className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600"
-        >
-          {chip}
-        </span>
-      ))}
-    </div>
-  );
 }
 
 function getLeadAssetSummary(lead: SnapshotLead) {
@@ -618,6 +464,216 @@ const OVERVIEW_QUEUE_FILTERS: Array<{
   };
 });
 
+const OVERVIEW_AUTOMATION_MODE_LABELS: Record<
+  AdminOverviewCardModel["automationMode"],
+  string
+> = {
+  auto_run: "ระบบเดินต่อเอง",
+  customer_waiting: "รอลูกค้า",
+  human_gate: "รอทีมตัดสินใจ",
+  terminal: "ปิดแล้ว",
+};
+
+const OVERVIEW_AUTOMATION_MODE_CLASS_NAMES: Record<
+  AdminOverviewCardModel["automationMode"],
+  string
+> = {
+  auto_run: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  customer_waiting: "border-sky-200 bg-sky-50 text-sky-700",
+  human_gate: "border-amber-200 bg-amber-50 text-amber-700",
+  terminal: "border-slate-200 bg-slate-100 text-slate-600",
+};
+
+const OVERVIEW_STATUS_TONE_CLASS_NAMES: Record<
+  AdminOverviewCardModel["statusTone"],
+  string
+> = {
+  neutral: "border-slate-200 bg-slate-100 text-slate-700",
+  info: "border-sky-200 bg-sky-50 text-sky-700",
+  warning: "border-amber-200 bg-amber-50 text-amber-700",
+  danger: "border-rose-200 bg-rose-50 text-rose-700",
+  success: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  accent: "border-violet-200 bg-violet-50 text-violet-700",
+};
+
+const OVERVIEW_NEXT_ACTION_OWNER_LABELS: Record<
+  AdminOverviewCardModel["nextActionOwner"],
+  string
+> = {
+  internal: "ทีมภายในต้องขยับต่อ",
+  customer: "ลูกค้าต้องส่งข้อมูล/ตัดสินใจ",
+  system: "ระบบจะเดินต่อเอง",
+  none: "ไม่มี next action",
+};
+
+function renderOverviewQueueCardActions({
+  card,
+  baseUrl,
+  commercialReceiverEntities,
+}: {
+  card: AdminOverviewCardModel;
+  baseUrl: string;
+  commercialReceiverEntities: AdminOverviewPage["commercialReceiverEntities"];
+}) {
+  const row = card.row;
+
+  if (row.kind === "conversation") {
+    return (
+      <OverviewActionRail className="sm:justify-end">
+        <AdminConversationActions
+          conversationId={row.conversationId}
+          currentState={row.conversationState}
+          compact
+          buttonVariant="default"
+          buttonLabel={card.primaryActionLabel}
+        />
+      </OverviewActionRail>
+    );
+  }
+
+  if (row.kind === "escalation") {
+    if (!row.conversationId || !row.conversationState) {
+      return null;
+    }
+
+    return (
+      <OverviewActionRail className="sm:justify-end">
+        <AdminConversationActions
+          conversationId={row.conversationId}
+          currentState={row.conversationState}
+          compact
+          buttonVariant="default"
+          buttonLabel={card.primaryActionLabel}
+        />
+      </OverviewActionRail>
+    );
+  }
+
+  if (row.kind === "quote") {
+    return (
+      <OverviewActionRail className="sm:justify-end">
+        <AdminQuoteActions
+          quoteId={row.quoteId}
+          publicToken={row.publicToken}
+          quoteStatus={row.quoteStatus}
+          paymentTerms={row.paymentTerms}
+          paymentStatus={row.paymentStatus}
+          hasJob={row.hasJob}
+          requestedDocumentType={row.documentRequestType}
+          commercialOrder={row.commercialOrder}
+          commercialReceiverEntities={commercialReceiverEntities}
+          buttonVariant="default"
+          buttonLabel={card.primaryActionLabel}
+        />
+        <a
+          href={`${baseUrl}/quote/${row.publicToken}`}
+          target="_blank"
+          rel="noreferrer"
+          className={OVERVIEW_ACTION_LINK_CLASS}
+        >
+          เปิด quote
+        </a>
+      </OverviewActionRail>
+    );
+  }
+
+  if (row.kind === "production-review") {
+    return (
+      <OverviewActionRail className="sm:justify-end">
+        <ProductionReviewActions
+          eventId={row.eventId}
+          reviewStatus={row.reviewStatus}
+          buttonVariant="default"
+          buttonLabel={card.primaryActionLabel}
+        />
+        {row.statusToken ? (
+          <a
+            href={`${baseUrl}/status/${row.statusToken}`}
+            target="_blank"
+            rel="noreferrer"
+            className={OVERVIEW_ACTION_LINK_CLASS}
+          >
+            เปิดหน้า status
+          </a>
+        ) : null}
+        {row.productionLinkUrl ? (
+          <ProductionLinkCopy
+            url={row.productionLinkUrl}
+            compact
+            buttonVariant="secondary"
+          />
+        ) : null}
+      </OverviewActionRail>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2 sm:items-end">
+      <OverviewActionRail className="sm:justify-end">
+        <AdminJobActions
+          jobId={row.jobId}
+          currentStatus={row.jobStatus}
+          buttonVariant="default"
+          buttonLabel={card.primaryActionLabel}
+        />
+        {row.jobStatus === "IN_DESIGN" ? (
+          <LeadPromptActions
+            leadId={row.leadId}
+            prompt={row.promptText}
+            promptRoutingLabel={row.promptRoutingLabel}
+            buttonVariant="outline"
+            buttonLabel="ดู/แก้ prompt"
+          />
+        ) : null}
+        {row.jobStatus === "IN_DESIGN" ? (
+          <LeadSendPreviewActions
+            leadId={row.leadId}
+            previewCount={row.previewImageCount}
+            buttonVariant={row.previewImageCount > 0 ? "secondary" : "outline"}
+          />
+        ) : null}
+      </OverviewActionRail>
+      <OverviewActionRail className="sm:justify-end">
+        {row.jobStatus === "IN_DESIGN" ? (
+          <LeadAiPreviewActions
+            leadId={row.leadId}
+            prompt={row.promptText}
+            status={row.aiImageStatus || "not_requested"}
+            buttonVariant="secondary"
+          />
+        ) : null}
+        {row.productionLinkUrl ? (
+          <ProductionLinkCopy
+            url={row.productionLinkUrl}
+            compact
+            buttonVariant="secondary"
+          />
+        ) : null}
+        {row.previewImageUrl ? (
+          <a
+            href={row.previewImageUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={OVERVIEW_ACTION_LINK_CLASS}
+          >
+            เปิด preview
+          </a>
+        ) : null}
+        {row.publicToken ? (
+          <a
+            href={`${baseUrl}/status/${row.publicToken}`}
+            target="_blank"
+            rel="noreferrer"
+            className={OVERVIEW_ACTION_LINK_CLASS}
+          >
+            เปิดหน้า status
+          </a>
+        ) : null}
+      </OverviewActionRail>
+    </div>
+  );
+}
+
 export function OverviewCombinedQueueTable({
   overview,
   baseUrl,
@@ -634,6 +690,7 @@ export function OverviewCombinedQueueTable({
     overview.page * overview.pageSize,
     overview.totalCount
   );
+  const overviewGroups = buildAdminOverviewCardGroups(overview);
 
   function buildOverviewHref(filter: OverviewFilterKey, page: number) {
     const params = new URLSearchParams();
@@ -711,432 +768,137 @@ export function OverviewCombinedQueueTable({
           </div>
         </div>
       </div>
-      <AdminOperationalTable
-        columns={["คิว", "ลูกค้า", "บริบท", "สถานะ", "Actions"]}
-        emptyTitle="ตอนนี้ยังไม่มีรายการในตารางหลัก"
-        rows={
-          overview.rows.length > 0
-            ? overview.rows.map((row: AdminOverviewRow, index) => {
-                if (row.kind === "escalation") {
-                  return (
-                    <TableRow
-                      key={`overview-escalation-${row.id}-${index}`}
-                      className={getOverviewRowClassName(
-                        "border-rose-100 bg-rose-50/60 hover:bg-rose-50/80 xl:border-slate-100 xl:bg-rose-50/30 xl:hover:bg-rose-50/45"
-                      )}
-                    >
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>คิว</OverviewMobileLabel>
-                        <OverviewCellFrame tone="danger" className="min-w-36 space-y-2">
-                          <Badge className="border border-rose-200 bg-rose-100 text-rose-800">{getAdminQueueContract("exceptions").label}</Badge>
-                          <p className="text-xs font-medium text-rose-700">{formatDateTime(row.createdAt)}</p>
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>ลูกค้า</OverviewMobileLabel>
-                        <OverviewCellFrame className="min-w-44">
-                          <p className="text-sm font-semibold text-slate-950">{row.customerLabel}</p>
-                          <p className="mt-1 text-xs text-slate-500">{getProductLabel(row.productLabel)}</p>
-                          <OverviewMetaChips row={row} />
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>บริบท</OverviewMobileLabel>
-                        <OverviewCellFrame tone="danger" className="min-w-64 space-y-1.5">
-                          <p className="text-sm text-rose-900">{row.reason}</p>
-                          <p className="text-xs text-slate-500">
-                            {row.quoteStatus && row.paymentStatus
-                              ? `${getQuoteStatusLabel(row.quoteStatus)} · ${PAYMENT_STATUS_LABELS[row.paymentStatus]}`
-                              : "ยังไม่มี quote ผูก"}
-                          </p>
-                          {row.billingName ? (
-                            <p className="text-xs text-slate-500">ออกเอกสาร: {truncateText(row.billingName, 48)}</p>
-                          ) : null}
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>สถานะ</OverviewMobileLabel>
-                        <OverviewCellFrame tone="danger" className="space-y-2">
-                          <Badge className="border border-rose-200 bg-rose-50 text-rose-700">ต้องตอบตอนนี้</Badge>
-                          {row.conversationState ? <p className="text-xs text-slate-500">{WORKFLOW_STATE_LABELS[row.conversationState]}</p> : null}
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewActionCellClassName()}>
-                        <OverviewMobileLabel>Actions</OverviewMobileLabel>
-                        {row.conversationId && row.conversationState ? (
-                          <OverviewActionRail>
-                            <AdminConversationActions
-                              conversationId={row.conversationId}
-                              currentState={row.conversationState}
-                              compact
-                              buttonVariant="default"
-                              buttonLabel={getConversationActionLabel(row.conversationState, "exceptions")}
-                            />
-                          </OverviewActionRail>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  );
-                }
+        <div className="space-y-4">
+          {overviewGroups.map((group) => (
+            <div
+              key={group.key}
+              className="rounded-[24px] border border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.94))] p-3.5 shadow-[0_14px_32px_rgba(15,23,42,0.05)]"
+            >
+              <div className="flex flex-col gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="border border-cyan-200 bg-cyan-50 text-cyan-700">
+                      {group.label}
+                    </Badge>
+                    <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
+                      {group.ownerLabel}
+                    </Badge>
+                    <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
+                      {group.count} รายการ
+                    </Badge>
+                  </div>
+                  <p className="max-w-3xl text-sm leading-6 text-slate-500">{group.description}</p>
+                </div>
+              </div>
 
-                if (row.kind === "conversation") {
-                  const note = truncateText(row.note, 100);
-
-                  return (
-                    <TableRow
-                      key={`overview-conversation-${row.filterKey}-${row.id}-${index}`}
-                      className={getOverviewRowClassName(
-                        cn(
-                          row.filterKey === "payment-ops"
-                            ? "border-amber-100 bg-amber-50/60 hover:bg-amber-50/80 xl:border-slate-100 xl:bg-amber-50/20 xl:hover:bg-amber-50/40"
-                            : row.filterKey === "new-leads"
-                              ? "border-violet-100 bg-violet-50/60 hover:bg-violet-50/80 xl:border-slate-100 xl:bg-violet-50/20 xl:hover:bg-violet-50/35"
-                            : "border-sky-100 bg-sky-50/60 hover:bg-sky-50/80 xl:border-slate-100 xl:bg-sky-50/20 xl:hover:bg-sky-50/40"
-                        )
-                      )}
+              {group.cards.length > 0 ? (
+                <div className="mt-4 grid gap-3 xl:grid-cols-2 2xl:grid-cols-3">
+                  {group.cards.map((card) => (
+                    <QueueCard
+                      key={`${group.key}-${card.id}`}
+                      title={card.title}
+                      meta={`${getProductLabel(card.subtitle)} · ${card.workflowLabel}`}
+                      badge={
+                        <Badge
+                          className={cn(
+                            "border",
+                            OVERVIEW_STATUS_TONE_CLASS_NAMES[card.statusTone]
+                          )}
+                        >
+                          {card.statusLabel}
+                        </Badge>
+                      }
+                      tone={card.statusTone === "danger" ? "danger" : card.statusTone === "warning" ? "warning" : "default"}
+                      footer={
+                        <div className="w-full space-y-2">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                            <span className="font-semibold text-slate-700">สิ่งที่ต้องทำต่อ:</span>
+                            <span>{card.primaryActionLabel}</span>
+                            <span className="text-slate-300">•</span>
+                            <span>{OVERVIEW_NEXT_ACTION_OWNER_LABELS[card.nextActionOwner]}</span>
+                          </div>
+                          {renderOverviewQueueCardActions({
+                            card,
+                            baseUrl,
+                            commercialReceiverEntities: overview.commercialReceiverEntities,
+                          })}
+                        </div>
+                      }
                     >
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>คิว</OverviewMobileLabel>
-                        <OverviewCellFrame tone={row.filterKey === "payment-ops" ? "warning" : row.filterKey === "new-leads" ? "accent" : "info"} className="min-w-36 space-y-2">
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
+                            {card.ownerLabel}
+                          </Badge>
                           <Badge
                             className={cn(
                               "border",
-                              row.filterKey === "payment-ops"
-                                ? "border-amber-200 bg-amber-100 text-amber-800"
-                                : row.filterKey === "new-leads"
-                                  ? "border-violet-200 bg-violet-100 text-violet-800"
-                                : "border-sky-200 bg-sky-100 text-sky-800"
+                              OVERVIEW_AUTOMATION_MODE_CLASS_NAMES[card.automationMode]
                             )}
                           >
-                            {getAdminQueueContract(row.filterKey).label}
+                            {OVERVIEW_AUTOMATION_MODE_LABELS[card.automationMode]}
                           </Badge>
-                          <p className="text-xs font-medium text-slate-600">{formatDateTime(row.messageAt)}</p>
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>ลูกค้า</OverviewMobileLabel>
-                        <OverviewCellFrame className="min-w-44">
-                          <p className="text-sm font-semibold text-slate-950">{row.customerLabel}</p>
-                          <p className="mt-1 text-xs text-slate-500">{getProductLabel(row.productLabel)}</p>
-                          <OverviewMetaChips row={row} />
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>บริบท</OverviewMobileLabel>
-                        <OverviewCellFrame tone={row.filterKey === "payment-ops" ? "warning" : row.filterKey === "new-leads" ? "accent" : "info"} className="min-w-64 space-y-1.5">
-                          <p className="line-clamp-2 text-sm text-slate-700">
-                            {note || (
-                              row.filterKey === "payment-ops"
-                                ? "ยังต้องมีคนเคลียร์ payment gate หรือ manual review นี้"
-                                : row.filterKey === "new-leads"
-                                  ? "กำลังเก็บ requirement ต้นทางให้พร้อมก่อนออก quote"
-                                  : "กำลังรอข้อมูลหรือ feedback เพิ่มจากลูกค้า"
-                            )}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {row.quoteStatus && row.paymentStatus
-                              ? `${getQuoteStatusLabel(row.quoteStatus)} · ${PAYMENT_STATUS_LABELS[row.paymentStatus]}`
-                              : "ยังไม่มี quote ผูก"}
-                          </p>
-                          {row.billingName ? (
-                            <p className="text-xs text-slate-500">ออกเอกสาร: {truncateText(row.billingName, 48)}</p>
-                          ) : null}
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>สถานะ</OverviewMobileLabel>
-                        <OverviewCellFrame tone={row.filterKey === "payment-ops" ? "warning" : row.filterKey === "new-leads" ? "accent" : "info"} className="space-y-2">
-                          <Badge className={cn("border", statusToneClass(row.conversationState))}>{WORKFLOW_STATE_LABELS[row.conversationState]}</Badge>
-                          <p className="text-xs text-slate-500">
-                            {row.jobStatus ? JOB_STATUS_LABELS[row.jobStatus] || row.jobStatus : "ยังไม่มี job"}
-                          </p>
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewActionCellClassName()}>
-                        <OverviewMobileLabel>Actions</OverviewMobileLabel>
-                        <OverviewActionRail>
-                          <AdminConversationActions
-                            conversationId={row.conversationId}
-                            currentState={row.conversationState}
-                            compact
-                            buttonVariant="default"
-                            buttonLabel={getConversationActionLabel(row.conversationState, row.filterKey)}
-                          />
-                        </OverviewActionRail>
-                      </TableCell>
-                    </TableRow>
-                  );
-                }
-
-                if (row.kind === "quote") {
-                  return (
-                    <TableRow
-                      key={`overview-quote-${row.quoteId}-${index}`}
-                      className={getOverviewRowClassName(
-                        "border-violet-100 bg-violet-50/60 hover:bg-violet-50/80 xl:border-slate-100 xl:bg-violet-50/20 xl:hover:bg-violet-50/35"
-                      )}
-                    >
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>คิว</OverviewMobileLabel>
-                        <OverviewCellFrame tone="accent" className="min-w-36 space-y-2">
-                          <Badge className="border border-violet-200 bg-violet-100 text-violet-800">{getAdminQueueContract(row.filterKey).label}</Badge>
-                          <p className="text-xs font-medium text-violet-700">{formatDateTime(row.createdAt)}</p>
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>ลูกค้า</OverviewMobileLabel>
-                        <OverviewCellFrame className="min-w-44">
-                          <p className="text-sm font-semibold text-slate-950">{row.customerLabel}</p>
-                          <p className="mt-1 text-xs text-slate-500">{getProductLabel(row.productLabel)}</p>
-                          <OverviewMetaChips row={row} />
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>บริบท</OverviewMobileLabel>
-                        <OverviewCellFrame tone="accent" className="min-w-64 space-y-1.5">
-                          <p className="text-sm text-slate-700">ยอด {formatCurrency(row.total)} · {PAYMENT_TERM_LABELS[row.paymentTerms]}</p>
-                          <p className="text-xs text-slate-500">Track {formatTrackingCode(row.publicToken)}</p>
-                          {row.billingName ? (
-                            <p className="text-xs text-slate-500">ออกเอกสาร: {truncateText(row.billingName, 48)}</p>
-                          ) : null}
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>สถานะ</OverviewMobileLabel>
-                        <OverviewCellFrame tone="accent" className="space-y-2">
-                          <Badge className={cn("border", statusToneClass(row.quoteStatus))}>{getQuoteStatusLabel(row.quoteStatus)}</Badge>
-                          <p className="text-xs text-slate-500">{PAYMENT_STATUS_LABELS[row.paymentStatus]} · {row.hasJob ? "มี job แล้ว" : "ยังไม่สร้าง job"}</p>
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewActionCellClassName()}>
-                        <OverviewMobileLabel>Actions</OverviewMobileLabel>
-                        <OverviewActionRail className="xl:min-w-52">
-                          <AdminQuoteActions
-                            quoteId={row.quoteId}
-                            publicToken={row.publicToken}
-                            quoteStatus={row.quoteStatus}
-                            paymentTerms={row.paymentTerms}
-                            paymentStatus={row.paymentStatus}
-                            hasJob={row.hasJob}
-                            requestedDocumentType={row.documentRequestType}
-                            commercialOrder={row.commercialOrder}
-                            commercialReceiverEntities={overview.commercialReceiverEntities}
-                            buttonVariant="default"
-                            buttonLabel={getQuoteActionLabel(
-                              row.quoteStatus,
-                              row.paymentTerms,
-                              row.paymentStatus,
-                              row.hasJob
-                            )}
-                          />
-                          <a href={`${baseUrl}/quote/${row.publicToken}`} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>
-                            เปิด quote
-                          </a>
-                        </OverviewActionRail>
-                      </TableCell>
-                    </TableRow>
-                  );
-                }
-
-                if (row.kind === "production-review") {
-                  return (
-                    <TableRow
-                      key={`overview-review-${row.eventId}-${index}`}
-                      className={getOverviewRowClassName(
-                        "border-cyan-100 bg-cyan-50/55 hover:bg-cyan-50/75 xl:border-slate-100 xl:bg-cyan-50/25 xl:hover:bg-cyan-50/38"
-                      )}
-                    >
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>คิว</OverviewMobileLabel>
-                        <OverviewCellFrame tone="info" className="min-w-36 space-y-2">
-                          <Badge className="border border-cyan-200 bg-cyan-100 text-cyan-800">{getAdminQueueContract("design-ops").label}</Badge>
-                          <p className="text-xs font-medium text-cyan-700">{formatDateTime(row.createdAt)}</p>
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>ลูกค้า</OverviewMobileLabel>
-                        <OverviewCellFrame className="min-w-44">
-                          <p className="text-sm font-semibold text-slate-950">{row.customerLabel}</p>
-                          <p className="mt-1 text-xs text-slate-500">{getProductLabel(row.productLabel)}</p>
-                          <OverviewMetaChips row={row} />
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>บริบท</OverviewMobileLabel>
-                        <OverviewCellFrame tone="info" className="min-w-64 space-y-1.5">
-                          <p className="text-sm text-slate-700">{PRODUCTION_EVENT_TYPE_LABELS[row.eventType]} · ไฟล์ {row.assetCount} ชิ้น</p>
-                          <p className="line-clamp-2 text-xs text-slate-500">{row.note || (row.submittedByLabel ? `ส่งโดย ${row.submittedByLabel}` : "ยังไม่มี note เพิ่มเติม")}</p>
-                          {row.billingName ? (
-                            <p className="text-xs text-slate-500">ออกเอกสาร: {truncateText(row.billingName, 48)}</p>
-                          ) : null}
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>สถานะ</OverviewMobileLabel>
-                        <OverviewCellFrame tone="info" className="space-y-2">
-                          <Badge className={cn("border", statusToneClass(row.reviewStatus))}>{getReviewStatusLabel(row.reviewStatus)}</Badge>
-                          {row.sentToCustomerAt ? <p className="text-xs text-slate-500">ส่งลูกค้า {formatDate(row.sentToCustomerAt)}</p> : null}
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewActionCellClassName()}>
-                        <OverviewMobileLabel>Actions</OverviewMobileLabel>
-                        <OverviewActionRail className="xl:min-w-56">
-                          <ProductionReviewActions
-                            eventId={row.eventId}
-                            reviewStatus={row.reviewStatus}
-                            buttonVariant="default"
-                            buttonLabel="ตรวจหลักฐาน"
-                          />
-                          {row.statusToken ? (
-                            <a href={`${baseUrl}/status/${row.statusToken}`} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>
-                              เปิดหน้า status
-                            </a>
-                          ) : null}
-                          {row.productionLinkUrl ? <ProductionLinkCopy url={row.productionLinkUrl} compact buttonVariant="secondary" /> : null}
-                        </OverviewActionRail>
-                      </TableCell>
-                    </TableRow>
-                  );
-                }
-
-                if (row.kind === "running-job") {
-                  const promptPreview = truncateText(
-                    row.promptText?.replace(/\s*\n+\s*/g, " · "),
-                    96
-                  );
-
-                  return (
-                    <TableRow
-                      key={`overview-running-job-${row.jobId}-${index}`}
-                      className={getOverviewRowClassName(
-                        "border-emerald-100 bg-emerald-50/55 hover:bg-emerald-50/75 xl:border-slate-100 xl:bg-emerald-50/20 xl:hover:bg-emerald-50/34"
-                      )}
-                    >
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>คิว</OverviewMobileLabel>
-                        <OverviewCellFrame tone="success" className="min-w-36 space-y-2">
-                          <Badge className="border border-emerald-200 bg-emerald-100 text-emerald-800">{getAdminQueueContract("production-ops").label}</Badge>
-                          <p className="text-xs font-medium text-emerald-700">เริ่ม {formatDate(row.createdAt)}</p>
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>ลูกค้า</OverviewMobileLabel>
-                        <OverviewCellFrame className="min-w-44 space-y-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-950">{row.customerLabel}</p>
-                            <p className="mt-1 text-xs text-slate-500">{getProductLabel(row.productLabel)}</p>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            {row.previewImageUrl ? (
-                              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pr-3 pl-1 text-xs font-medium text-slate-700">
-                                <Image src={row.previewImageUrl} alt="Running job preview" width={32} height={32} unoptimized className="h-8 w-8 rounded-full object-cover" />
-                                <span>มี preview ล่าสุด</span>
-                              </div>
-                            ) : null}
-                            <OverviewInlinePill>
-                              {row.uploadedReferenceCount > 0
-                                ? `ไฟล์ลูกค้า ${row.uploadedReferenceCount}`
-                                : "ยังไม่มีไฟล์ลูกค้า"}
-                            </OverviewInlinePill>
-                            {row.previewImageCount > 0 ? (
-                              <OverviewInlinePill tone="accent">AI preview {row.previewImageCount}</OverviewInlinePill>
-                            ) : null}
-                          </div>
-                          <OverviewMetaChips row={row} />
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>บริบท</OverviewMobileLabel>
-                        <OverviewCellFrame tone="success" className="min-w-64 space-y-2">
-                          <div className="flex flex-wrap gap-2">
-                            <OverviewInlinePill tone="accent">Track {formatTrackingCode(row.publicToken)}</OverviewInlinePill>
-                            <OverviewInlinePill>
-                              {row.pendingReviewCount > 0 ? `รอตรวจ ${row.pendingReviewCount}` : "ไม่มี review ค้าง"}
-                            </OverviewInlinePill>
-                            <OverviewInlinePill>
-                              {row.assignedTo ? `owner ${row.assignedTo}` : "ยังไม่ assign owner"}
-                            </OverviewInlinePill>
-                            {row.aiImageStatus && row.aiImageStatus !== "not_requested" ? (
-                              <OverviewInlinePill>AI {row.aiImageStatus}</OverviewInlinePill>
-                            ) : null}
-                          </div>
-                          {row.promptRoutingLabel ? (
-                            <p className="text-xs font-medium text-slate-600">{row.promptRoutingLabel}</p>
-                          ) : null}
-                          {row.billingName ? (
-                            <p className="text-xs text-slate-500">ออกเอกสาร: {truncateText(row.billingName, 48)}</p>
-                          ) : null}
-                          {promptPreview ? (
-                            <p className="line-clamp-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-3 py-2 text-xs leading-5 text-slate-500">
-                              Prompt: {promptPreview}
-                            </p>
-                          ) : null}
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewCellClassName()}>
-                        <OverviewMobileLabel>สถานะ</OverviewMobileLabel>
-                        <OverviewCellFrame tone="success" className="space-y-2">
-                          <Badge className={cn("border", statusToneClass(row.jobStatus))}>{JOB_STATUS_LABELS[row.jobStatus] || row.jobStatus}</Badge>
-                          <p className="text-xs text-slate-500">
-                            {row.productionStatus ? `production ${row.productionStatus}` : "ยังไม่ตั้ง production state"}
-                          </p>
-                        </OverviewCellFrame>
-                      </TableCell>
-                      <TableCell className={getOverviewActionCellClassName()}>
-                        <OverviewMobileLabel>Actions</OverviewMobileLabel>
-                        <div className="min-w-0 space-y-1.5 sm:space-y-2 xl:min-w-60">
-                          <OverviewActionRail>
-                            <LeadSendPreviewActions
-                              leadId={row.leadId}
-                              previewCount={row.previewImageCount}
-                              buttonVariant={row.previewImageCount > 0 ? "default" : "outline"}
-                            />
-                            <AdminJobActions
-                              jobId={row.jobId}
-                              currentStatus={row.jobStatus}
-                              buttonVariant={row.previewImageCount > 0 ? "secondary" : "default"}
-                              buttonLabel={getJobActionLabel(row.jobStatus)}
-                            />
-                          </OverviewActionRail>
-                          <OverviewActionRail>
-                            <LeadAiPreviewActions
-                              leadId={row.leadId}
-                              prompt={row.promptText}
-                              status={row.aiImageStatus || "not_requested"}
-                              buttonVariant="secondary"
-                            />
-                            <LeadPromptActions
-                              leadId={row.leadId}
-                              prompt={row.promptText}
-                              promptRoutingLabel={row.promptRoutingLabel}
-                              buttonVariant="outline"
-                              buttonLabel="ดู/แก้ prompt"
-                            />
-                          </OverviewActionRail>
-                          <OverviewActionRail>
-                            {row.productionLinkUrl ? <ProductionLinkCopy url={row.productionLinkUrl} compact buttonVariant="secondary" /> : null}
-                            {row.previewImageUrl ? (
-                              <a href={row.previewImageUrl} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>
-                                เปิด preview
-                              </a>
-                            ) : null}
-                            {row.publicToken ? (
-                              <a href={`${baseUrl}/status/${row.publicToken}`} target="_blank" rel="noreferrer" className={OVERVIEW_ACTION_LINK_CLASS}>
-                                เปิดหน้า status
-                              </a>
-                            ) : null}
-                          </OverviewActionRail>
+                          {card.contextChips.map((chip) => (
+                            <OverviewInlinePill key={`${card.id}-${chip}`}>{chip}</OverviewInlinePill>
+                          ))}
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                }
 
-                return null;
-              })
-            : null
-        }
-      />
+                        <div className="rounded-[18px] border border-slate-200 bg-white/85 px-3 py-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                            หยุดเพราะ
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-slate-800">
+                            {card.stopReasonLabel}
+                          </p>
+                          <p className="mt-2 text-xs leading-5 text-slate-500">{card.summary}</p>
+                        </div>
+
+                        <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50/80 px-3 py-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                                Primary surface
+                              </p>
+                              <Link
+                                href={card.primarySurfaceHref}
+                                prefetch={false}
+                                className="mt-1 inline-flex text-sm font-semibold text-cyan-700 transition hover:text-cyan-800"
+                              >
+                                {card.primarySurfaceLabel}
+                              </Link>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                                Queue
+                              </p>
+                              <p className="mt-1 text-sm font-medium text-slate-700">{card.queueLabel}</p>
+                            </div>
+                          </div>
+                          {card.evidenceSummary.length > 0 ? (
+                            <div className="mt-3 space-y-2">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                                หลักฐาน/สัญญาณที่ใช้ตัดสินใจ
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {card.evidenceSummary.map((item) => (
+                                  <OverviewInlinePill key={`${card.id}-${item}`} tone="accent">{item}</OverviewInlinePill>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </QueueCard>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4">
+                  <AdminEmptyStateBlock title="ตอนนี้ยังไม่มีรายการในคิวนี้" />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
 
       <div className="flex flex-col gap-3 rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
         <p>
@@ -1787,7 +1549,7 @@ export function WaitingCustomerDesignTable({ leads }: { leads: SnapshotLead[] })
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="flex min-w-36 items-start gap-3">
                       {previewImageUrl ? (
-                        <a href={previewImageUrl} target="_blank" rel="noreferrer" className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                        <a href={previewImageUrl} target="_blank" rel="noreferrer" aria-label="เปิดภาพตัวอย่างที่ลูกค้ากำลังรอตรวจ" title="เปิดภาพตัวอย่างที่ลูกค้ากำลังรอตรวจ" className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                           <Image src={previewImageUrl} alt="Customer waiting preview" width={56} height={56} unoptimized className="h-14 w-14 object-cover" />
                         </a>
                       ) : null}
@@ -1847,7 +1609,7 @@ export function ProductionReviewTable({ items, baseUrl }: { items: SnapshotProdu
                   <TableCell className="px-4 py-4 align-top whitespace-normal">
                     <div className="flex min-w-52 items-start gap-3">
                       {previewImageUrl ? (
-                        <a href={previewImageUrl} target="_blank" rel="noreferrer" className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                        <a href={previewImageUrl} target="_blank" rel="noreferrer" aria-label="เปิดภาพหลักฐานสำหรับตรวจ review" title="เปิดภาพหลักฐานสำหรับตรวจ review" className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                           <Image src={previewImageUrl} alt="Production review preview" width={56} height={56} unoptimized className="h-14 w-14 object-cover" />
                         </a>
                       ) : null}

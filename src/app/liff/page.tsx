@@ -14,18 +14,26 @@ function firstValue(
 
 function buildIntakeHref(searchParams: Record<string, string | string[] | undefined>) {
 	const params = new URLSearchParams();
+	const includeDevOnlyParams = process.env.NODE_ENV !== "production";
 
 	for (const key of [
 		"category",
 		"product",
 		"productType",
 		"mode",
-		"devNoLiff",
-		"lineUserId",
 	]) {
 		const value = firstValue(searchParams[key]);
 		if (value) {
 			params.set(key, value);
+		}
+	}
+
+	if (includeDevOnlyParams) {
+		for (const key of ["devNoLiff", "lineUserId"]) {
+			const value = firstValue(searchParams[key]);
+			if (value) {
+				params.set(key, value);
+			}
 		}
 	}
 

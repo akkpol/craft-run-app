@@ -13,6 +13,8 @@ const PUBLIC_ROUTE_PREFIXES = [
   '/flow',
   '/api/webhook',
   '/api/intake',
+  '/api/customers/prefill',
+  '/api/liff/validation-report',
   '/api/quotes/',
   '/api/production/',
   '/api/internal/production-media/cleanup',

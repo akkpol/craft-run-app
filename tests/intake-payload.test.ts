@@ -8,6 +8,8 @@ import {
 
 test("parseMultipartIntakeFormData keeps design brief and advanced prompt values", () => {
   const formData = new FormData();
+  formData.set("lineUserId", "U-client-profile-should-not-be-trusted");
+  formData.set("displayName", "Client Profile Name");
   formData.set("productType", "signage");
   formData.set("width", "1200");
   formData.set("height", "600");
@@ -16,6 +18,8 @@ test("parseMultipartIntakeFormData keeps design brief and advanced prompt values
   formData.set("dueDate", "2026-05-01");
   formData.set("phone", "0812345678");
   formData.set("fulfillmentMode", "pickup");
+  formData.append("requestedDocumentTypes", "quote");
+  formData.append("requestedDocumentTypes", "tax_invoice");
   formData.set("designBrief", "ป้ายร้านกาแฟมินิมอล โทนไม้");
   formData.set("aiImagePrompt", "clean storefront sign mockup");
   formData.set("note", "ใช้หน้าร้านใหม่");
@@ -25,12 +29,34 @@ test("parseMultipartIntakeFormData keeps design brief and advanced prompt values
 
   const { data, customerMediaFiles } = parseMultipartIntakeFormData(formData);
 
+  assert.equal("lineUserId" in data, false);
+  assert.equal("displayName" in data, false);
   assert.equal(data.designBrief, "ป้ายร้านกาแฟมินิมอล โทนไม้");
   assert.equal(data.aiImagePrompt, "clean storefront sign mockup");
   assert.equal(data.note, "ใช้หน้าร้านใหม่");
   assert.equal(data.referenceInfo, "มีโลโก้เดิม");
+  assert.deepEqual(data.requestedDocumentTypes, ["quote", "tax_invoice"]);
+  assert.equal(data.requestedDocumentType, "tax_invoice");
   assert.equal(customerMediaFiles.length, 1);
   assert.equal(customerMediaFiles[0]?.name, "ref.txt");
+});
+
+test("parseMultipartIntakeFormData preserves invalid requestedDocumentTypes for route validation", () => {
+  const formData = new FormData();
+  formData.set("productType", "signage");
+  formData.set("width", "1200");
+  formData.set("height", "600");
+  formData.set("unit", "mm");
+  formData.set("qty", "2");
+  formData.set("dueDate", "2026-05-01");
+  formData.set("phone", "0812345678");
+  formData.set("fulfillmentMode", "pickup");
+  formData.append("requestedDocumentTypes", "bad_value");
+
+  const { data } = parseMultipartIntakeFormData(formData);
+
+  assert.deepEqual(data.requestedDocumentTypes, ["bad_value"]);
+  assert.equal(data.requestedDocumentType, "quote");
 });
 
 test("buildLeadPromptFields keeps ai image status tied to explicit aiImagePrompt only", () => {

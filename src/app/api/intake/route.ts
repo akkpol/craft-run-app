@@ -20,11 +20,13 @@ import { getProductCatalog } from "@/lib/product-catalog-store";
 import {
   toMM,
   calculatePrice,
+  getPrimaryDocumentRequestType,
   isBillingBranchType,
   isBillingEntityType,
   isDocumentRequestType,
   isFulfillmentMode,
   isPaymentTerm,
+  normalizeDocumentRequestTypes,
 } from "@/lib/types";
 import type { IntakeFormData, WorkflowState } from "@/lib/types";
 import { getLeadOperationalDefaults } from "@/lib/quote-workflow";
@@ -48,6 +50,10 @@ import {
   parseMultipartIntakeFormData,
   parseOptionalNumber,
 } from "@/lib/intake-payload";
+import {
+  buildLiffValidationTestNote,
+  LIFF_VALIDATION_MODE,
+} from "@/lib/liff-validation";
 import {
   formatTaxDocumentIntakeErrors,
   validateTaxDocumentIntake,
@@ -81,11 +87,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid intake request" }, { status: 400 });
   }
 
-  const providedLineUserId = data.lineUserId?.trim() || "";
-  const providedDisplayName = data.displayName?.trim() || "";
   const providedLiffIdToken = data.liffIdToken?.trim() || "";
-  const allowClientProfileFallback =
-    process.env.NODE_ENV !== "production" && !providedLiffIdToken;
   const liffDebugFingerprint =
     request.headers.get("x-liff-debug-fingerprint")?.trim() || null;
   const earliestDueDate = getBangkokTodayDateString();
@@ -110,8 +112,23 @@ export async function POST(request: NextRequest) {
   if (data.requestedDocumentType && !isDocumentRequestType(data.requestedDocumentType)) {
     errors.push("requestedDocumentType is invalid");
   }
+  if (
+    data.requestedDocumentTypes !== undefined &&
+    !Array.isArray(data.requestedDocumentTypes)
+  ) {
+    errors.push("requestedDocumentTypes must be an array");
+  } else if (
+    data.requestedDocumentTypes?.some(
+      (type) => !isDocumentRequestType(type)
+    )
+  ) {
+    errors.push("requestedDocumentTypes is invalid");
+  }
   if (data.intakeMode && !["resume", "fresh"].includes(data.intakeMode)) {
     errors.push("intakeMode is invalid");
+  }
+  if (data.validationMode && data.validationMode !== LIFF_VALIDATION_MODE) {
+    errors.push("validationMode is invalid");
   }
   if (data.dueDate && data.dueDate < earliestDueDate) {
     errors.push("dueDate must be today or later");
@@ -149,7 +166,6 @@ export async function POST(request: NextRequest) {
           intakeMode: data.intakeMode || null,
           hasLiffIdToken: true,
           hasLiffContextSnapshot: Boolean(data.liffContextSnapshot),
-          lineUserIdHint: data.lineUserId?.trim() || null,
           userAgent: request.headers.get("user-agent"),
         },
       });
@@ -158,15 +174,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-  } else if (allowClientProfileFallback && providedLineUserId) {
-    intakeIdentity = {
-      userId: providedLineUserId,
-      displayName: providedDisplayName || "ลูกค้า",
-      pictureUrl: null,
-      email: null,
-      authTime: null,
-      amr: [],
-    };
   } else {
     return NextResponse.json(
       {
@@ -180,7 +187,6 @@ export async function POST(request: NextRequest) {
   const resolvedLineUserId = intakeIdentity.userId;
   const resolvedDisplayName =
     intakeIdentity.displayName?.trim() ||
-    (allowClientProfileFallback ? providedDisplayName : "") ||
     "ลูกค้า";
   const billingEntityType =
     data.billingEntityType && isBillingEntityType(data.billingEntityType)
@@ -196,11 +202,14 @@ export async function POST(request: NextRequest) {
     billingEntityType === "company" && normalizedBillingBranchType === "branch"
       ? data.billingBranchCode?.trim() || null
       : null;
-  const requestedDocumentType =
-    data.requestedDocumentType &&
-    isDocumentRequestType(data.requestedDocumentType)
-      ? data.requestedDocumentType
-      : "quote";
+  const requestedDocumentTypes = normalizeDocumentRequestTypes(
+    data.requestedDocumentTypes?.length
+      ? data.requestedDocumentTypes
+      : data.requestedDocumentType
+  );
+  const requestedDocumentType = getPrimaryDocumentRequestType(
+    requestedDocumentTypes
+  );
   const fulfillmentMode =
     data.fulfillmentMode && isFulfillmentMode(data.fulfillmentMode)
       ? data.fulfillmentMode
@@ -271,6 +280,7 @@ export async function POST(request: NextRequest) {
 
   const taxDocumentValidation = validateTaxDocumentIntake({
     requestedDocumentType,
+    requestedDocumentTypes,
     billingEntityType,
     billingBranchType,
     billingBranchCode,
@@ -567,6 +577,28 @@ export async function POST(request: NextRequest) {
     ? "ยังมีข้อมูลไม่ครบสำหรับออกใบเสนอราคาอัตโนมัติ"
     : null;
   const leadDefaults = getLeadOperationalDefaults(fulfillmentMode);
+  const isValidationHarness = data.validationMode === LIFF_VALIDATION_MODE;
+  const validationRunLabel = new Date().toISOString();
+  const leadPromptInput = isValidationHarness
+    ? {
+        ...data,
+        note: [data.note, buildLiffValidationTestNote(validationRunLabel)]
+          .filter(Boolean)
+          .join("\n"),
+        referenceInfo: [
+          data.referenceInfo,
+          "Harness source: /liff/validation-harness",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        designBrief: [
+          data.designBrief,
+          "System-generated LIFF validation test payload.",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      }
+    : data;
 
   const { data: lead, error: leadError } = await supabase
     .from("leads")
@@ -581,8 +613,9 @@ export async function POST(request: NextRequest) {
       height_mm: heightMm,
       qty,
       due_date: data.dueDate || null,
-      ...buildLeadPromptFields(data),
+      ...buildLeadPromptFields(leadPromptInput),
       requested_document_type: requestedDocumentType,
+      requested_document_types: requestedDocumentTypes,
       billing_entity_type: billingEntityType,
       billing_branch_type: billingBranchType,
       billing_branch_code: billingBranchCode,
@@ -790,6 +823,7 @@ export async function POST(request: NextRequest) {
       conversation_id: conversationId,
       product_type: data.productType,
       intake_mode: data.intakeMode ?? "resume",
+      validation_mode: data.validationMode ?? null,
     },
   });
   await logSystemAction(supabase, {
@@ -803,6 +837,7 @@ export async function POST(request: NextRequest) {
       payment_terms: paymentTerms,
       to_state: "WAITING_QUOTE_APPROVAL",
       intake_mode: data.intakeMode ?? "resume",
+      validation_mode: data.validationMode ?? null,
     },
   });
 

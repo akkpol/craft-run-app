@@ -3,6 +3,32 @@ import { logSystemAction } from "@/lib/action-log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyLiffIdToken } from "@/lib/line";
 
+function getPrefillRequestedDocumentTypes(lastLead: {
+  requested_document_type?: string | null;
+  requested_document_types?: string[] | null;
+}) {
+  const requestedDocumentType = lastLead.requested_document_type ?? null;
+  const requestedDocumentTypes = Array.isArray(lastLead.requested_document_types)
+    ? lastLead.requested_document_types.filter(
+        (value): value is string => typeof value === "string" && value.length > 0
+      )
+    : null;
+
+  if (!requestedDocumentTypes || requestedDocumentTypes.length === 0) {
+    return requestedDocumentType ? [requestedDocumentType] : null;
+  }
+
+  const looksLikeMigrationDefaultOnly =
+    requestedDocumentType &&
+    requestedDocumentType !== "quote" &&
+    requestedDocumentTypes.length === 1 &&
+    requestedDocumentTypes[0] === "quote";
+
+  return looksLikeMigrationDefaultOnly
+    ? [requestedDocumentType]
+    : requestedDocumentTypes;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const liffIdToken = searchParams.get("liffIdToken")?.trim() || "";
@@ -66,7 +92,7 @@ export async function GET(request: NextRequest) {
   const { data: leads } = await supabase
     .from("leads")
     .select(
-      "product_type, width_mm, height_mm, qty, requested_document_type, billing_entity_type, billing_branch_type, billing_branch_code, billing_name, tax_id, billing_address, fulfillment_mode, fulfillment_address_line1, fulfillment_address_line2, fulfillment_subdistrict, fulfillment_district, fulfillment_province, fulfillment_postal_code, fulfillment_latitude, fulfillment_longitude"
+      "product_type, width_mm, height_mm, qty, requested_document_type, requested_document_types, billing_entity_type, billing_branch_type, billing_branch_code, billing_name, tax_id, billing_address, fulfillment_mode, fulfillment_address_line1, fulfillment_address_line2, fulfillment_subdistrict, fulfillment_district, fulfillment_province, fulfillment_postal_code, fulfillment_latitude, fulfillment_longitude"
     )
     .eq("customer_id", customer.id)
     .order("created_at", { ascending: false })
@@ -91,6 +117,7 @@ export async function GET(request: NextRequest) {
         heightMm: lastLead.height_mm ?? null,
         qty: lastLead.qty ?? null,
         requestedDocumentType: lastLead.requested_document_type ?? null,
+        requestedDocumentTypes: getPrefillRequestedDocumentTypes(lastLead),
         billingEntityType: lastLead.billing_entity_type ?? null,
         billingBranchType: lastLead.billing_branch_type ?? null,
         billingBranchCode: lastLead.billing_branch_code ?? null,

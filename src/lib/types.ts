@@ -1,13 +1,22 @@
-import { type AppLocale } from "./locale";
+import { type AppLocale } from "@/lib/locale";
+import { type DocumentRequestType } from "@/lib/document-request";
 import {
   WORKFLOW_STATES,
   isWorkflowState,
   normalizeWorkflowState,
   type WorkflowState,
-} from "./workflow-state";
+} from "@/lib/workflow-state";
 
 export { WORKFLOW_STATES, isWorkflowState, normalizeWorkflowState };
 export type { WorkflowState };
+export {
+  DOCUMENT_REQUEST_TYPES,
+  DOCUMENT_REQUEST_TYPE_LABELS,
+  getPrimaryDocumentRequestType,
+  isDocumentRequestType,
+  normalizeDocumentRequestTypes,
+} from "@/lib/document-request";
+export type { DocumentRequestType };
 
 export const JOB_STATUSES = [
   "IN_DESIGN",
@@ -137,15 +146,6 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   not_required: "ยังไม่ต้องรับชำระก่อนผลิต",
 };
 
-export const DOCUMENT_REQUEST_TYPES = [
-  "quote",
-  "invoice",
-  "receipt",
-  "tax_invoice",
-] as const;
-
-export type DocumentRequestType = (typeof DOCUMENT_REQUEST_TYPES)[number];
-
 export const BILLING_ENTITY_TYPES = ["person", "company"] as const;
 
 export type BillingEntityType = (typeof BILLING_ENTITY_TYPES)[number];
@@ -153,13 +153,6 @@ export type BillingEntityType = (typeof BILLING_ENTITY_TYPES)[number];
 export const BILLING_BRANCH_TYPES = ["head_office", "branch"] as const;
 
 export type BillingBranchType = (typeof BILLING_BRANCH_TYPES)[number];
-
-export const DOCUMENT_REQUEST_TYPE_LABELS: Record<DocumentRequestType, string> = {
-  quote: "ใบเสนอราคา",
-  invoice: "ใบแจ้งหนี้ / Invoice",
-  receipt: "ใบเสร็จรับเงิน",
-  tax_invoice: "ใบกำกับภาษี",
-};
 
 export const BILLING_ENTITY_TYPE_LABELS: Record<BillingEntityType, string> = {
   person: "บุคคลธรรมดา",
@@ -170,10 +163,6 @@ export const BILLING_BRANCH_TYPE_LABELS: Record<BillingBranchType, string> = {
   head_office: "สำนักงานใหญ่",
   branch: "สาขา",
 };
-
-export function isDocumentRequestType(value: string): value is DocumentRequestType {
-  return DOCUMENT_REQUEST_TYPES.includes(value as DocumentRequestType);
-}
 
 export function isBillingEntityType(value: string): value is BillingEntityType {
   return BILLING_ENTITY_TYPES.includes(value as BillingEntityType);
@@ -524,8 +513,6 @@ export function calculatePrice(
 
 // Interfaces
 export interface IntakeFormData {
-  lineUserId?: string;
-  displayName?: string;
   liffIdToken?: string;
   liffAccessToken?: string;
   liffContextSnapshot?: unknown;
@@ -541,6 +528,7 @@ export interface IntakeFormData {
   designBrief?: string;
   aiImagePrompt?: string;
   requestedDocumentType?: DocumentRequestType;
+  requestedDocumentTypes?: Array<DocumentRequestType | string>;
   billingEntityType?: BillingEntityType;
   billingBranchType?: BillingBranchType;
   billingBranchCode?: string;
@@ -558,6 +546,7 @@ export interface IntakeFormData {
   paymentTerms?: PaymentTerm;
   fulfillmentMode?: FulfillmentMode;
   intakeMode?: "resume" | "fresh";
+  validationMode?: "liff_validation_harness";
 }
 
 export interface ConversationRow {
@@ -590,6 +579,7 @@ export interface LeadRow {
   ai_generated_images?: string[];
   ai_image_error?: string;
   requested_document_type?: DocumentRequestType;
+  requested_document_types?: DocumentRequestType[];
   billing_entity_type?: BillingEntityType;
   billing_branch_type?: BillingBranchType | null;
   billing_branch_code?: string | null;

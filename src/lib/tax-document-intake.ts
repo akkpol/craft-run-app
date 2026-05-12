@@ -6,6 +6,7 @@ import type {
 
 export type TaxDocumentIntakeInput = {
   requestedDocumentType: DocumentRequestType | string | null | undefined;
+  requestedDocumentTypes?: readonly (DocumentRequestType | string)[] | null | undefined;
   billingEntityType: BillingEntityType | string | null | undefined;
   billingBranchType?: BillingBranchType | string | null | undefined;
   billingBranchCode?: string | null | undefined;
@@ -27,7 +28,9 @@ function hasText(value: string | null | undefined) {
 export function validateTaxDocumentIntake(
   input: TaxDocumentIntakeInput
 ): TaxDocumentIntakeValidation {
-  const requiresTaxProfile = input.requestedDocumentType === "tax_invoice";
+  const requiresTaxProfile =
+    input.requestedDocumentType === "tax_invoice" ||
+    Boolean(input.requestedDocumentTypes?.includes("tax_invoice"));
 
   if (!requiresTaxProfile) {
     return {

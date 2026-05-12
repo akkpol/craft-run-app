@@ -1,3 +1,7 @@
+import {
+  getPrimaryDocumentRequestType,
+  normalizeDocumentRequestTypes,
+} from "@/lib/document-request";
 import type { IntakeFormData } from "@/lib/types";
 
 export function parseOptionalNumber(value: unknown) {
@@ -31,10 +35,17 @@ export function parseMultipartIntakeFormData(formData: FormData) {
   const customerMediaFiles = formData
     .getAll("referenceFiles")
     .filter((value): value is File => value instanceof File && value.size > 0);
+  const requestedDocumentTypes = [
+    ...formData.getAll("requestedDocumentTypes"),
+    getOptionalFormDataString(formData, "requestedDocumentType"),
+  ]
+    .flatMap((value) => (typeof value === "string" ? [value.trim()] : []))
+    .filter((value) => value.length > 0);
+  const normalizedRequestedDocumentTypes = normalizeDocumentRequestTypes(
+    requestedDocumentTypes
+  );
 
   const data: IntakeFormData = {
-    lineUserId: getOptionalFormDataString(formData, "lineUserId"),
-    displayName: getOptionalFormDataString(formData, "displayName"),
     liffIdToken: getOptionalFormDataString(formData, "liffIdToken"),
     liffAccessToken: getOptionalFormDataString(formData, "liffAccessToken"),
     liffContextSnapshot: getOptionalFormDataString(formData, "liffContextSnapshot"),
@@ -46,7 +57,8 @@ export function parseMultipartIntakeFormData(formData: FormData) {
     dueDate: getFormDataString(formData, "dueDate"),
     phone: getFormDataString(formData, "phone"),
     requestedDocumentType:
-      getOptionalFormDataString(formData, "requestedDocumentType") as IntakeFormData["requestedDocumentType"],
+      getPrimaryDocumentRequestType(normalizedRequestedDocumentTypes),
+    requestedDocumentTypes,
     designBrief: getOptionalFormDataString(formData, "designBrief"),
     note: getFormDataString(formData, "note"),
     referenceInfo: getFormDataString(formData, "referenceInfo"),
@@ -70,6 +82,8 @@ export function parseMultipartIntakeFormData(formData: FormData) {
     fulfillmentLongitude: parseOptionalNumber(getFormDataString(formData, "fulfillmentLongitude")) ?? undefined,
     aiImagePrompt: getOptionalFormDataString(formData, "aiImagePrompt"),
     intakeMode: getOptionalFormDataString(formData, "intakeMode") as IntakeFormData["intakeMode"],
+    validationMode:
+      getOptionalFormDataString(formData, "validationMode") as IntakeFormData["validationMode"],
   };
 
   return { data, customerMediaFiles };

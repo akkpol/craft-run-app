@@ -26,15 +26,6 @@ function sanitizeString(value: unknown, maxLength: number) {
   return trimmed.slice(0, maxLength);
 }
 
-function compactLineUserId(value: unknown) {
-  const sanitized = sanitizeString(value, 128);
-  if (!sanitized || sanitized.length <= 12) {
-    return sanitized;
-  }
-
-  return `${sanitized.slice(0, 6)}...${sanitized.slice(-4)}`;
-}
-
 function sanitizeBoolean(value: unknown) {
   return typeof value === "boolean" ? value : null;
 }
@@ -135,8 +126,7 @@ export function normalizeLiffIncidentPayload(input: unknown): LiffIncidentPayloa
     sdkPresent: sanitizeBoolean(root.sdkPresent),
     liffIdConfigured: sanitizeBoolean(root.liffIdConfigured),
     lineUserId: null,
-    lineUserHint:
-      sanitizeString(root.lineUserHint, 128) || compactLineUserId(root.lineUserId),
+    lineUserHint: null,
     context: summarizeContext(normalizedContext),
   };
 }

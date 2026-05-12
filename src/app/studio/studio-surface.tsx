@@ -598,7 +598,7 @@ function StudioDrawer({
               {token
                 ? `${tokenMeta?.stateLabel} · ${token.productLabel}`
                 : station?.description ||
-                  "Click a station or work token to inspect details and trigger real workflow actions."}
+                  "คลิก station หรือ token เพื่อดูว่าใครเป็นเจ้าของงาน งานหยุดเพราะอะไร และกด action จริงจากจุดนี้"}
             </p>
           </div>
           <button
@@ -606,7 +606,7 @@ function StudioDrawer({
             onClick={onClose}
             className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-950"
           >
-            Close
+            ปิด
           </button>
         </div>
       </div>
@@ -621,54 +621,90 @@ function StudioDrawer({
               <section className="grid gap-3 rounded-[24px] bg-slate-50 p-4 sm:grid-cols-2">
                 <div className="rounded-[20px] bg-white p-3 shadow-sm">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Owner
+                    เจ้าของงาน
                   </p>
                   <p className="mt-2 text-sm font-medium text-slate-900">
-                    {getOwnerBadgeText(token)}
+                    {tokenMeta?.ownerLabel || getOwnerBadgeText(token)}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">{token.ownerRole}</p>
                 </div>
                 <div className="rounded-[20px] bg-white p-3 shadow-sm">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Token Type
+                    ประเภท token
                   </p>
                   <p className="mt-2 text-sm font-medium capitalize text-slate-900">
                     {token.tokenKind}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {token.stationId} station
+                    station {token.stationId}
                   </p>
                 </div>
                 <div className="rounded-[20px] bg-white p-3 shadow-sm">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Payment
+                    Payment / commercial gate
                   </p>
                   <p className="mt-2 text-sm font-medium text-slate-900">
-                    {tokenMeta?.paymentSummary || "No commercial gate"}
+                    {tokenMeta?.paymentSummary || "ไม่มี commercial gate"}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {token.amountLabel || "No quote total"}
+                    {token.amountLabel || "ยังไม่มียอด quote"}
                   </p>
                 </div>
                 <div className="rounded-[20px] bg-white p-3 shadow-sm">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Design / Job
+                    Design / job
                   </p>
                   <p className="mt-2 text-sm font-medium text-slate-900">
                     {tokenMeta?.designStatusLabel ||
                       tokenMeta?.jobStatusLabel ||
-                      "No production object yet"}
+                      "ยังไม่มี production object"}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    Updated {token.lastUpdatedLabel}
+                    อัปเดตล่าสุด {token.lastUpdatedLabel}
                   </p>
+                </div>
+              </section>
+
+              <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr]">
+                  <div className="rounded-[20px] bg-slate-50 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      หยุดเพราะ
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-slate-900">
+                      {tokenMeta?.stopReasonLabel || token.note || "ดูจาก workflow summary"}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      {tokenMeta?.workflowSummary}
+                    </p>
+                  </div>
+                  <div className="rounded-[20px] bg-slate-50 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      สิ่งที่ต้องทำต่อ
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-slate-900">
+                      เจ้าของ action ถัดไป: {tokenMeta?.nextActionOwnerLabel}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      surface หลัก {tokenMeta?.primarySurfaceLabel}
+                    </p>
+                    <div className="mt-3">
+                      <Link
+                        href={tokenMeta?.primarySurfaceHref || "/admin"}
+                        prefetch={false}
+                        className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                      >
+                        เปิด surface หลัก
+                      </Link>
+                    </div>
+                  </div>
                 </div>
               </section>
 
               {token.note ? (
                 <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Notes
+                    หมายเหตุจากเคส
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-700">{token.note}</p>
                 </section>
@@ -679,7 +715,7 @@ function StudioDrawer({
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Customer References
+                        Customer references
                       </p>
                       <p className="mt-1 text-sm text-slate-600">
                         ลูกค้าอัปโหลดไว้ {customerReferenceAssets.length} ไฟล์
@@ -694,6 +730,8 @@ function StudioDrawer({
                           href={asset.signed_url || undefined}
                           target="_blank"
                           rel="noreferrer"
+                          title={asset.original_file_name || "เปิด customer reference"}
+                          aria-label={asset.original_file_name || "เปิด customer reference"}
                           className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
                         >
                           <Image
@@ -719,7 +757,7 @@ function StudioDrawer({
               token.lead.ai_generated_images.length > 0 ? (
                 <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    AI Preview Gallery
+                    AI preview gallery
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {token.lead.ai_generated_images.map((imageUrl) => (
@@ -728,6 +766,8 @@ function StudioDrawer({
                         href={imageUrl}
                         target="_blank"
                         rel="noreferrer"
+                        title="เปิด AI preview"
+                        aria-label="เปิด AI preview"
                         className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
                       >
                         <Image
@@ -748,10 +788,10 @@ function StudioDrawer({
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Links
+                      ทางลัด
                     </p>
                     <p className="mt-1 text-sm text-slate-600">
-                      Jump to fallback admin or customer-facing pages.
+                      เปิดหน้า fallback หรือหน้าที่ลูกค้าเห็นจาก token นี้ได้ทันที
                     </p>
                   </div>
                 </div>
@@ -764,7 +804,7 @@ function StudioDrawer({
                         rel="noreferrer"
                         className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
                       >
-                        Open quote
+                        เปิด quote
                       </a>
                       <a
                         href={`${baseUrl}/status/${token.quote.public_token}`}
@@ -772,7 +812,7 @@ function StudioDrawer({
                         rel="noreferrer"
                         className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
                       >
-                        Open status
+                        เปิด status
                       </a>
                     </>
                   ) : null}
@@ -781,14 +821,14 @@ function StudioDrawer({
                     prefetch={false}
                     className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
                   >
-                    Open admin fallback
+                    เปิด admin fallback
                   </Link>
                 </div>
               </section>
 
               <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Real Workflow Actions
+                  Real workflow actions
                 </p>
                 <div className="mt-4 space-y-4">
                   {token.quote ? (
@@ -887,7 +927,7 @@ function StudioDrawer({
 
               <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Tokens In This Station
+                  Tokens in this station
                 </p>
                 <div className="mt-4 space-y-2">
                   {station.tokens.length > 0 ? (
@@ -915,7 +955,7 @@ function StudioDrawer({
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-slate-500">No tokens here right now.</p>
+                    <p className="text-sm text-slate-500">ตอนนี้ยังไม่มี token ใน station นี้</p>
                   )}
                 </div>
               </section>
@@ -923,10 +963,9 @@ function StudioDrawer({
           ) : (
             <div className="flex h-full min-h-65 items-center justify-center px-8 text-center">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Cute Studio is ready</p>
+                <p className="text-sm font-semibold text-slate-900">Studio พร้อมให้ดูงานแล้ว</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Click any station to see a queue summary, or click a token to trigger
-                  the real workflow actions behind it.
+                  คลิก station เพื่อดูสรุปคิว หรือคลิก token เพื่อดูเจ้าของงาน, เหตุผลที่ค้าง และกด action จริงจากตรงนี้
                 </p>
               </div>
             </div>
@@ -1132,15 +1171,13 @@ export default function StudioSurface({
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-4xl">
               <div className="inline-flex items-center rounded-full border border-white/70 bg-white/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-700 backdrop-blur">
-                Cute Studio V1
+                Studio Ops V1
               </div>
               <h1 className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-slate-950 sm:text-4xl">
                 {businessName} Studio Ops
               </h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-700 sm:text-[15px]">
-                Scan the floor, spot the bottleneck, click a token, and trigger the
-                real workflow action behind it. The scene is playful, but the data
-                and mutations stay tied to the canonical workflow model.
+                กวาดตาดูพื้นงาน, หา bottleneck, คลิก token แล้วไปสู่ action จริงที่ขยับ workflow ต่อได้ทันที. ฉากยังเป็น scene-first เหมือนเดิม แต่ชั้น operator ตอนนี้อธิบายว่าใครเป็นเจ้าของงานและงานหยุดเพราะอะไรชัดขึ้น.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {[
@@ -1243,9 +1280,7 @@ export default function StudioSurface({
                 Reading Pattern
               </p>
               <p className="mt-2 text-sm leading-6 text-slate-700">
-                Follow the critical path across the bright upper floor, then read
-                hold and review as side branches below. Archive stays visible as a
-                quiet completion shelf, not the main storyline.
+                อ่านเส้นทางหลักบนชั้นบนก่อน แล้วค่อยไล่ hold กับ review เป็น side branch ด้านล่าง ส่วน archive เป็นชั้นเก็บงานจบที่ยังเห็นได้ แต่ไม่แย่งสายตาจาก flow หลัก.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
@@ -1253,19 +1288,19 @@ export default function StudioSurface({
                 {
                   label: "Critical path",
                   value: criticalPathCount,
-                  detail: "Main ops runway",
+                  detail: "งานหลักที่ต้องไหลต่อ",
                   tone: "border-sky-200 bg-sky-50/80 text-sky-800",
                 },
                 {
                   label: "Side branches",
                   value: branchCount,
-                  detail: "Hold and review",
+                  detail: "จุดค้างและจุดรีวิว",
                   tone: "border-amber-200 bg-amber-50/80 text-amber-800",
                 },
                 {
                   label: "Archive",
                   value: archiveCount,
-                  detail: "Done shelf",
+                  detail: "งานจบหรือปิดแล้ว",
                   tone: "border-emerald-200 bg-emerald-50/80 text-emerald-800",
                 },
               ].map((item) => (
@@ -1293,12 +1328,12 @@ export default function StudioSurface({
               <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                 <div className="max-w-3xl">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    {surfaceMode === "workflow" ? "Playfield" : "Architecture Map"}
+                    {surfaceMode === "workflow" ? "สนามงานจริง" : "แผนที่สถาปัตย์"}
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
                     {surfaceMode === "workflow"
-                      ? "Each station maps to one canonical workflow zone. Tokens move when the underlying workflow changes, while hold and review stay readable as side branches instead of swallowing the board."
-                      : "LINE entry, orchestration, ERP, AI, storage, event, and BI modules are shown as one stacked Studio architecture map."}
+                      ? "แต่ละ station ผูกกับ workflow zone จริงหนึ่งจุด และ token จะย้ายเมื่อ state จริงเปลี่ยน ส่วน hold/review จะยังอยู่เป็น side branch ที่อ่านง่ายแทนการกลืนทั้งบอร์ด"
+                      : "LINE entry, orchestration, ERP, AI, storage, event และ BI ถูกวางเป็นแผนที่สถาปัตย์เดียวเพื่อดูโครงเชื่อมทั้งระบบ"}
                   </p>
                 </div>
 
@@ -1310,7 +1345,7 @@ export default function StudioSurface({
                       tone: "border-rose-200 bg-rose-50/80 text-rose-800",
                     },
                     {
-                      label: "Owned tokens",
+                      label: "มีชื่อผู้รับผิดชอบ",
                       value: assignedCount,
                       tone: "border-violet-200 bg-violet-50/80 text-violet-800",
                     },
@@ -1339,7 +1374,6 @@ export default function StudioSurface({
                 <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
                   <div
                     className="inline-flex w-fit rounded-full border border-slate-200 bg-slate-50 p-1"
-                    role="tablist"
                     aria-label="Studio view"
                   >
                     {[
@@ -1349,8 +1383,6 @@ export default function StudioSurface({
                       <button
                         key={item.id}
                         type="button"
-                        role="tab"
-                        aria-selected={surfaceMode === item.id}
                         onClick={() => {
                           startTransition(() => {
                             setSurfaceMode(item.id as StudioSurfaceMode);
@@ -1413,7 +1445,7 @@ export default function StudioSurface({
                 </div>
 
                 <p className="text-xs text-slate-500">
-                  `/admin` remains the safe fallback for every action surface.
+                  `/admin` ยังเป็น fallback ที่ปลอดภัยสำหรับทุก action surface
                 </p>
               </div>
             </div>
