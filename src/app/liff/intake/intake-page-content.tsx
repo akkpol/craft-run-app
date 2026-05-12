@@ -41,9 +41,15 @@ export default async function IntakePageContent(props: {
     firstValue(searchParams.product) || firstValue(searchParams.productType);
   const intakeMode =
     firstValue(searchParams.mode) === "fresh" ? "fresh" : "resume";
+  const debugLiffId = firstValue(searchParams.debugLiffId)?.trim();
+  const allowDebugLiffId =
+    process.env.VERCEL_ENV !== "production" &&
+    firstValue(searchParams.debugLiffInspector) === "1" &&
+    Boolean(debugLiffId);
   const disableLiffForLocalTest =
     isLocalHost(requestHost) ||
     (process.env.NODE_ENV !== "production" && firstValue(searchParams.devNoLiff) === "1");
+  const liffId = allowDebugLiffId ? debugLiffId || "" : config.liffId;
   const readiness = getLiffReadinessSummary({ intakeMode });
 
   return (
@@ -52,7 +58,7 @@ export default async function IntakePageContent(props: {
 
       <IntakeForm
         businessName={config.businessName}
-        liffId={disableLiffForLocalTest ? "" : config.liffId}
+        liffId={disableLiffForLocalTest ? "" : liffId}
         uploadUrl={config.customerUploadUrl}
         uploadLabel={config.customerUploadLabel}
         initialCategory={initialCategory}

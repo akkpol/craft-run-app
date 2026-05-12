@@ -259,6 +259,56 @@ function getSearchParamKeys(search: string) {
   }
 }
 
+function normalizeLiffInspectorOrigin(value: string | null | undefined) {
+  const normalizedValue = value?.trim().replace(/\/+$/, "") || "";
+  if (!normalizedValue) {
+    return null;
+  }
+
+  if (!/^wss?:\/\//.test(normalizedValue)) {
+    return null;
+  }
+
+  if (process.env.NODE_ENV === "production" && !normalizedValue.startsWith("wss://")) {
+    return null;
+  }
+
+  try {
+    const originUrl = new URL(normalizedValue);
+    const hostname = originUrl.hostname.toLowerCase();
+    const allowedRemoteHost =
+      hostname.endsWith(".ngrok-free.app") ||
+      hostname.endsWith(".ngrok.app") ||
+      hostname.endsWith(".ngrok.io") ||
+      hostname.endsWith(".trycloudflare.com");
+    const allowedLocalHost =
+      process.env.NODE_ENV !== "production" &&
+      (hostname === "localhost" || hostname === "127.0.0.1");
+
+    if (!allowedRemoteHost && !allowedLocalHost) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  return normalizedValue;
+}
+
+function getLiffInspectorConfig(search: string) {
+  const params = new URLSearchParams(search);
+  if (params.get("debugLiffInspector") !== "1") {
+    return { enabled: false, reason: "debug_not_requested" } as const;
+  }
+
+  const queryOrigin = normalizeLiffInspectorOrigin(params.get("li.origin"));
+  if (!queryOrigin) {
+    return { enabled: false, reason: "origin_missing_or_invalid" } as const;
+  }
+
+  return { enabled: true, origin: queryOrigin } as const;
+}
+
 function sendLiffIncident(payload: {
   fingerprint: string;
   stage: string;
@@ -678,6 +728,7 @@ export default function IntakeForm({
   const [showDocumentDetails, setShowDocumentDetails] = useState(false);
   const previewUrlsRef = useRef<string[]>([]);
   const commonProfilePluginInstalledRef = useRef(false);
+  const liffInspectorPluginInstalledRef = useRef(false);
   const reportedLiffIncidentKeysRef = useRef<Set<string>>(new Set());
   const liffConsoleFingerprintRef = useRef(createLiffDebugFingerprint());
   const latestLiffContextSnapshotRef = useRef(liffContextSnapshot);
@@ -769,6 +820,49 @@ export default function IntakeForm({
 
     return Boolean(window.liff.$commonProfile);
   }, [intakeMode, logIntakeLiffConsole]);
+
+  const installLiffInspectorPlugin = useCallback(async () => {
+    if (typeof window === "undefined" || !window.liff) {
+      return false;
+    }
+
+    const inspectorConfig = getLiffInspectorConfig(window.location.search);
+    if (!inspectorConfig.enabled) {
+      if (inspectorConfig.reason === "origin_missing_or_invalid") {
+        logIntakeLiffConsole("liff_inspector_origin_invalid", {}, "warn");
+      }
+      return false;
+    }
+
+    if (!window.liff.use) {
+      logIntakeLiffConsole("liff_inspector_liff_use_unavailable", {}, "warn");
+      return false;
+    }
+
+    if (liffInspectorPluginInstalledRef.current) {
+      return true;
+    }
+
+    try {
+      const inspectorModule = await import("@line/liff-inspector");
+      const LIFFInspectorPlugin = inspectorModule.default as new (options: {
+        origin: string;
+      }) => unknown;
+      window.liff.use(new LIFFInspectorPlugin({ origin: inspectorConfig.origin }));
+      liffInspectorPluginInstalledRef.current = true;
+      logIntakeLiffConsole("liff_inspector_plugin_installed", {
+        originHost: new URL(inspectorConfig.origin).hostname,
+      });
+      return true;
+    } catch (error) {
+      logIntakeLiffConsole(
+        "liff_inspector_plugin_failed",
+        { message: getErrorMessage(error) },
+        "warn"
+      );
+      return false;
+    }
+  }, [logIntakeLiffConsole]);
 
   const selectedUnitLabel = UNITS.find((item) => item.value === unit)?.label || unit;
   const billingBranchSummary =
@@ -1014,6 +1108,7 @@ export default function IntakeForm({
           return;
         }
 
+        const liffInspectorPluginReady = await installLiffInspectorPlugin();
         const commonProfilePluginReady = installCommonProfilePlugin();
 
         await window.liff.init({ liffId });
@@ -1024,6 +1119,7 @@ export default function IntakeForm({
           isLoggedIn: window.liff.isLoggedIn(),
           isInClient: window.liff.isInClient(),
           liffSdkVersion: window.liff.getVersion?.() || null,
+          liffInspectorPluginReady,
           commonProfilePluginReady,
           commonProfileApiReady: Boolean(window.liff.$commonProfile),
         });
@@ -1377,7 +1473,7 @@ export default function IntakeForm({
         clearTimeout(timeout);
       }
     };
-  }, [installCommonProfilePlugin, intakeMode, liffId, logIntakeLiffConsole, reportLiffIncident]);
+  }, [installCommonProfilePlugin, installLiffInspectorPlugin, intakeMode, liffId, logIntakeLiffConsole, reportLiffIncident]);
 
   const handleReferenceFileSelect = useCallback(async (files: FileList | null) => {
     if (!files?.length) return;
