@@ -35,10 +35,15 @@ export function parseMultipartIntakeFormData(formData: FormData) {
   const customerMediaFiles = formData
     .getAll("referenceFiles")
     .filter((value): value is File => value instanceof File && value.size > 0);
-  const requestedDocumentTypes = normalizeDocumentRequestTypes([
+  const requestedDocumentTypes = [
     ...formData.getAll("requestedDocumentTypes"),
     getOptionalFormDataString(formData, "requestedDocumentType"),
-  ]);
+  ]
+    .flatMap((value) => (typeof value === "string" ? [value.trim()] : []))
+    .filter((value) => value.length > 0);
+  const normalizedRequestedDocumentTypes = normalizeDocumentRequestTypes(
+    requestedDocumentTypes
+  );
 
   const data: IntakeFormData = {
     liffIdToken: getOptionalFormDataString(formData, "liffIdToken"),
@@ -52,7 +57,7 @@ export function parseMultipartIntakeFormData(formData: FormData) {
     dueDate: getFormDataString(formData, "dueDate"),
     phone: getFormDataString(formData, "phone"),
     requestedDocumentType:
-      getPrimaryDocumentRequestType(requestedDocumentTypes),
+      getPrimaryDocumentRequestType(normalizedRequestedDocumentTypes),
     requestedDocumentTypes,
     designBrief: getOptionalFormDataString(formData, "designBrief"),
     note: getFormDataString(formData, "note"),
@@ -77,6 +82,8 @@ export function parseMultipartIntakeFormData(formData: FormData) {
     fulfillmentLongitude: parseOptionalNumber(getFormDataString(formData, "fulfillmentLongitude")) ?? undefined,
     aiImagePrompt: getOptionalFormDataString(formData, "aiImagePrompt"),
     intakeMode: getOptionalFormDataString(formData, "intakeMode") as IntakeFormData["intakeMode"],
+    validationMode:
+      getOptionalFormDataString(formData, "validationMode") as IntakeFormData["validationMode"],
   };
 
   return { data, customerMediaFiles };

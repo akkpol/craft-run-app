@@ -41,6 +41,24 @@ test("parseMultipartIntakeFormData keeps design brief and advanced prompt values
   assert.equal(customerMediaFiles[0]?.name, "ref.txt");
 });
 
+test("parseMultipartIntakeFormData preserves invalid requestedDocumentTypes for route validation", () => {
+  const formData = new FormData();
+  formData.set("productType", "signage");
+  formData.set("width", "1200");
+  formData.set("height", "600");
+  formData.set("unit", "mm");
+  formData.set("qty", "2");
+  formData.set("dueDate", "2026-05-01");
+  formData.set("phone", "0812345678");
+  formData.set("fulfillmentMode", "pickup");
+  formData.append("requestedDocumentTypes", "bad_value");
+
+  const { data } = parseMultipartIntakeFormData(formData);
+
+  assert.deepEqual(data.requestedDocumentTypes, ["bad_value"]);
+  assert.equal(data.requestedDocumentType, "quote");
+});
+
 test("buildLeadPromptFields keeps ai image status tied to explicit aiImagePrompt only", () => {
   assert.deepEqual(
     buildLeadPromptFields({

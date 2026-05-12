@@ -1,11 +1,11 @@
-import { type AppLocale } from "./locale";
+import { type AppLocale } from "@/lib/locale";
 import { type DocumentRequestType } from "@/lib/document-request";
 import {
   WORKFLOW_STATES,
   isWorkflowState,
   normalizeWorkflowState,
   type WorkflowState,
-} from "./workflow-state";
+} from "@/lib/workflow-state";
 
 export { WORKFLOW_STATES, isWorkflowState, normalizeWorkflowState };
 export type { WorkflowState };
@@ -528,7 +528,7 @@ export interface IntakeFormData {
   designBrief?: string;
   aiImagePrompt?: string;
   requestedDocumentType?: DocumentRequestType;
-  requestedDocumentTypes?: DocumentRequestType[];
+  requestedDocumentTypes?: Array<DocumentRequestType | string>;
   billingEntityType?: BillingEntityType;
   billingBranchType?: BillingBranchType;
   billingBranchCode?: string;
@@ -546,6 +546,7 @@ export interface IntakeFormData {
   paymentTerms?: PaymentTerm;
   fulfillmentMode?: FulfillmentMode;
   intakeMode?: "resume" | "fresh";
+  validationMode?: "liff_validation_harness";
 }
 
 export interface ConversationRow {

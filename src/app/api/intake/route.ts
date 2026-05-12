@@ -51,6 +51,10 @@ import {
   parseOptionalNumber,
 } from "@/lib/intake-payload";
 import {
+  buildLiffValidationTestNote,
+  LIFF_VALIDATION_MODE,
+} from "@/lib/liff-validation";
+import {
   formatTaxDocumentIntakeErrors,
   validateTaxDocumentIntake,
 } from "@/lib/tax-document-intake";
@@ -122,6 +126,9 @@ export async function POST(request: NextRequest) {
   }
   if (data.intakeMode && !["resume", "fresh"].includes(data.intakeMode)) {
     errors.push("intakeMode is invalid");
+  }
+  if (data.validationMode && data.validationMode !== LIFF_VALIDATION_MODE) {
+    errors.push("validationMode is invalid");
   }
   if (data.dueDate && data.dueDate < earliestDueDate) {
     errors.push("dueDate must be today or later");
@@ -570,6 +577,28 @@ export async function POST(request: NextRequest) {
     ? "ยังมีข้อมูลไม่ครบสำหรับออกใบเสนอราคาอัตโนมัติ"
     : null;
   const leadDefaults = getLeadOperationalDefaults(fulfillmentMode);
+  const isValidationHarness = data.validationMode === LIFF_VALIDATION_MODE;
+  const validationRunLabel = new Date().toISOString();
+  const leadPromptInput = isValidationHarness
+    ? {
+        ...data,
+        note: [data.note, buildLiffValidationTestNote(validationRunLabel)]
+          .filter(Boolean)
+          .join("\n"),
+        referenceInfo: [
+          data.referenceInfo,
+          "Harness source: /liff/validation-harness",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        designBrief: [
+          data.designBrief,
+          "System-generated LIFF validation test payload.",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      }
+    : data;
 
   const { data: lead, error: leadError } = await supabase
     .from("leads")
@@ -794,6 +823,7 @@ export async function POST(request: NextRequest) {
       conversation_id: conversationId,
       product_type: data.productType,
       intake_mode: data.intakeMode ?? "resume",
+      validation_mode: data.validationMode ?? null,
     },
   });
   await logSystemAction(supabase, {
@@ -807,6 +837,7 @@ export async function POST(request: NextRequest) {
       payment_terms: paymentTerms,
       to_state: "WAITING_QUOTE_APPROVAL",
       intake_mode: data.intakeMode ?? "resume",
+      validation_mode: data.validationMode ?? null,
     },
   });
 
