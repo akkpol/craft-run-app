@@ -12,10 +12,13 @@ export default function AdminSettingsPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-300">Admin Setup</p>
             <h1 className="mt-2 text-2xl font-bold">System Settings</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-300">
-              หน้านี้มีไว้ให้เจ้าของระบบกรอกค่าที่จำเป็นสำหรับ LINE Messaging API, LINE MINI App (ผ่าน LIFF SDK) และ Base URL โดยไม่ต้องแก้ไฟล์ env ใน repo
+              หน้านี้มีไว้ให้เจ้าของระบบกรอกค่าที่จำเป็นสำหรับ LINE Messaging API, LINE MINI App, payment runtime และ asset settings โดยไม่ต้องแก้ไฟล์ env ใน repo ส่วน AI provider และ credentials ถูกแยกไปหน้าเฉพาะแล้ว
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Link href="/admin/settings/ai" className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/15">
+              AI Provider
+            </Link>
             <Link href="/admin" className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/15">
               กลับไป Dashboard
             </Link>
@@ -25,7 +28,7 @@ export default function AdminSettingsPage() {
           </div>
         </div>
 
-        <SettingsForm />
+        <SettingsForm mode="general" />
       </div>
     </div>
   );

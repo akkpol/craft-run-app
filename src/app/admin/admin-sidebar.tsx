@@ -103,7 +103,14 @@ const secondaryItems = [
     title: "ตั้งค่าระบบ",
     href: "/admin/settings",
     icon: Settings2Icon,
-    isActive: (pathname: string) => pathname.startsWith("/admin/settings"),
+    isActive: (pathname: string) => pathname === "/admin/settings",
+    external: false,
+  },
+  {
+    title: "AI Provider",
+    href: "/admin/settings/ai",
+    icon: WandSparklesIcon,
+    isActive: (pathname: string) => pathname.startsWith("/admin/settings/ai"),
     external: false,
   },
   {

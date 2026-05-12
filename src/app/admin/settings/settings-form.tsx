@@ -3,14 +3,17 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
+  Building2,
   CheckCircle2,
   Clipboard,
   KeyRound,
   Link2,
   MessageCircle,
+  PackageSearch,
   ShieldCheck,
   Smartphone,
   TriangleAlert,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -25,6 +28,7 @@ import {
   PAYMENT_ROUTING_TERM_SCOPES,
 } from "@/lib/payment-routing";
 import { formatBangkokDateTime } from "@/lib/bangkok-date-time";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ProductCatalogImportResult = {
   importedCount: number;
@@ -117,6 +121,8 @@ type SettingsState = {
   updatedAt: string | null;
 };
 
+type SettingsFormMode = "general" | "ai";
+
 const emptyState: SettingsState = {
   businessName: "",
   businessPhone: "",
@@ -208,7 +214,11 @@ function isHttpsUrl(value: string) {
   }
 }
 
-export default function SettingsForm() {
+export default function SettingsForm({
+  mode = "general",
+}: {
+  mode?: SettingsFormMode;
+}) {
   const [form, setForm] = useState<SettingsState>(emptyState);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -442,6 +452,7 @@ export default function SettingsForm() {
   const lineSendReady = hasCurrentLineChannelAccessToken;
   const liffReady = hasCurrentLiffId && lineLiffUrlReady;
   const lineConnectionReady = lineReceiveReady && lineSendReady && liffReady;
+  const generalDefaultTab = lineConnectionReady ? "business" : "line";
 
   const LineStatusIcon = lineConnectionReady ? CheckCircle2 : TriangleAlert;
   const lineStatusCards: Array<{
@@ -488,6 +499,53 @@ export default function SettingsForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {mode !== "ai" ? (
+        <>
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-3xl">
+            <h2 className="text-lg font-semibold text-slate-950">ตั้งค่าระบบหลัก</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              แยกเป็นแท็บตามงานจริงของแอดมินเพื่อลดการเลื่อนยาว แต่ยังใช้การบันทึกชุดเดียวเหมือนเดิม
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs font-semibold">
+            <span className={lineConnectionReady ? "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800" : "rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-800"}>
+              LINE: {lineConnectionReady ? "พร้อมใช้งาน" : "ยังไม่ครบ"}
+            </span>
+            <span className={form.customerMediaStorage.r2Configured ? "rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sky-800" : "rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700"}>
+              Upload: {form.customerMediaStorage.activeProvider === "r2" ? "Cloudflare R2" : "Supabase fallback"}
+            </span>
+            <span className={form.productionUploadEnabled ? "rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-cyan-800" : "rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700"}>
+              Production: {form.productionUploadEnabled ? "เปิดอยู่" : "ปิดอยู่"}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <Tabs defaultValue={generalDefaultTab} className="gap-4">
+        <div className="overflow-x-auto pb-1">
+          <TabsList className="h-auto min-w-full justify-start rounded-[28px] bg-slate-100/80 p-1.5">
+            <TabsTrigger value="business" className="min-w-fit gap-2 px-4 py-2.5 data-active:bg-white data-active:shadow-sm">
+              <Building2 className="size-4" />
+              ธุรกิจ & ชำระเงิน
+            </TabsTrigger>
+            <TabsTrigger value="line" className="min-w-fit gap-2 px-4 py-2.5 data-active:bg-white data-active:shadow-sm">
+              <Smartphone className="size-4" />
+              LINE / LIFF
+            </TabsTrigger>
+            <TabsTrigger value="catalog" className="min-w-fit gap-2 px-4 py-2.5 data-active:bg-white data-active:shadow-sm">
+              <PackageSearch className="size-4" />
+              Catalog
+            </TabsTrigger>
+            <TabsTrigger value="production" className="min-w-fit gap-2 px-4 py-2.5 data-active:bg-white data-active:shadow-sm">
+              <Upload className="size-4" />
+              Production
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="business" className="space-y-6">
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-950">ข้อมูลองค์กร</h2>
         <p className="mt-1 text-sm text-slate-500">ข้อมูลส่วนนี้ใช้สำหรับแสดงผลในเอกสารและหน้าลูกค้า</p>
@@ -783,6 +841,10 @@ export default function SettingsForm() {
         </div>
       </section>
 
+        </TabsContent>
+
+        <TabsContent value="line" className="space-y-6">
+
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -923,6 +985,10 @@ export default function SettingsForm() {
         </details>
       </section>
 
+        </TabsContent>
+
+        <TabsContent value="catalog" className="space-y-6">
+
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-950">Product Catalog Runtime</h2>
         <p className="mt-1 text-sm text-slate-500">
@@ -1011,6 +1077,10 @@ export default function SettingsForm() {
         </div>
       </section>
 
+        </TabsContent>
+
+        <TabsContent value="production" className="space-y-6">
+
       <section className="rounded-3xl border border-cyan-200 bg-cyan-50 p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-950">Production Upload</h2>
         <p className="mt-1 text-sm text-slate-600">
@@ -1067,7 +1137,14 @@ export default function SettingsForm() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-violet-200 bg-violet-50 p-6 shadow-sm">
+        </TabsContent>
+      </Tabs>
+
+        </>
+      ) : null}
+
+      {mode !== "general" ? (
+        <section className="rounded-3xl border border-violet-200 bg-violet-50 p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-950">AI สร้างรูป</h2>
@@ -1116,15 +1193,29 @@ export default function SettingsForm() {
             </p>
           </label>
         </div>
-      </section>
+        </section>
+      ) : null}
 
       <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-        <p className="font-semibold">หมายเหตุ</p>
-        <ul className="mt-2 space-y-1 text-amber-800">
-          <li>ถ้ายังไม่ได้บันทึกค่าในฐานข้อมูล ฟอร์มนี้จะ preload ค่าที่มีอยู่จาก env มาให้ดูก่อน</li>
-          <li>ค่ากลุ่ม Supabase ยังเป็น deployment-level config และยังต้องมีใน environment เพื่อให้แอปบูตได้</li>
-          <li>แต่ค่ากลุ่ม LINE, LIFF, Base URL ในหน้านี้จะถูกใช้แทน env อัตโนมัติถ้ากรอกไว้</li>
-        </ul>
+        {mode === "ai" ? (
+          <>
+            <p className="font-semibold">หมายเหตุ</p>
+            <ul className="mt-2 space-y-1 text-amber-800">
+              <li>ถ้ายังไม่ได้บันทึกค่าในฐานข้อมูล ฟอร์มนี้จะ preload provider, model และสถานะ key จาก env/runtime มาให้ดูก่อน</li>
+              <li>สามารถใช้ env `OPENAI_API_KEY`, `GOOGLE_API_KEY` หรือ `GEMINI_API_KEY` แทนการบันทึก key ในฐานข้อมูลได้</li>
+              <li>หน้านี้ไว้สำหรับ config provider และ credentials เท่านั้น ส่วนงาน generate/retry/preview ให้ทำต่อที่ `/admin/prompts`</li>
+            </ul>
+          </>
+        ) : (
+          <>
+            <p className="font-semibold">หมายเหตุ</p>
+            <ul className="mt-2 space-y-1 text-amber-800">
+              <li>ถ้ายังไม่ได้บันทึกค่าในฐานข้อมูล ฟอร์มนี้จะ preload ค่าที่มีอยู่จาก env มาให้ดูก่อน</li>
+              <li>ค่ากลุ่ม Supabase ยังเป็น deployment-level config และยังต้องมีใน environment เพื่อให้แอปบูตได้</li>
+              <li>ค่ากลุ่ม LINE, LIFF, Base URL และ payment runtime ในหน้านี้จะถูกใช้แทน env อัตโนมัติถ้ากรอกไว้</li>
+            </ul>
+          </>
+        )}
       </section>
 
       {error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}

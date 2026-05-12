@@ -41,6 +41,7 @@
       border: 1px solid var(--line);
       border-radius: 24px;
       box-shadow: var(--shadow);
+      -webkit-backdrop-filter: blur(14px);
       backdrop-filter: blur(14px);
     }
 
@@ -128,6 +129,14 @@
     .steps {
       display: grid;
       gap: 14px;
+    }
+
+    .section-gap {
+      margin-top: 18px;
+    }
+
+    .steps-offset {
+      margin-top: 16px;
     }
 
     .step {
@@ -276,9 +285,9 @@
       </article>
     </section>
 
-    <section class="card" style="margin-top: 18px;">
+    <section class="card section-gap">
       <h2>Run Order</h2>
-      <div class="steps" style="margin-top: 16px;">
+      <div class="steps steps-offset">
         <div class="step">
           <strong>1. P2-G03</strong><br />
           Where: Vercel dashboard &gt; craft-run &gt; Deployments<br />
@@ -316,7 +325,7 @@
       </div>
     </section>
 
-    <section class="grid two-col" style="margin-top: 18px;">
+    <section class="grid two-col section-gap">
       <article class="card">
         <div class="copy-row">
           <div>
@@ -354,7 +363,7 @@ Notes:
       </article>
     </section>
 
-    <section class="card" style="margin-top: 18px;">
+    <section class="card section-gap">
       <h2>เอกสารอ้างอิงลึก ถ้าจำเป็น</h2>
       <ul class="list">
         <li><a href="../docs/OPERATOR_LAUNCH_ONE_PAGE.md">docs/OPERATOR_LAUNCH_ONE_PAGE.md</a></li>
