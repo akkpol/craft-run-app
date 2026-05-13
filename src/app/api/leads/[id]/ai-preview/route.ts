@@ -52,7 +52,10 @@ export async function POST(
         ai_generated_images: imageUrls,
         ai_image_error: null,
         ai_prompt_snapshot: preparedPrompt.prompt,
-        design_status: "preview_sent",
+        // "drafting" = image generated, admin reviews before sending to customer.
+        // Job/conversation state changes happen only when admin explicitly sends
+        // the preview via POST /api/leads/[id]/send-preview.
+        design_status: "drafting",
       })
       .eq("id", id);
 
@@ -62,41 +65,15 @@ export async function POST(
 
     const { data: relatedQuote } = await supabase
       .from("quotes")
-      .select("id, leads(conversation_id), jobs(id, status)")
+      .select("id, jobs(id, status)")
       .eq("lead_id", id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    const relatedLead = Array.isArray(relatedQuote?.leads)
-      ? relatedQuote.leads[0]
-      : relatedQuote?.leads;
     const relatedJob = Array.isArray(relatedQuote?.jobs)
       ? relatedQuote.jobs[0]
       : relatedQuote?.jobs;
-    const timelineNote = "ส่งแบบให้ลูกค้าตรวจแล้ว";
-
-    await Promise.all([
-      relatedJob?.id && relatedJob.status !== "ON_HOLD_CUSTOMER_INPUT"
-        ? supabase
-            .from("jobs")
-            .update({ status: "ON_HOLD_CUSTOMER_INPUT", production_status: "queued" })
-            .eq("id", relatedJob.id)
-        : Promise.resolve(),
-      relatedJob?.id && relatedJob.status !== "ON_HOLD_CUSTOMER_INPUT"
-        ? supabase.from("job_timeline").insert({
-            job_id: relatedJob.id,
-            status: "ON_HOLD_CUSTOMER_INPUT",
-            note: timelineNote,
-          })
-        : Promise.resolve(),
-      relatedLead?.conversation_id
-        ? supabase
-            .from("conversations")
-            .update({ state: "ON_HOLD_CUSTOMER_INPUT" })
-            .eq("id", relatedLead.conversation_id)
-        : Promise.resolve(),
-    ]);
 
     await logAiAction(supabase, {
       entityType: "lead",

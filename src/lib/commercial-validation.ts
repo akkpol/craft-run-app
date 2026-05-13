@@ -36,7 +36,9 @@ export type ValidationErrorCode =
   | "PAYMENT_RECEIVER_LOCKED"
   | "PAYMENT_RECEIVER_NOT_SELECTED"
   | "PAYMENT_RECEIVER_MISMATCH"
-  | "RECEIVER_ENTITY_INACTIVE";
+  | "RECEIVER_ENTITY_INACTIVE"
+  | "PAYMENT_AMOUNT_UNDERPAID"
+  | "PAYMENT_AMOUNT_OVERPAID";
 
 export type ValidationResult<T = void> =
   | { ok: true; value: T }
@@ -98,6 +100,73 @@ export function validateReceiverEntityActive(
       detail: `Receiver entity ${entity.id} is inactive and cannot receive payment.`,
     };
   }
+  return { ok: true, value: undefined };
+}
+
+export interface PaymentAmountInput {
+  /** 'prepaid' | 'deposit' | 'credit' — from quote_payment_records.payment_terms */
+  paymentTerms: "prepaid" | "deposit" | "credit";
+  /** The amount on the payment record being confirmed. */
+  paymentAmount: number;
+  /** The total amount due from quote_payment_records.amount_due. */
+  amountDue: number;
+}
+
+/**
+ * Validate that a payment amount is consistent with the order's payment terms.
+ *
+ * Rules (Business Policy):
+ * - credit: no pre-payment gate — any amount accepted.
+ * - prepaid: payment amount must equal amount_due exactly (full payment required).
+ * - deposit: payment amount must be > 0 and <= amount_due (partial ok, overpay not).
+ */
+export function validatePaymentAmount(
+  input: PaymentAmountInput
+): ValidationResult {
+  const { paymentTerms, paymentAmount, amountDue } = input;
+
+  if (paymentTerms === "credit") {
+    // Credit orders have no upfront payment gate.
+    return { ok: true, value: undefined };
+  }
+
+  if (paymentTerms === "prepaid") {
+    if (paymentAmount < amountDue) {
+      return {
+        ok: false,
+        error: "PAYMENT_AMOUNT_UNDERPAID",
+        detail: `Prepaid order requires full payment of ${amountDue}. Payment amount ${paymentAmount} is insufficient.`,
+      };
+    }
+    if (paymentAmount > amountDue) {
+      return {
+        ok: false,
+        error: "PAYMENT_AMOUNT_OVERPAID",
+        detail: `Payment amount ${paymentAmount} exceeds the amount due ${amountDue}.`,
+      };
+    }
+    return { ok: true, value: undefined };
+  }
+
+  // deposit: partial payment is acceptable; overpay is a data-entry error.
+  if (paymentTerms === "deposit") {
+    if (paymentAmount <= 0) {
+      return {
+        ok: false,
+        error: "PAYMENT_AMOUNT_UNDERPAID",
+        detail: "Deposit payment amount must be greater than zero.",
+      };
+    }
+    if (paymentAmount > amountDue) {
+      return {
+        ok: false,
+        error: "PAYMENT_AMOUNT_OVERPAID",
+        detail: `Payment amount ${paymentAmount} exceeds the amount due ${amountDue}.`,
+      };
+    }
+    return { ok: true, value: undefined };
+  }
+
   return { ok: true, value: undefined };
 }
 

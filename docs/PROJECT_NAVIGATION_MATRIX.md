@@ -13,9 +13,10 @@ Use this file to choose the right docs, plans, and runbooks before starting work
 ## 1. Current Stable Baseline
 
 - Date: 2026-05-14
-- Baseline commit: `cd99883`
+- Baseline commit: `90c97d7`
 - Release gate: `npm run check:release`
-- Baseline note: Vercel status for `cd99883` was reported as success before this packet.
+- Baseline note: `check:release` at `90c97d7` passed 2026-05-14 (lint, TypeScript, scenario runner 19/19, workflow-policy, build). Vercel status for prior baseline `cd99883` was reported as success before this packet.
+- Scenario runner (`npm run test:scenario`) is the primary regression gate for webhook state machine behavior. Real LINE device is required only for final launch evidence (LIFF-VAL-006/007/008).
 - Known drift: Supabase migration-history drift is known drift, not LINE, LIFF, webhook, or runtime failure.
 - Production mutation rule: no production mutation without an explicit packet.
 

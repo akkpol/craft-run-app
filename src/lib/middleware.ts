@@ -3,27 +3,9 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 import { resolveAdminAccess } from '@/lib/admin-auth'
 import { buildAdminLoginRedirect } from '@/lib/admin-auth-flow'
+import { isPublicRoute } from '@/lib/middleware-routes'
 
-const PUBLIC_ROUTE_PREFIXES = [
-  '/auth',
-  '/liff',
-  '/quote',
-  '/status',
-  '/production',
-  '/flow',
-  '/api/webhook',
-  '/api/intake',
-  '/api/customers/prefill',
-  '/api/liff/health',
-  '/api/liff/validation-report',
-  '/api/quotes/',
-  '/api/production/',
-  '/api/internal/production-media/cleanup',
-]
-
-function isPublicRoute(pathname: string) {
-  return PUBLIC_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix))
-}
+export { PUBLIC_ROUTE_PREFIXES, isPublicRoute } from '@/lib/middleware-routes'
 
 export async function updateSession(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET

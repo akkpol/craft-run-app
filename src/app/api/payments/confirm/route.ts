@@ -4,6 +4,7 @@ import { logHumanAction } from "@/lib/action-log";
 import { buildCommercialPaymentConfirmFailureAudit } from "@/lib/commercial-audit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  validatePaymentAmount,
   validatePaymentConfirm,
   validateReceiverEntityActive,
 } from "@/lib/commercial-validation";
@@ -96,6 +97,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // 2b. Load quote payment record for amount validation (fail-open if absent).
+  const { data: paymentRecord } = await supabase
+    .from("quote_payment_records")
+    .select("amount_due, payment_terms")
+    .eq("quote_id", order.quote_id)
+    .maybeSingle();
+
   // 3. Validate preconditions (policy §7.2).
   const confirmValidation = validatePaymentConfirm({
     paymentReceiverEntityId: payment.receiver_entity_id,
@@ -130,6 +138,43 @@ export async function POST(request: NextRequest) {
       },
       { status: statusCode }
     );
+  }
+
+  // 3b. Validate payment amount against quote total (policy: FIX-1).
+  // Only runs on new confirmations (not idempotent retries of already-CONFIRMED payments).
+  // Skipped when no payment record exists (backward-compatible for older quotes).
+  if (!paymentAlreadyConfirmed && paymentRecord) {
+    const amountValidation = validatePaymentAmount({
+      paymentTerms: paymentRecord.payment_terms as "prepaid" | "deposit" | "credit",
+      paymentAmount: Number(payment.amount),
+      amountDue: Number(paymentRecord.amount_due),
+    });
+
+    if (!amountValidation.ok) {
+      await logHumanAction(supabase, {
+        entityType: "quote",
+        entityId: order.quote_id,
+        actorLabel: "Admin",
+        ...buildCommercialPaymentConfirmFailureAudit({
+          error: amountValidation.error,
+          detail: amountValidation.detail,
+          paymentId,
+          orderId: order.id,
+          quoteId: order.quote_id,
+          receiverEntityId: payment.receiver_entity_id,
+          selectedReceiverEntityId: order.selected_receiver_entity_id,
+          paymentReceiverLockedAt: order.payment_receiver_locked_at,
+        }),
+      }).catch(() => null);
+
+      return NextResponse.json(
+        {
+          error: amountValidation.error,
+          detail: amountValidation.detail,
+        },
+        { status: 422 }
+      );
+    }
   }
 
   // 4. Verify receiver entity is still active.

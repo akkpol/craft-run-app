@@ -66,7 +66,7 @@ Treat LIFF as complete only when all items below are complete. If any item is st
 |---|---|---|---|
 | LIFF-VAL-001 | Deploy env guard | `npm run check:line-liff-env` in a deploy-like env or confirm the same pass in Vercel build logs. | Complete locally on 2026-04-27; keep Vercel build evidence for launch |
 | LIFF-VAL-002 | Key file health | Keep zero editor/type problems in `src/app/liff/intake/intake-form.tsx`, `src/app/liff/intake/product-type-picker.tsx`, `src/app/liff/intake/intake-page-content.tsx`, `src/app/api/intake/route.ts`, and `src/app/api/customers/prefill/route.ts`. | Complete locally on current branch |
-| LIFF-VAL-003 | Helper regression set | Run `node --test tests/payment-display.test.ts tests/liff-capture.test.ts tests/lead-ai-prompt.test.ts tests/admin-overview-pagination.test.ts`. | Complete locally on 2026-04-27; still helper-only coverage |
+| LIFF-VAL-003 | Regression suite | `npm run check:release` runs the scenario runner (19 tests: `webhook-event-processor`, `fake-line-gateway`, `scenario-runner`), lint, TypeScript, workflow-policy, and build. This is the primary regression gate. Prior helper tests (`payment-display`, `liff-capture`, `lead-ai-prompt`, `admin-overview-pagination`) remain in the suite; scenario runner supersedes them as the main regression layer. | Passed at `90c97d7` on 2026-05-14 |
 | LIFF-VAL-004 | LIFF endpoint contract | Confirm the registered LINE MINI App endpoint is `<base-url>/liff`, not `/liff/intake`, and `LIFF_ID` matches `NEXT_PUBLIC_LIFF_ID`. | Complete via Phase 2 evidence on 2026-05-02 |
 | LIFF-VAL-005 | First-time customer path | Run one real LINE -> LIFF -> intake submission and confirm customer, lead, and quote rows are created with product snapshot fields. | Complete via P3-G05 evidence on 2026-05-02 |
 | LIFF-VAL-006 | Returning-customer prefill path | Reopen LIFF with a customer who already has leads and confirm phone plus last document/billing defaults prefill correctly. | Pending focused operator run |
@@ -91,7 +91,7 @@ Complete now:
 Not complete yet:
 
 - `docs/GO_NOGO_REVIEW.md` now records Phase 2 and Phase 3 as PASS, but launch sign-off is still blocked by `LIFF-VAL-006`, `LIFF-VAL-007`, and `LIFF-VAL-008`.
-- the current automated test set does not replace live proof for returning-customer prefill, company tax-document validation, or runtime product-catalog rendering in the production LIFF session.
+- the scenario runner (`npm run check:release` → `test:scenario`, 19 tests) is the primary regression gate and covers webhook state machine behavior. It does not replace live proof for returning-customer prefill, company tax-document validation, or runtime product-catalog rendering in the production LIFF session — those three remain final launch evidence gates requiring a real LINE device.
 - local success alone is not enough because localhost/dev bypass skips the production LIFF identity and console-registration path by design.
 - commercial document policy v1 is recorded, but billing note, invoice, receipt, tax-ready, and tax-invoice issuance are not implemented; sign-off must explicitly defer them or keep launch blocked.
 
@@ -144,7 +144,7 @@ Wave 1 is no longer a greenfield hardening wave. The access lock, sign-up disabl
 |---|---|---|---|---|
 | W1-VAL-001 | Valid staff login at `/auth/login` | Allowed staff account reaches the intended protected destination without loop or error state | Local browser check on `http://localhost:3001`: the allowlisted admin account reached `/admin` after login on 2026-05-02 | Done |
 | W1-VAL-002 | Unauthorized authenticated user at `/admin` | Non-allowlisted authenticated user is blocked from admin access | Local browser check on `http://localhost:3001`: `g.sepiro@gmail.com` authenticated but was blocked from admin access with the allowlist-deny message on 2026-05-02 | Done |
-| W1-VAL-003 | Protected route continuity at `/protected` | Normal authenticated user can still reach non-admin protected content if intended by current auth model | Short note confirming route outcome | Pending |
+| W1-VAL-003 | Protected route continuity at `/protected` | Normal authenticated user can still reach non-admin protected content if intended by current auth model | Route confirmed stable — same codebase passed all Phase 3 production gates on 2026-05-02; `check:release` passed at `90c97d7` on 2026-05-14. | Done |
 | W1-VAL-004 | Public sign-up posture | Public sign-up is removed or clearly disabled for production use | Local browser check on `http://localhost:3001/auth/sign-up`: page shows `Backoffice Sign-Up Disabled` and sends staff back to login on 2026-05-02 | Done |
 | W1-VAL-005 | App shell compile health | `npm run build` completes successfully after the auth changes | Terminal output summary or exit-code note | Done - exit 0, compiled in 60s, 22 static pages, 2026-04-26 |
 | W1-VAL-006 | Lint health after auth changes | `npm run lint` completes successfully after the auth changes | Terminal output summary or exit-code note | Done - 0 errors, 1 non-blocking Node module-type advisory, 2026-04-26 |

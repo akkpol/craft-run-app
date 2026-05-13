@@ -92,6 +92,8 @@ Not all open gates require a live LINE device. Separate them before starting CLO
 
 Delivery Engineering rechecked production on 2026-05-02 and confirmed `/liff` in a desktop browser remains at `กำลังเปิดฟอร์มใน LINE...`; the `devNoLiff=1` bypass is intentionally limited to localhost or non-production, so there is no supported agent-side shortcut for the three remaining LIFF checks on production.
 
+Regression coverage note (updated 2026-05-14): `npm run check:release` (scenario runner: `webhook-event-processor`, `fake-line-gateway`, `scenario-runner` — 19 tests) is the primary regression gate for webhook state machine behavior and covers the automated layer fully. Track B gates (LIFF-VAL-006/007/008) are exclusively final launch evidence gates requiring a real LINE device; they are not regression tests.
+
 ## Operator Evidence Worksheet
 
 Copy each completed block into `docs/GO_NOGO_REVIEW.md` immediately after the live step passes. Leave `Result` as `FAIL` and stop the wave if any expected outcome does not match.
@@ -147,7 +149,7 @@ Notes:
 - **REQ-005**: Run LIFF live scenarios from `docs/LIFF_LIVE_VALIDATION_RUNBOOK.md` only after the hard preconditions are met.
 - **OPS-001**: Capture evidence for every live gate with result, verifier, date, screenshots, IDs, and notes.
 - **OPS-002**: Stop the live run immediately if a stop-rule gate fails in `docs/GO_NOGO_REVIEW.md`.
-- **CON-001**: The current worktree is unstable because it spans documentation updates plus local test/config changes.
+- **CON-001**: ~~The current worktree is unstable because it spans documentation updates plus local test/config changes.~~ Resolved at `90c97d7` — worktree is clean, `check:release` passed 2026-05-14.
 - **CON-002**: No new implementation work may start while the runbook slice is active.
 - **CON-003**: Local files `tests/line-and-production-review.test.ts`, `tests/workflow-transitions.test.ts`, and `vitest.config.ts` are deferred from this runbook slice.
 - **GUD-001**: Follow the unstable-worktree rule in `plan/process-anti-loop-execution-1.md`: choose one coherent slice and explicitly defer the others.
