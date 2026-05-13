@@ -17,6 +17,7 @@
     "lint": "eslint .",
     "ops:doctor": "node scripts/ops-doctor.mjs",
     "check:line-liff-env": "node scripts/check-line-liff-env.mjs --strict",
+    "check:release": "node scripts/release-gate.mjs",
     "check:workflow-policy": "node scripts/workflow-policy-smoke.mjs",
     "sandbox:help": "sandbox --help",
     "sandbox:login": "sandbox login",

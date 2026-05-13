@@ -80,6 +80,12 @@ plan_ref: plan/2026-04-27-supabase-migration-history-repair-plan.md
 - exact mapping ว่า remote record ใดแทน local file ใดทั้งหมด ยังพิสูจน์ไม่ได้จาก schema เพียงอย่างเดียว
 - สิ่งที่พิสูจน์ได้แล้วคือ replay local-only migration ทั้งชุดลง production ตอนนี้มีความเสี่ยงสูงจะชนกับ column, table, หรือ constraint ที่มีอยู่แล้ว
 
+## 4.1 CI Supabase Preview Interpretation
+
+- ถ้า GitHub/Supabase Preview ล้มด้วย `Remote migration versions not found in local migrations directory.` ให้จัดเป็น migration-history drift ตาม runbook นี้ ไม่ใช่ LINE, LIFF, webhook, หรือ runtime failure
+- อย่า replay หรือ repair hosted migration history จาก failure นี้เพียงอย่างเดียว
+- ให้ตัดสินว่าต้องแก้ schema ต่อเมื่อ schema verification พบ object หรือ column ที่ขาดจริง
+
 ## 5. Operator Rules
 
 1. อย่า replay local-only migrations ลง hosted production ตรง ๆ เพียงเพราะ `migration list` ไม่ตรง
