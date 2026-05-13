@@ -97,12 +97,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 2b. Load quote payment record for amount validation (fail-open if absent).
-  const { data: paymentRecord } = await supabase
-    .from("quote_payment_records")
-    .select("amount_due, payment_terms")
-    .eq("quote_id", order.quote_id)
-    .maybeSingle();
+  // 2b. Load quote payment record for amount validation — only on fresh confirmations.
+  // Skipped for already-CONFIRMED idempotent retries (fail-open if absent).
+  let paymentRecord: { amount_due: number; payment_terms: string } | null = null;
+  if (!paymentAlreadyConfirmed) {
+    const { data } = await supabase
+      .from("quote_payment_records")
+      .select("amount_due, payment_terms")
+      .eq("quote_id", order.quote_id)
+      .maybeSingle();
+    paymentRecord = data ?? null;
+  }
 
   // 3. Validate preconditions (policy §7.2).
   const confirmValidation = validatePaymentConfirm({

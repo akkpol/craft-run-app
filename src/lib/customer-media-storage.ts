@@ -110,6 +110,52 @@ export function getCustomerMediaStorageRuntimeStatus() {
   };
 }
 
+/**
+ * Upload an object to R2 and return its **public** URL.
+ *
+ * Used for assets that must be publicly accessible without auth headers —
+ * e.g. AI-generated design previews that are sent via LINE push messages.
+ *
+ * Requirements:
+ * - R2 env vars must be configured (CLOUDFLARE_R2_BUCKET etc.)
+ * - CLOUDFLARE_R2_PUBLIC_URL must be set to the bucket's public base URL
+ *   (e.g. "https://pub-xxxx.r2.dev" from Cloudflare R2 dashboard › Public Access)
+ * - The R2 bucket must have Public Access enabled in the Cloudflare dashboard
+ *
+ * Returns null if either condition is unmet → caller should fall back to Supabase.
+ */
+export async function uploadPublicObjectToR2({
+  storagePath,
+  bytes,
+  contentType,
+}: {
+  storagePath: string;
+  bytes: Uint8Array;
+  contentType: string;
+}): Promise<string | null> {
+  const r2Config = getR2Config();
+  const publicBaseUrl = process.env.CLOUDFLARE_R2_PUBLIC_URL?.trim().replace(/\/+$/, "");
+  // Dedicated public bucket for AI-generated assets (separate from private customer-media).
+  // Defaults to "app-assets" — the bucket created for this purpose.
+  const publicBucket = process.env.CLOUDFLARE_R2_PUBLIC_BUCKET?.trim() || "app-assets";
+
+  if (!r2Config || !publicBaseUrl) {
+    return null;
+  }
+
+  const client = createR2Client(r2Config);
+  await client.send(
+    new PutObjectCommand({
+      Bucket: publicBucket,
+      Key: storagePath,
+      Body: bytes,
+      ContentType: contentType,
+    })
+  );
+
+  return `${publicBaseUrl}/${storagePath}`;
+}
+
 export async function uploadCustomerMediaObject({
   supabase,
   storagePath,

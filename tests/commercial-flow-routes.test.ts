@@ -77,6 +77,17 @@ describe("commercial flow route confirmation", () => {
           };
         }
 
+        if (table === "quote_payment_records") {
+          // Fail-open: no record → amount validation is skipped (backward-compatible).
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              })),
+            })),
+          };
+        }
+
         if (table === "commercial_entities") {
           return {
             select: vi.fn(() => ({
