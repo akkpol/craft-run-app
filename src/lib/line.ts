@@ -3,6 +3,7 @@ import {
   validateSignature,
   WebhookEvent,
 } from "@line/bot-sdk";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { logSystemAction, type ActionType, type EntityType } from "@/lib/action-log";
 import { getRuntimeAppConfig } from "@/lib/app-settings";
 import { getLineReplyReadinessSummary } from "@/lib/public-flow-readiness";
@@ -62,8 +63,25 @@ function normalizeStringList(value: unknown): string[] {
   return [];
 }
 
-type ReplyRequest = Parameters<messagingApi.MessagingApiClient["replyMessage"]>[0];
-type PushRequest = Parameters<messagingApi.MessagingApiClient["pushMessage"]>[0];
+export type ReplyRequest = Parameters<messagingApi.MessagingApiClient["replyMessage"]>[0];
+export type PushRequest = Parameters<messagingApi.MessagingApiClient["pushMessage"]>[0];
+export type LineProfile = Awaited<
+  ReturnType<messagingApi.MessagingApiClient["getProfile"]>
+>;
+export type LineGateway = {
+  replyMessage(request: ReplyRequest): Promise<unknown>;
+  pushMessage(request: PushRequest): Promise<unknown>;
+  getProfile(userId: string): ReturnType<messagingApi.MessagingApiClient["getProfile"]>;
+};
+export type LineGatewayOptions = {
+  lineGateway?: LineGateway | null;
+  auditSupabase?: SupabaseClient | null;
+  actionLogPayload?: Record<string, unknown>;
+  runtimeConfig?: {
+    baseUrl?: string;
+    liffId?: string;
+  };
+};
 
 type LineAuditInput = {
   actionType: ActionType;
@@ -71,6 +89,7 @@ type LineAuditInput = {
   entityId?: string;
   note?: string;
   payload?: Record<string, unknown>;
+  supabase?: SupabaseClient | null;
 };
 
 type ReplyAuditInput = {
@@ -80,6 +99,8 @@ type ReplyAuditInput = {
   entityId?: string;
   note?: string;
   payload?: Record<string, unknown>;
+  supabase?: SupabaseClient | null;
+  actionLogPayload?: Record<string, unknown>;
 };
 
 type PushAuditInput = {
@@ -89,11 +110,13 @@ type PushAuditInput = {
   entityId?: string;
   note?: string;
   payload?: Record<string, unknown>;
+  supabase?: SupabaseClient | null;
+  actionLogPayload?: Record<string, unknown>;
 };
 
 async function writeLineAudit(input: LineAuditInput): Promise<void> {
   try {
-    const supabase = createAdminClient();
+    const supabase = input.supabase ?? createAdminClient();
     await logSystemAction(supabase, {
       entityType: input.entityType ?? "message",
       entityId: input.entityId,
@@ -110,8 +133,23 @@ async function writeLineAudit(input: LineAuditInput): Promise<void> {
   }
 }
 
+function getLineAuditOptions(options?: LineGatewayOptions) {
+  return {
+    supabase: options?.auditSupabase ?? undefined,
+    actionLogPayload: options?.actionLogPayload,
+  };
+}
+
+async function getLineBaseUrl(options?: LineGatewayOptions): Promise<string> {
+  return options?.runtimeConfig?.baseUrl ?? (await getRuntimeAppConfig()).baseUrl;
+}
+
+async function getLineLiffId(options?: LineGatewayOptions): Promise<string> {
+  return options?.runtimeConfig?.liffId ?? (await getRuntimeAppConfig()).liffId;
+}
+
 async function sendReplyWithAudit(
-  lineClient: messagingApi.MessagingApiClient,
+  lineClient: LineGateway,
   request: ReplyRequest,
   audit: ReplyAuditInput
 ): Promise<void> {
@@ -127,7 +165,9 @@ async function sendReplyWithAudit(
         flow: audit.flow,
         reply_variant: audit.replyVariant,
         ...audit.payload,
+        ...audit.actionLogPayload,
       },
+      supabase: audit.supabase,
     });
   } catch (error) {
     await writeLineAudit({
@@ -140,15 +180,17 @@ async function sendReplyWithAudit(
         flow: audit.flow,
         reply_variant: audit.replyVariant,
         ...audit.payload,
+        ...audit.actionLogPayload,
         error_message: error instanceof Error ? error.message : String(error),
       },
+      supabase: audit.supabase,
     });
     throw error;
   }
 }
 
 async function sendPushWithAudit(
-  lineClient: messagingApi.MessagingApiClient,
+  lineClient: LineGateway,
   request: PushRequest,
   audit: PushAuditInput
 ): Promise<void> {
@@ -165,7 +207,9 @@ async function sendPushWithAudit(
         push_variant: audit.pushVariant,
         line_user_id: request.to,
         ...audit.payload,
+        ...audit.actionLogPayload,
       },
+      supabase: audit.supabase,
     });
   } catch (error) {
     await writeLineAudit({
@@ -179,8 +223,10 @@ async function sendPushWithAudit(
         push_variant: audit.pushVariant,
         line_user_id: request.to,
         ...audit.payload,
+        ...audit.actionLogPayload,
         error_message: error instanceof Error ? error.message : String(error),
       },
+      supabase: audit.supabase,
     });
     throw error;
   }
@@ -199,6 +245,12 @@ export async function getLineClient() {
   return new messagingApi.MessagingApiClient({
     channelAccessToken: config.lineChannelAccessToken,
   });
+}
+
+async function resolveLineGateway(
+  lineGateway?: LineGateway | null
+): Promise<LineGateway> {
+  return lineGateway ?? getLineClient();
 }
 
 export async function verifySignature(body: string, signature: string): Promise<boolean> {
@@ -377,18 +429,24 @@ export async function getVerifiedLiffAccessProfile(
   };
 }
 
-export async function parseLiffUrl(path: string): Promise<string> {
-  const config = await getRuntimeAppConfig();
+export async function parseLiffUrl(
+  path: string,
+  options?: LineGatewayOptions
+): Promise<string> {
+  const liffId = await getLineLiffId(options);
   const normalizedPath =
     !path || path.startsWith("/") || path.startsWith("?")
       ? path
       : `/${path}`;
-  return `https://liff.line.me/${config.liffId}${normalizedPath}`;
+  return `https://liff.line.me/${liffId}${normalizedPath}`;
 }
 
-async function buildLiffUrlWithMode(mode?: "resume" | "fresh"): Promise<string> {
+async function buildLiffUrlWithMode(
+  mode?: "resume" | "fresh",
+  options?: LineGatewayOptions
+): Promise<string> {
   const path = mode ? `?mode=${mode}` : "";
-  return parseLiffUrl(path);
+  return parseLiffUrl(path, options);
 }
 
 function formatReadinessText(headline: string, detail: string, nextActionLabel: string) {
@@ -398,10 +456,11 @@ function formatReadinessText(headline: string, detail: string, nextActionLabel: 
 // Reply with LIFF intake link + quick reply options
 export async function replyWithIntakeLink(
   replyToken: string,
-  displayName: string
+  displayName: string,
+  options?: LineGatewayOptions
 ) {
-  const liffUrl = await buildLiffUrlWithMode("resume");
-  const lineClient = await getLineClient();
+  const liffUrl = await buildLiffUrlWithMode("resume", options);
+  const lineClient = await resolveLineGateway(options?.lineGateway);
   const readiness = getLineReplyReadinessSummary("intake_link");
 
   const bubble: messagingApi.FlexBubble = {
@@ -495,17 +554,19 @@ export async function replyWithIntakeLink(
       flow: "intake",
       replyVariant: "intake_link",
       note: "Sent LIFF intake reply",
+      ...getLineAuditOptions(options),
     }
   );
 }
 
 export async function replyWithResumeOrFreshChoice(
   replyToken: string,
-  displayName: string
+  displayName: string,
+  options?: LineGatewayOptions
 ) {
-  const resumeUrl = await buildLiffUrlWithMode("resume");
-  const freshUrl = await buildLiffUrlWithMode("fresh");
-  const lineClient = await getLineClient();
+  const resumeUrl = await buildLiffUrlWithMode("resume", options);
+  const freshUrl = await buildLiffUrlWithMode("fresh", options);
+  const lineClient = await resolveLineGateway(options?.lineGateway);
   const readiness = getLineReplyReadinessSummary("resume_or_fresh");
 
   const bubble: messagingApi.FlexBubble = {
@@ -627,6 +688,7 @@ export async function replyWithResumeOrFreshChoice(
       flow: "intake",
       replyVariant: "resume_or_fresh",
       note: "Sent resume or fresh choice reply",
+      ...getLineAuditOptions(options),
     }
   );
 }
@@ -635,11 +697,11 @@ export async function replyWithResumeOrFreshChoice(
 export async function pushQuoteLink(
   userId: string,
   quoteToken: string,
-  leadSummary: string
+  leadSummary: string,
+  options?: LineGatewayOptions
 ) {
-  const config = await getRuntimeAppConfig();
-  const lineClient = await getLineClient();
-  const baseUrl = config.baseUrl;
+  const lineClient = await resolveLineGateway(options?.lineGateway);
+  const baseUrl = await getLineBaseUrl(options);
   const quoteUrl = `${baseUrl}/quote/${quoteToken}`;
 
   const bubble: messagingApi.FlexBubble = {
@@ -712,6 +774,7 @@ export async function pushQuoteLink(
       payload: {
         quote_token: quoteToken,
       },
+      ...getLineAuditOptions(options),
     }
   );
 }
@@ -768,11 +831,11 @@ function getCommercialDocumentLabel(documentType: string) {
 export async function pushStatusUpdate(
   userId: string,
   status: string,
-  statusToken: string
+  statusToken: string,
+  options?: LineGatewayOptions
 ) {
-  const config = await getRuntimeAppConfig();
-  const lineClient = await getLineClient();
-  const baseUrl = config.baseUrl;
+  const lineClient = await resolveLineGateway(options?.lineGateway);
+  const baseUrl = await getLineBaseUrl(options);
   const statusUrl = `${baseUrl}/status/${statusToken}`;
 
   const textMsg: messagingApi.TextMessage = {
@@ -794,6 +857,7 @@ export async function pushStatusUpdate(
         status,
         status_token: statusToken,
       },
+      ...getLineAuditOptions(options),
     }
   );
 }
@@ -804,10 +868,10 @@ export async function pushCommercialDocumentLink(input: {
   documentId: string;
   documentType: string;
   documentNumber: string;
-}) {
-  const config = await getRuntimeAppConfig();
-  const lineClient = await getLineClient();
-  const documentUrl = `${config.baseUrl}/status/${input.quoteToken}/documents/${input.documentId}`;
+}, options?: LineGatewayOptions) {
+  const lineClient = await resolveLineGateway(options?.lineGateway);
+  const baseUrl = await getLineBaseUrl(options);
+  const documentUrl = `${baseUrl}/status/${input.quoteToken}/documents/${input.documentId}`;
 
   const text = [
     `📄 ${getCommercialDocumentLabel(input.documentType)} พร้อมดาวน์โหลดแล้ว`,
@@ -836,6 +900,7 @@ export async function pushCommercialDocumentLink(input: {
         document_type: input.documentType,
         document_number: input.documentNumber,
       },
+      ...getLineAuditOptions(options),
     }
   );
 }
@@ -846,10 +911,9 @@ export async function pushProductionEvidenceUpdate(input: {
   eventType: ProductionEventType;
   note?: string | null;
   assetUrls: string[];
-}) {
-  const config = await getRuntimeAppConfig();
-  const lineClient = await getLineClient();
-  const baseUrl = config.baseUrl;
+}, options?: LineGatewayOptions) {
+  const lineClient = await resolveLineGateway(options?.lineGateway);
+  const baseUrl = await getLineBaseUrl(options);
   const statusUrl = `${baseUrl}/status/${input.statusToken}`;
   const assetLines = input.assetUrls
     .slice(0, 3)
@@ -885,6 +949,7 @@ export async function pushProductionEvidenceUpdate(input: {
         status_token: input.statusToken,
         asset_count: input.assetUrls.length,
       },
+      ...getLineAuditOptions(options),
     }
   );
 }
@@ -894,10 +959,10 @@ export async function pushLeadDesignPreviewUpdate(input: {
   statusToken: string;
   note?: string | null;
   assetUrls: string[];
-}) {
-  const config = await getRuntimeAppConfig();
-  const lineClient = await getLineClient();
-  const statusUrl = `${config.baseUrl}/status/${input.statusToken}`;
+}, options?: LineGatewayOptions) {
+  const lineClient = await resolveLineGateway(options?.lineGateway);
+  const baseUrl = await getLineBaseUrl(options);
+  const statusUrl = `${baseUrl}/status/${input.statusToken}`;
   const assetLines = input.assetUrls
     .slice(0, 3)
     .map((url, index) => `${index + 1}. ${url}`)
@@ -931,6 +996,7 @@ export async function pushLeadDesignPreviewUpdate(input: {
         status_token: input.statusToken,
         asset_count: input.assetUrls.length,
       },
+      ...getLineAuditOptions(options),
     }
   );
 }
@@ -938,9 +1004,10 @@ export async function pushLeadDesignPreviewUpdate(input: {
 export async function pushFollowUpMessage(
   userId: string,
   conversationState: string,
-  displayName?: string | null
+  displayName?: string | null,
+  options?: LineGatewayOptions
 ): Promise<void> {
-  const lineClient = await getLineClient();
+  const lineClient = await resolveLineGateway(options?.lineGateway);
   const name = displayName ? ` คุณ${displayName}` : "";
 
   let text: string;
@@ -973,6 +1040,7 @@ export async function pushFollowUpMessage(
       payload: {
         conversation_state: conversationState,
       },
+      ...getLineAuditOptions(options),
     }
   );
 }
@@ -987,9 +1055,10 @@ export async function pushFollowUpMessage(
 export async function replyWithQuoteApprovalContext(
   replyToken: string,
   displayName: string,
-  quoteToken: string | null
+  quoteToken: string | null,
+  options?: LineGatewayOptions
 ): Promise<void> {
-  const lineClient = await getLineClient();
+  const lineClient = await resolveLineGateway(options?.lineGateway);
   const readiness = getLineReplyReadinessSummary("quote_approval_context");
 
   if (!quoteToken) {
@@ -1023,14 +1092,15 @@ export async function replyWithQuoteApprovalContext(
         payload: {
           quote_link_present: false,
         },
+        ...getLineAuditOptions(options),
       }
     );
     return;
   }
 
-  const config = await getRuntimeAppConfig();
-  const quoteUrl = `${config.baseUrl}/quote/${quoteToken}`;
-  const freshUrl = await buildLiffUrlWithMode("fresh");
+  const baseUrl = await getLineBaseUrl(options);
+  const quoteUrl = `${baseUrl}/quote/${quoteToken}`;
+  const freshUrl = await buildLiffUrlWithMode("fresh", options);
 
   const bubble: messagingApi.FlexBubble = {
     type: "bubble",
@@ -1130,6 +1200,7 @@ export async function replyWithQuoteApprovalContext(
       payload: {
         quote_link_present: true,
       },
+      ...getLineAuditOptions(options),
     }
   );
 }
@@ -1141,9 +1212,10 @@ export async function replyWithQuoteApprovalContext(
 export async function replyWithPaymentContext(
   replyToken: string,
   displayName: string,
-  quoteToken: string | null
+  quoteToken: string | null,
+  options?: LineGatewayOptions
 ): Promise<void> {
-  const lineClient = await getLineClient();
+  const lineClient = await resolveLineGateway(options?.lineGateway);
   const readiness = getLineReplyReadinessSummary("payment_context");
 
   if (!quoteToken) {
@@ -1177,13 +1249,14 @@ export async function replyWithPaymentContext(
         payload: {
           status_link_present: false,
         },
+        ...getLineAuditOptions(options),
       }
     );
     return;
   }
 
-  const config = await getRuntimeAppConfig();
-  const statusUrl = `${config.baseUrl}/status/${quoteToken}`;
+  const baseUrl = await getLineBaseUrl(options);
+  const statusUrl = `${baseUrl}/status/${quoteToken}`;
 
   const bubble: messagingApi.FlexBubble = {
     type: "bubble",
@@ -1273,6 +1346,7 @@ export async function replyWithPaymentContext(
       payload: {
         status_link_present: true,
       },
+      ...getLineAuditOptions(options),
     }
   );
 }
@@ -1292,9 +1366,10 @@ export async function replyWithProductionStatus(
   replyToken: string,
   displayName: string,
   quoteToken: string | null,
-  conversationState: WorkflowState
+  conversationState: WorkflowState,
+  options?: LineGatewayOptions
 ): Promise<void> {
-  const lineClient = await getLineClient();
+  const lineClient = await resolveLineGateway(options?.lineGateway);
   const header = PRODUCTION_STATE_HEADERS[conversationState] ?? "📋 งานกำลังดำเนินการ";
   const readiness = getLineReplyReadinessSummary("production_status");
 
@@ -1330,13 +1405,14 @@ export async function replyWithProductionStatus(
           conversation_state: conversationState,
           status_link_present: false,
         },
+        ...getLineAuditOptions(options),
       }
     );
     return;
   }
 
-  const config = await getRuntimeAppConfig();
-  const statusUrl = `${config.baseUrl}/status/${quoteToken}`;
+  const baseUrl = await getLineBaseUrl(options);
+  const statusUrl = `${baseUrl}/status/${quoteToken}`;
 
   const bubble: messagingApi.FlexBubble = {
     type: "bubble",
@@ -1427,6 +1503,7 @@ export async function replyWithProductionStatus(
         conversation_state: conversationState,
         status_link_present: true,
       },
+      ...getLineAuditOptions(options),
     }
   );
 }
@@ -1438,10 +1515,11 @@ export async function replyWithProductionStatus(
 export async function replyWithTerminalFollowUp(
   replyToken: string,
   displayName: string,
-  previousState: "COMPLETED" | "CANCELLED"
+  previousState: "COMPLETED" | "CANCELLED",
+  options?: LineGatewayOptions
 ): Promise<void> {
-  const freshUrl = await buildLiffUrlWithMode("fresh");
-  const lineClient = await getLineClient();
+  const freshUrl = await buildLiffUrlWithMode("fresh", options);
+  const lineClient = await resolveLineGateway(options?.lineGateway);
   const readiness = getLineReplyReadinessSummary("terminal_fresh_intake");
 
   const isPrevCompleted = previousState === "COMPLETED";
@@ -1537,6 +1615,7 @@ export async function replyWithTerminalFollowUp(
       payload: {
         previous_state: previousState,
       },
+      ...getLineAuditOptions(options),
     }
   );
 }

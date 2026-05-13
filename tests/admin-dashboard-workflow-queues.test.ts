@@ -45,6 +45,7 @@ function makeSnapshot(): BackofficeSnapshot {
       },
     ],
     quotes: [],
+    commercialReceiverEntities: [],
     jobs: [],
     productionReviewQueue: [],
     escalations: [],

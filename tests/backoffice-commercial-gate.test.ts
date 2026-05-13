@@ -59,6 +59,7 @@ function makeSnapshot(overrides: Partial<BackofficeSnapshot["quotes"][number]> =
         ...overrides,
       },
     ],
+    commercialReceiverEntities: [],
     jobs: [],
     productionReviewQueue: [],
     escalations: [],

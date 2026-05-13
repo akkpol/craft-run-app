@@ -1,4 +1,4 @@
-import { pushStatusUpdate } from "@/lib/line";
+import { pushStatusUpdate, type LineGatewayOptions } from "@/lib/line";
 import { syncQuotePaymentRecord } from "@/lib/quote-payment-records";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logSystemAction } from "@/lib/action-log";
@@ -47,6 +47,10 @@ type JobOperationalDefaults = {
   productionStatus: ProductionStatus;
   fulfillmentStatus: FulfillmentStatus;
   completionPackageStatus: CompletionPackageStatus;
+};
+
+type QuoteWorkflowOptions = LineGatewayOptions & {
+  actionLogPayload?: Record<string, unknown>;
 };
 
 export function getQuoteApprovalState(
@@ -129,7 +133,8 @@ export function paymentUnlocksProduction(
 
 export async function createJobForApprovedQuote(
   supabase: AdminClient,
-  quote: QuoteWorkflowRecord
+  quote: QuoteWorkflowRecord,
+  options: QuoteWorkflowOptions = {}
 ) {
   const { data: existingJob } = await supabase
     .from("jobs")
@@ -170,7 +175,11 @@ export async function createJobForApprovedQuote(
     entityId: job.id,
     actionType: "job.created",
     serviceName: "quote-workflow",
-    payload: { quote_id: quote.id, lead_id: quote.lead_id },
+    payload: {
+      quote_id: quote.id,
+      lead_id: quote.lead_id,
+      ...options.actionLogPayload,
+    },
   });
 
   if (quote.leads?.conversation_id) {
@@ -199,7 +208,9 @@ export async function createJobForApprovedQuote(
         .single();
 
       if (conv) {
-        await pushStatusUpdate(conv.line_user_id, "IN_DESIGN", quote.public_token);
+        await pushStatusUpdate(conv.line_user_id, "IN_DESIGN", quote.public_token, {
+          lineGateway: options.lineGateway,
+        });
       }
     }
   } catch (error) {
@@ -211,7 +222,8 @@ export async function createJobForApprovedQuote(
 
 export async function approveQuote(
   supabase: AdminClient,
-  quote: QuoteWorkflowRecord
+  quote: QuoteWorkflowRecord,
+  options: QuoteWorkflowOptions = {}
 ): Promise<ApproveQuoteResult> {
   const nextPaymentStatus =
     quote.payment_terms === "credit" ? "not_required" : quote.payment_status;
@@ -248,7 +260,7 @@ export async function approveQuote(
       ...quote,
       payment_status: nextPaymentStatus,
       status: "approved",
-    });
+    }, options);
 
     return {
       success: true,
