@@ -135,6 +135,9 @@ export async function uploadPublicObjectToR2({
 }): Promise<string | null> {
   const r2Config = getR2Config();
   const publicBaseUrl = process.env.CLOUDFLARE_R2_PUBLIC_URL?.trim().replace(/\/+$/, "");
+  // Dedicated public bucket for AI-generated assets (separate from private customer-media).
+  // Defaults to "app-assets" — the bucket created for this purpose.
+  const publicBucket = process.env.CLOUDFLARE_R2_PUBLIC_BUCKET?.trim() || "app-assets";
 
   if (!r2Config || !publicBaseUrl) {
     return null;
@@ -143,7 +146,7 @@ export async function uploadPublicObjectToR2({
   const client = createR2Client(r2Config);
   await client.send(
     new PutObjectCommand({
-      Bucket: r2Config.bucket,
+      Bucket: publicBucket,
       Key: storagePath,
       Body: bytes,
       ContentType: contentType,
