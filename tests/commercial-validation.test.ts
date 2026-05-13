@@ -2,10 +2,103 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  validatePaymentAmount,
   validatePaymentConfirm,
   validateReceiverEntityActive,
   allowedDocumentTypesAfterPayment,
 } from "../src/lib/commercial-validation.ts";
+
+// ── validatePaymentAmount ─────────────────────────────────────────────────────
+
+test("validatePaymentAmount: credit always passes regardless of amount", () => {
+  const result = validatePaymentAmount({
+    paymentTerms: "credit",
+    paymentAmount: 0,
+    amountDue: 5000,
+  });
+  assert.equal(result.ok, true);
+});
+
+test("validatePaymentAmount: prepaid exact amount passes", () => {
+  const result = validatePaymentAmount({
+    paymentTerms: "prepaid",
+    paymentAmount: 5000,
+    amountDue: 5000,
+  });
+  assert.equal(result.ok, true);
+});
+
+test("validatePaymentAmount: prepaid underpayment blocked", () => {
+  const result = validatePaymentAmount({
+    paymentTerms: "prepaid",
+    paymentAmount: 4000,
+    amountDue: 5000,
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error, "PAYMENT_AMOUNT_UNDERPAID");
+    assert.ok(result.detail.includes("5000"));
+    assert.ok(result.detail.includes("4000"));
+  }
+});
+
+test("validatePaymentAmount: prepaid overpayment blocked", () => {
+  const result = validatePaymentAmount({
+    paymentTerms: "prepaid",
+    paymentAmount: 6000,
+    amountDue: 5000,
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error, "PAYMENT_AMOUNT_OVERPAID");
+    assert.ok(result.detail.includes("6000"));
+    assert.ok(result.detail.includes("5000"));
+  }
+});
+
+test("validatePaymentAmount: deposit partial amount passes", () => {
+  const result = validatePaymentAmount({
+    paymentTerms: "deposit",
+    paymentAmount: 2000,
+    amountDue: 5000,
+  });
+  assert.equal(result.ok, true);
+});
+
+test("validatePaymentAmount: deposit exact full amount passes", () => {
+  const result = validatePaymentAmount({
+    paymentTerms: "deposit",
+    paymentAmount: 5000,
+    amountDue: 5000,
+  });
+  assert.equal(result.ok, true);
+});
+
+test("validatePaymentAmount: deposit zero amount blocked", () => {
+  const result = validatePaymentAmount({
+    paymentTerms: "deposit",
+    paymentAmount: 0,
+    amountDue: 5000,
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error, "PAYMENT_AMOUNT_UNDERPAID");
+  }
+});
+
+test("validatePaymentAmount: deposit overpayment blocked", () => {
+  const result = validatePaymentAmount({
+    paymentTerms: "deposit",
+    paymentAmount: 6000,
+    amountDue: 5000,
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error, "PAYMENT_AMOUNT_OVERPAID");
+    assert.ok(result.detail.includes("6000"));
+    assert.ok(result.detail.includes("5000"));
+  }
+});
 
 // ── validatePaymentConfirm ────────────────────────────────────────────────────
 
