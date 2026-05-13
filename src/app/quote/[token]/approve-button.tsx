@@ -11,6 +11,9 @@ import {
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+
+type QuoteAction = "approve_quote" | "reject_quote" | "rescope_quote";
 
 type Props = {
   quoteToken: string;
@@ -19,40 +22,52 @@ type Props = {
   allowRescope?: boolean;
 };
 
+const ACTION_DEFAULT_NOTES: Record<"reject_quote" | "rescope_quote", string> = {
+  reject_quote: "ยังไม่สะดวกดำเนินงานตามใบเสนอราคานี้",
+  rescope_quote: "ต้องการปรับรายละเอียดก่อนออกใบเสนอราคาใหม่",
+};
+
 export default function QuoteApproveButton({
   quoteToken,
   allowApprove = true,
   allowReject = false,
   allowRescope = false,
 }: Props) {
-  const [loadingAction, setLoadingAction] = useState<
-    "approve_quote" | "reject_quote" | "rescope_quote" | null
-  >(null);
+  const [loadingAction, setLoadingAction] = useState<QuoteAction | null>(null);
+  const [pendingAction, setPendingAction] = useState<QuoteAction | null>(null);
+  const [pendingNote, setPendingNote] = useState("");
   const [successState, setSuccessState] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [requiresPayment, setRequiresPayment] = useState(false);
   const router = useRouter();
 
-  async function handleAction(action: "approve_quote" | "reject_quote" | "rescope_quote") {
-    if (
-      action === "approve_quote" &&
-      !confirm("ยืนยันอนุมัติใบเสนอราคานี้?")
-    ) {
-      return;
-    }
+  // Step 1: show inline confirmation UI (replaces window.confirm / window.prompt)
+  function initiate(action: QuoteAction) {
+    setPendingAction(action);
+    setPendingNote(
+      action === "reject_quote" || action === "rescope_quote"
+        ? ACTION_DEFAULT_NOTES[action]
+        : ""
+    );
+    setError("");
+  }
 
+  function cancelPending() {
+    setPendingAction(null);
+    setPendingNote("");
+  }
+
+  // Step 2: user confirmed in inline UI → execute API call
+  async function executePending() {
+    if (!pendingAction) return;
+    const action = pendingAction; // capture before clearing state
     const note =
-      action === "rescope_quote"
-        ? window.prompt("บอกทีมงานว่าต้องการแก้ส่วนไหน", "ต้องการปรับรายละเอียดก่อนออกใบเสนอราคาใหม่")
-        : action === "reject_quote"
-          ? window.prompt("ระบุเหตุผลที่ไม่รับใบเสนอราคานี้", "ยังไม่สะดวกดำเนินงานตามใบเสนอราคานี้")
-          : undefined;
+      action === "reject_quote" || action === "rescope_quote"
+        ? pendingNote.trim() || ACTION_DEFAULT_NOTES[action]
+        : undefined;
 
-    if (note === null) {
-      return;
-    }
-
+    setPendingAction(null);
     setLoadingAction(action);
     setError("");
 
@@ -79,6 +94,8 @@ export default function QuoteApproveButton({
       setLoadingAction(null);
     }
   }
+
+  // ─── Success state ─────────────────────────────────────────────────────────
 
   if (successState) {
     const successTone = requiresPayment
@@ -120,6 +137,63 @@ export default function QuoteApproveButton({
     );
   }
 
+  // ─── Inline confirmation UI (replaces window.confirm / window.prompt) ──────
+
+  if (pendingAction) {
+    const needsNote = pendingAction === "reject_quote" || pendingAction === "rescope_quote";
+    const confirmLabel =
+      pendingAction === "approve_quote"
+        ? "ยืนยันอนุมัติ"
+        : pendingAction === "reject_quote"
+          ? "ยืนยันปฏิเสธ"
+          : "ยืนยันขอปรับ";
+
+    return (
+      <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+        <p className="text-sm font-medium text-slate-800">
+          {pendingAction === "approve_quote"
+            ? "ยืนยันอนุมัติใบเสนอราคานี้?"
+            : pendingAction === "reject_quote"
+              ? "ระบุเหตุผลที่ไม่รับใบเสนอราคานี้"
+              : "บอกทีมงานว่าต้องการแก้ส่วนไหน"}
+        </p>
+
+        {needsNote && (
+          <Textarea
+            value={pendingNote}
+            onChange={(e) => setPendingNote(e.target.value)}
+            rows={3}
+            className="resize-none text-sm"
+            placeholder="ระบุรายละเอียดเพิ่มเติม..."
+          />
+        )}
+
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            onClick={executePending}
+            className="flex-1 justify-center"
+            variant={pendingAction === "reject_quote" ? "destructive" : "default"}
+          >
+            {confirmLabel}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={cancelPending}
+            className="flex-1 justify-center bg-background"
+          >
+            ยกเลิก
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Default button group ──────────────────────────────────────────────────
+
   return (
     <div className="space-y-3">
       {error ? (
@@ -134,7 +208,7 @@ export default function QuoteApproveButton({
           <Button
             type="button"
             size="lg"
-            onClick={() => handleAction("approve_quote")}
+            onClick={() => initiate("approve_quote")}
             disabled={loadingAction !== null}
             className="w-full justify-center"
           >
@@ -156,7 +230,7 @@ export default function QuoteApproveButton({
                 type="button"
                 variant="outline"
                 size="lg"
-                onClick={() => handleAction("rescope_quote")}
+                onClick={() => initiate("rescope_quote")}
                 disabled={loadingAction !== null}
                 className="w-full justify-center bg-background"
               >
@@ -173,7 +247,7 @@ export default function QuoteApproveButton({
                 type="button"
                 variant="destructive"
                 size="lg"
-                onClick={() => handleAction("reject_quote")}
+                onClick={() => initiate("reject_quote")}
                 disabled={loadingAction !== null}
                 className="w-full justify-center"
               >
