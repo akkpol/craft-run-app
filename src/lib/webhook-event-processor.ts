@@ -162,6 +162,37 @@ export async function processMessageTextEvent(
   }
 
   const messageText = event.message.text;
+  const { data: existingMessage, error: existingMessageError } = await context.supabase
+    .from("messages")
+    .select("id, conversation_id")
+    .eq("line_message_id", event.message.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingMessageError) {
+    console.error(
+      `Failed to check duplicate LINE message ${event.message.id}:`,
+      existingMessageError.message
+    );
+  } else if (existingMessage) {
+    await logSystemAction(context.supabase, {
+      entityType: existingMessage.conversation_id ? "conversation" : "message",
+      entityId: existingMessage.conversation_id ?? existingMessage.id,
+      actionType: "line.webhook_duplicate_ignored",
+      serviceName: "webhook",
+      note: "Ignored duplicate LINE text message",
+      payload: withSimulationPayload(context, {
+        line_user_id: userId,
+        message_id: event.message.id,
+        webhook_event_id: event.webhookEventId,
+        is_redelivery: event.deliveryContext.isRedelivery,
+        original_message_row_id: existingMessage.id,
+      }),
+    });
+    return;
+  }
+
   const { data: existingConversationRows, error: existingConversationError } =
     await context.supabase
       .from("conversations")

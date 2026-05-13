@@ -38,6 +38,30 @@ vi.mock("@/lib/action-log", () => ({
   logSystemAction: mockLogSystemAction,
 }));
 
+function createMessageTable(
+  existingMessage: { id: string; conversation_id: string | null } | null = null
+) {
+  const messageInsert = vi.fn().mockResolvedValue({ error: null });
+  const maybeSingle = vi.fn().mockResolvedValue({
+    data: existingMessage,
+    error: null,
+  });
+  const messageTable = {
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        order: vi.fn(() => ({
+          limit: vi.fn(() => ({
+            maybeSingle,
+          })),
+        })),
+      })),
+    })),
+    insert: messageInsert,
+  };
+
+  return { messageTable, messageInsert, maybeSingle };
+}
+
 function createNewLeadSupabase() {
   const conversationInsert = vi.fn(() => ({
     select: vi.fn(() => ({
@@ -50,7 +74,7 @@ function createNewLeadSupabase() {
   const conversationUpdate = vi.fn(() => ({
     eq: vi.fn().mockResolvedValue({ error: null }),
   }));
-  const messageInsert = vi.fn().mockResolvedValue({ error: null });
+  const { messageTable, messageInsert } = createMessageTable();
   const customerUpsert = vi.fn().mockResolvedValue({ error: null });
 
   const supabase = {
@@ -73,9 +97,7 @@ function createNewLeadSupabase() {
       }
 
       if (table === "messages") {
-        return {
-          insert: messageInsert,
-        };
+        return messageTable;
       }
 
       if (table === "customers") {
@@ -109,7 +131,7 @@ function createEscalationSupabase() {
   const conversationUpdate = vi.fn(() => ({
     eq: vi.fn().mockResolvedValue({ error: null }),
   }));
-  const messageInsert = vi.fn().mockResolvedValue({ error: null });
+  const { messageTable, messageInsert } = createMessageTable();
   const customerUpsert = vi.fn().mockResolvedValue({ error: null });
   const escalationInsert = vi.fn().mockResolvedValue({ error: null });
 
@@ -133,9 +155,7 @@ function createEscalationSupabase() {
       }
 
       if (table === "messages") {
-        return {
-          insert: messageInsert,
-        };
+        return messageTable;
       }
 
       if (table === "customers") {
@@ -162,6 +182,24 @@ function createEscalationSupabase() {
     customerUpsert,
     escalationInsert,
   };
+}
+
+function createDuplicateMessageSupabase() {
+  const { messageTable, messageInsert } = createMessageTable({
+    id: "msg-1",
+    conversation_id: "conv-1",
+  });
+  const supabase = {
+    from: vi.fn((table: string) => {
+      if (table === "messages") {
+        return messageTable;
+      }
+
+      throw new Error(`Unexpected table ${table}`);
+    }),
+  };
+
+  return { supabase, messageInsert };
 }
 
 describe("processWebhookEvent", () => {
@@ -233,6 +271,46 @@ describe("processWebhookEvent", () => {
     expect(mockLogSystemAction).toHaveBeenCalledWith(
       supabase,
       expect.objectContaining({ actionType: "line.webhook_received" })
+    );
+  });
+
+  it("ignores duplicate LINE text messages without changing state or replying again", async () => {
+    const { processWebhookEvent } = await import("@/lib/webhook-event-processor");
+    const gateway = createFakeLineGateway({
+      profiles: {
+        "user-1": { displayName: "ลูกค้าทดสอบ" },
+      },
+    });
+    const { supabase, messageInsert } = createDuplicateMessageSupabase();
+
+    await processWebhookEvent(
+      createTextMessageEvent({
+        deliveryContext: {
+          isRedelivery: true,
+        },
+      }),
+      {
+        supabase: supabase as never,
+        lineClient: gateway,
+      }
+    );
+
+    expect(messageInsert).not.toHaveBeenCalled();
+    expect(gateway.getReplyCalls()).toHaveLength(0);
+    expect(mockReplyWithIntakeLink).not.toHaveBeenCalled();
+    expect(mockReplyWithResumeOrFreshChoice).not.toHaveBeenCalled();
+    expect(mockLogSystemAction).toHaveBeenCalledWith(
+      supabase,
+      expect.objectContaining({
+        actionType: "line.webhook_duplicate_ignored",
+        entityType: "conversation",
+        entityId: "conv-1",
+        payload: expect.objectContaining({
+          message_id: "message-1",
+          is_redelivery: true,
+          original_message_row_id: "msg-1",
+        }),
+      })
     );
   });
 
