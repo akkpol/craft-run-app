@@ -58,6 +58,8 @@ Operator aids:
 
 **Phase 1 verdict: ✅ ALL PASS**
 
+**Phase 1 re-verification 2026-05-14:** `npm run check:release` at HEAD `90c97d7` passed lint, TypeScript, scenario runner (19/19: `webhook-event-processor`, `fake-line-gateway`, `scenario-runner`), workflow-policy, and build. Phase 1 gates remain green. Scenario runner is the primary regression gate; real LINE device is required only for LIFF-VAL-006/007/008 final launch evidence.
+
 ---
 
 ## Phase 2 — Environment Configuration Gates (Requires Real Environment)
