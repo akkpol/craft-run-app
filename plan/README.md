@@ -19,6 +19,7 @@ If two documents appear to conflict on immediate next steps, follow [process-go-
 |[process-go-live-waves-1.md](process-go-live-waves-1.md)|Primary execution plan|You need the current delivery order, go-live sequence, or next implementation wave|
 |[CORE_EXECUTION_TOOLKIT.md](CORE_EXECUTION_TOOLKIT.md)|Supporting coordination plan|You need the mandatory minimum operating contract (main plan, main rules, anti-loop, and root-cause flow) for single-operator plus AI-agent execution|
 |[../docs/START_HERE_CONTEXT_RECOVERY.md](../docs/START_HERE_CONTEXT_RECOVERY.md)|Session recovery anchor|You just switched profile, branch, worktree, or machine and need deterministic restart context|
+|[../docs/PROJECT_NAVIGATION_MATRIX.md](../docs/PROJECT_NAVIGATION_MATRIX.md)|Documentation navigation matrix|You need to choose the right docs, plans, runbooks, or source-of-truth files before starting work|
 |[2026-04-25-main-landing-consolidated-plan.md](2026-04-25-main-landing-consolidated-plan.md)|Supporting coordination plan|You need branch, PR, overlap, merge-status, or landing blocker context|
 |[action-tracking-plan.md](action-tracking-plan.md)|Supporting cross-cutting plan|You are working on audit logging, action references, or traceability coverage|
 |[process-customer-handoff-1.md](process-customer-handoff-1.md)|Supporting handoff plan|You are preparing customer delivery evidence, runbook steps, or release gates|
