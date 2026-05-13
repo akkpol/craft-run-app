@@ -622,7 +622,14 @@ export default async function QuotePage(props: { params: Promise<{ token: string
                 </div>
 
                 <Button asChild variant="outline" className="w-full bg-white sm:w-auto">
-                  <Link href={downloadUrl} target="_blank" rel="noreferrer">
+                  {/*
+                    Avoid target="_blank" here — this page is opened inside LINE's
+                    in-app browser via the push-message link, and target="_blank"
+                    can spawn an external system browser, which the customer cannot
+                    easily get back from. Opening the download page in the same tab
+                    lets them use LINE's back button to return.
+                  */}
+                  <Link href={downloadUrl} rel="noreferrer">
                     <Download className="size-4" />
                     ดาวน์โหลดใบเสนอราคา
                   </Link>
