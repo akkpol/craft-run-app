@@ -35,6 +35,15 @@ source_refs:
 
 ถ้ายังไม่ผ่าน ให้ย้อนกลับไปใช้ [PHASE2_OPERATOR_GATE_CHECKLIST.md](PHASE2_OPERATOR_GATE_CHECKLIST.md)
 
+## Fast Preflight
+
+ก่อนเริ่ม scenario จริง ให้เช็กสั้น ๆ ตามลำดับนี้:
+
+1. เปิด `<base-url>/api/liff/health` แล้วดูว่า check ทั้งหมดผ่านหรือไม่ ถ้า route นี้ตอบ fail ให้แก้ config/runtime ก่อน
+2. เปิด LINE Ops Console (`/admin/liff-monitor`) แล้วดู readiness panel ว่ามี blocking incidents หรือ validation run ล่าสุด fail อยู่หรือไม่
+3. ถ้ากำลังเช็กจาก repo หรือ CI ให้รัน `npm run check:liff-health` โดยชี้ไปที่ target base URL เดียวกับที่จะทดสอบจริง
+4. จำไว้ว่า desktop/browser smoke ช่วยคัดกรอง config ได้ แต่ proof ว่า LIFF ใช้งานได้จริงยังต้องมาจาก LINE WebView หรือ support tools
+
 ## Shared Capture Rule
 
 ทุก scenario ให้เก็บ:
@@ -46,7 +55,8 @@ source_refs:
 - ผล PASS หรือ FAIL
 - exact error ถ้ามี
 
-ถ้า LIFF พังก่อนถึง `/api/intake` ให้เปิด `/admin/liff-monitor` ก่อนดูอย่างอื่น
+ถ้า LIFF พังก่อนถึง `/api/intake` ให้เปิด LINE Ops Console (`/admin/liff-monitor`) ก่อนดูอย่างอื่น
+ถ้า `/api/liff/health` fail ให้เก็บ failing checks มาพร้อม evidence ชุดเดียวกัน
 
 ถ้าไม่แน่ใจว่าต้องเก็บ screenshot หรือ log จากหน้าไหน ให้ใช้ [OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md](OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md)
 

@@ -845,6 +845,18 @@ export async function POST(request: NextRequest) {
   try {
     const summary = `${productLabel} ${(widthMm / 10).toFixed(0)}×${(heightMm / 10).toFixed(0)} ซม. จำนวน ${qty} ชิ้น\nราคารวม VAT: ฿${THAI_SUMMARY_NUMBER_FORMATTER.format(total)}`;
     await pushQuoteLink(resolvedLineUserId, quote.public_token, summary);
+    await logSystemAction(supabase, {
+      entityType: "quote",
+      entityId: quote.id,
+      actionType: "quote.sent",
+      serviceName: "line_push",
+      note: "Delivered quote link to customer",
+      payload: {
+        lead_id: lead.id,
+        line_user_id: resolvedLineUserId,
+        quote_token: quote.public_token,
+      },
+    });
   } catch (error) {
     console.error("Failed to push quote link:", error);
     // Don't fail — quote is created, customer can still access via admin

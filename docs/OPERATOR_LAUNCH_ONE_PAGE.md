@@ -31,7 +31,7 @@ source_refs:
 - Logged-out admin test URL: `https://craft-run.vercel.app/admin`
 - Commercial document policy: [COMMERCIAL_DOCUMENT_POLICY_V1.md](COMMERCIAL_DOCUMENT_POLICY_V1.md)
 - Commercial document packet: [../plan/feature-commercial-documents-1.md](../plan/feature-commercial-documents-1.md)
-- ถ้า LIFF พังก่อน submit ให้เช็ก `/admin/liff-monitor` ก่อน
+- ถ้า LIFF พังก่อน submit ให้เช็ก LINE Ops Console (`/admin/liff-monitor`) ก่อน
 
 ## Minimum Evidence For Every Item
 

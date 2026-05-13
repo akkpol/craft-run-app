@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { logHumanAction } from "@/lib/action-log";
-import { buildCommercialDocumentIssueFailureAudit } from "@/lib/commercial-audit";
+import { logHumanAction, logSystemAction } from "@/lib/action-log";
+import {
+  buildCommercialDocumentDeliverySkipAudit,
+  buildCommercialDocumentIssueFailureAudit,
+} from "@/lib/commercial-audit";
 import { buildCommercialDocumentIssuePlan } from "@/lib/commercial-document-issue";
+import { pushCommercialDocumentLink } from "@/lib/line";
 import { getRuntimeAppConfig } from "@/lib/app-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -126,7 +130,7 @@ export async function POST(request: NextRequest) {
 
   const { data: quote, error: quoteError } = await supabase
     .from("quotes")
-    .select("id, lead_id, subtotal, discount, vat, total")
+    .select("id, lead_id, public_token, subtotal, discount, vat, total")
     .eq("id", order.quote_id)
     .maybeSingle();
 
@@ -144,7 +148,7 @@ export async function POST(request: NextRequest) {
   const { data: lead, error: leadError } = await supabase
     .from("leads")
     .select(
-      "id, requested_document_type, billing_entity_type, billing_branch_type, billing_branch_code, billing_name, tax_id, billing_address"
+      "id, conversation_id, requested_document_type, billing_entity_type, billing_branch_type, billing_branch_code, billing_name, tax_id, billing_address"
     )
     .eq("id", quote.lead_id)
     .maybeSingle();
@@ -441,6 +445,97 @@ export async function POST(request: NextRequest) {
       document_number: insertedDocument.document_number,
     },
   });
+
+  const logDocumentDeliverySkipped = (
+    reason:
+      | "missing_public_token"
+      | "missing_conversation_id"
+      | "conversation_not_found"
+      | "missing_line_user_id",
+    detail: string,
+    conversationId?: string | null,
+    lineUserId?: string | null
+  ) =>
+    logSystemAction(supabase, {
+      entityType: "quote",
+      entityId: order.quote_id,
+      serviceName: "document_delivery",
+      ...buildCommercialDocumentDeliverySkipAudit({
+        reason,
+        detail,
+        paymentId: payment.id,
+        orderId: order.id,
+        quoteId: order.quote_id,
+        documentId: insertedDocument.id,
+        documentType: issuePlan.value.documentType,
+        documentNumber: insertedDocument.document_number,
+        conversationId,
+        lineUserId,
+      }),
+    });
+
+  if (!quote.public_token) {
+    await logDocumentDeliverySkipped(
+      "missing_public_token",
+      "Quote has no public token for customer-safe document delivery link.",
+      lead.conversation_id
+    );
+  } else if (!lead.conversation_id) {
+    await logDocumentDeliverySkipped(
+      "missing_conversation_id",
+      "Lead has no conversation id for LINE delivery correlation."
+    );
+  } else {
+    const { data: conversation } = await supabase
+      .from("conversations")
+      .select("line_user_id")
+      .eq("id", lead.conversation_id)
+      .maybeSingle();
+
+    if (!conversation) {
+      await logDocumentDeliverySkipped(
+        "conversation_not_found",
+        `Conversation ${lead.conversation_id} was not found for document delivery.`,
+        lead.conversation_id
+      );
+    } else if (!conversation.line_user_id) {
+      await logDocumentDeliverySkipped(
+        "missing_line_user_id",
+        "Conversation exists but has no LINE user id for customer delivery.",
+        lead.conversation_id
+      );
+    } else {
+      try {
+        await pushCommercialDocumentLink({
+          userId: conversation.line_user_id,
+          quoteToken: quote.public_token,
+          documentId: insertedDocument.id,
+          documentType: issuePlan.value.documentType,
+          documentNumber: insertedDocument.document_number,
+        });
+
+        await logSystemAction(supabase, {
+          entityType: "quote",
+          entityId: order.quote_id,
+          actionType: "commercial.document_sent",
+          serviceName: "line_push",
+          note: "Delivered commercial document link to customer",
+          payload: {
+            order_id: order.id,
+            payment_id: payment.id,
+            document_id: insertedDocument.id,
+            document_type: issuePlan.value.documentType,
+            document_number: insertedDocument.document_number,
+            quote_token: quote.public_token,
+            conversation_id: lead.conversation_id,
+            line_user_id: conversation.line_user_id,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to push commercial document link:", error);
+      }
+    }
+  }
 
   return NextResponse.json({
     success: true,

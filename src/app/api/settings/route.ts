@@ -25,6 +25,7 @@ import {
   isPaymentRoutingCustomerScope,
   isPaymentRoutingTermScope,
 } from "@/lib/payment-routing";
+import { getSupabaseHost } from "@/lib/utils";
 
 type SettingsPayload = {
   businessName?: string;
@@ -74,6 +75,64 @@ const PAYMENT_SETTINGS_SCHEMA_ERROR =
 const DOCUMENT_APPENDIX_SCHEMA_ERROR =
   "Database schema is missing document appendix settings columns. Run migration 20260504042703_add_document_appendix_settings.sql before saving document appendix settings.";
 
+type DiagnosticsTableKey =
+  | "customers"
+  | "leads"
+  | "quotes"
+  | "jobs"
+  | "productCatalogItems";
+
+type DiagnosticsTable = {
+  key: DiagnosticsTableKey;
+  label: string;
+  count: number | null;
+  status: "populated" | "empty" | "error";
+  errorMessage: string | null;
+};
+
+function getSupabaseProjectRef(host: string) {
+  if (!host.endsWith(".supabase.co")) {
+    return null;
+  }
+
+  return host.split(".")[0] || null;
+}
+
+function buildDiagnosticsTable(
+  key: DiagnosticsTableKey,
+  label: string,
+  response: { count: number | null; error: unknown }
+): DiagnosticsTable {
+  if (response.error) {
+    const errorMessage =
+      typeof response.error === "object" &&
+      response.error !== null &&
+      "message" in response.error &&
+      typeof response.error.message === "string" &&
+      response.error.message.trim().length > 0
+        ? response.error.message.trim()
+        : "Query failed";
+
+    return {
+      key,
+      label,
+      count: null,
+      status: "error",
+      errorMessage,
+    };
+  }
+
+  const count = typeof response.count === "number" ? response.count : 0;
+
+  return {
+    key,
+    label,
+    count,
+    status: count > 0 ? "populated" : "empty",
+    errorMessage: null,
+  };
+}
+
 function normalizeAuditValue(value: unknown) {
   if (typeof value === "string") {
     const trimmed = value.trim();
@@ -100,6 +159,7 @@ export async function GET() {
   const settings = await getAppSettings();
   const runtimeConfig = await getRuntimeAppConfig();
   const defaultProductionSettings = getDefaultProductionSettings();
+  const supabase = createAdminClient();
   const hasLineChannelAccessToken = Boolean(
     settings?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN
   );
@@ -131,6 +191,47 @@ export async function GET() {
         ? process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY
         : process.env.OPENAI_API_KEY)
   );
+  const supabaseHost = getSupabaseHost();
+  const [
+    appSettingsProbeRes,
+    customersRes,
+    leadsRes,
+    quotesRes,
+    jobsRes,
+    productCatalogItemsRes,
+  ] = await Promise.all([
+    supabase.from("app_settings").select("id").eq("id", APP_SETTINGS_ID).maybeSingle(),
+    supabase.from("customers").select("id", { count: "exact", head: true }),
+    supabase.from("leads").select("id", { count: "exact", head: true }),
+    supabase.from("quotes").select("id", { count: "exact", head: true }),
+    supabase.from("jobs").select("id", { count: "exact", head: true }),
+    supabase
+      .from("product_catalog_items")
+      .select("value", { count: "exact", head: true }),
+  ]);
+  const diagnosticsTables = [
+    buildDiagnosticsTable("customers", "Customers", customersRes),
+    buildDiagnosticsTable("leads", "Leads", leadsRes),
+    buildDiagnosticsTable("quotes", "Quotes", quotesRes),
+    buildDiagnosticsTable("jobs", "Jobs", jobsRes),
+    buildDiagnosticsTable(
+      "productCatalogItems",
+      "Product Catalog",
+      productCatalogItemsRes
+    ),
+  ];
+  const coreDataPresent = diagnosticsTables
+    .filter((table) => table.key !== "productCatalogItems")
+    .some((table) => typeof table.count === "number" && table.count > 0);
+  const appSettingsProbeError =
+    typeof appSettingsProbeRes.error?.message === "string" &&
+    appSettingsProbeRes.error.message.trim().length > 0
+      ? appSettingsProbeRes.error.message.trim()
+      : null;
+  const diagnosticsErrorSummary =
+    appSettingsProbeError ||
+    diagnosticsTables.find((table) => table.status === "error" && table.errorMessage)?.errorMessage ||
+    null;
 
   return NextResponse.json({
     settings: {
@@ -212,6 +313,14 @@ export async function GET() {
       aiImageModel: settings?.ai_image_model || runtimeConfig.aiImageModel,
       hasAiImageApiKey,
       updatedAt: settings?.updated_at || null,
+      diagnostics: {
+        projectHost: supabaseHost,
+        projectRef: getSupabaseProjectRef(supabaseHost),
+        appSettingsRowPresent: Boolean(settings),
+        coreDataPresent,
+        errorSummary: diagnosticsErrorSummary,
+        tables: diagnosticsTables,
+      },
     },
   });
 }

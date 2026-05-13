@@ -3,8 +3,10 @@ import {
   validateSignature,
   WebhookEvent,
 } from "@line/bot-sdk";
+import { logSystemAction, type ActionType, type EntityType } from "@/lib/action-log";
 import { getRuntimeAppConfig } from "@/lib/app-settings";
 import { getLineReplyReadinessSummary } from "@/lib/public-flow-readiness";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getLineLoginChannelIdFromLiffId } from "./line-liff-identity";
 import type { ProductionEventType } from "@/lib/production-review";
 import type { WorkflowState } from "@/lib/types";
@@ -58,6 +60,130 @@ function normalizeStringList(value: unknown): string[] {
   }
 
   return [];
+}
+
+type ReplyRequest = Parameters<messagingApi.MessagingApiClient["replyMessage"]>[0];
+type PushRequest = Parameters<messagingApi.MessagingApiClient["pushMessage"]>[0];
+
+type LineAuditInput = {
+  actionType: ActionType;
+  entityType?: EntityType;
+  entityId?: string;
+  note?: string;
+  payload?: Record<string, unknown>;
+};
+
+type ReplyAuditInput = {
+  replyVariant: string;
+  flow: string;
+  entityType?: EntityType;
+  entityId?: string;
+  note?: string;
+  payload?: Record<string, unknown>;
+};
+
+type PushAuditInput = {
+  pushVariant: string;
+  flow: string;
+  entityType?: EntityType;
+  entityId?: string;
+  note?: string;
+  payload?: Record<string, unknown>;
+};
+
+async function writeLineAudit(input: LineAuditInput): Promise<void> {
+  try {
+    const supabase = createAdminClient();
+    await logSystemAction(supabase, {
+      entityType: input.entityType ?? "message",
+      entityId: input.entityId,
+      actionType: input.actionType,
+      serviceName: "line_api",
+      note: input.note,
+      payload: input.payload,
+    });
+  } catch (error) {
+    console.error(
+      `[line-audit] failed to write ${input.actionType}:`,
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
+
+async function sendReplyWithAudit(
+  lineClient: messagingApi.MessagingApiClient,
+  request: ReplyRequest,
+  audit: ReplyAuditInput
+): Promise<void> {
+  try {
+    await lineClient.replyMessage(request);
+    await writeLineAudit({
+      actionType: "line.reply_sent",
+      entityType: audit.entityType,
+      entityId: audit.entityId,
+      note: audit.note ?? `LINE reply sent (${audit.replyVariant})`,
+      payload: {
+        channel: "reply",
+        flow: audit.flow,
+        reply_variant: audit.replyVariant,
+        ...audit.payload,
+      },
+    });
+  } catch (error) {
+    await writeLineAudit({
+      actionType: "line.reply_failed",
+      entityType: audit.entityType,
+      entityId: audit.entityId,
+      note: `LINE reply failed (${audit.replyVariant})`,
+      payload: {
+        channel: "reply",
+        flow: audit.flow,
+        reply_variant: audit.replyVariant,
+        ...audit.payload,
+        error_message: error instanceof Error ? error.message : String(error),
+      },
+    });
+    throw error;
+  }
+}
+
+async function sendPushWithAudit(
+  lineClient: messagingApi.MessagingApiClient,
+  request: PushRequest,
+  audit: PushAuditInput
+): Promise<void> {
+  try {
+    await lineClient.pushMessage(request);
+    await writeLineAudit({
+      actionType: "line.push_sent",
+      entityType: audit.entityType,
+      entityId: audit.entityId,
+      note: audit.note ?? `LINE push sent (${audit.pushVariant})`,
+      payload: {
+        channel: "push",
+        flow: audit.flow,
+        push_variant: audit.pushVariant,
+        line_user_id: request.to,
+        ...audit.payload,
+      },
+    });
+  } catch (error) {
+    await writeLineAudit({
+      actionType: "line.push_failed",
+      entityType: audit.entityType,
+      entityId: audit.entityId,
+      note: `LINE push failed (${audit.pushVariant})`,
+      payload: {
+        channel: "push",
+        flow: audit.flow,
+        push_variant: audit.pushVariant,
+        line_user_id: request.to,
+        ...audit.payload,
+        error_message: error instanceof Error ? error.message : String(error),
+      },
+    });
+    throw error;
+  }
 }
 
 async function readJsonResponse<T>(response: Response): Promise<T | null> {
@@ -359,10 +485,18 @@ export async function replyWithIntakeLink(
     contents: bubble,
   };
 
-  await lineClient.replyMessage({
-    replyToken,
-    messages: [flexMessage],
-  });
+  await sendReplyWithAudit(
+    lineClient,
+    {
+      replyToken,
+      messages: [flexMessage],
+    },
+    {
+      flow: "intake",
+      replyVariant: "intake_link",
+      note: "Sent LIFF intake reply",
+    }
+  );
 }
 
 export async function replyWithResumeOrFreshChoice(
@@ -477,16 +611,24 @@ export async function replyWithResumeOrFreshChoice(
     },
   };
 
-  await lineClient.replyMessage({
-    replyToken,
-    messages: [
-      {
-        type: "flex",
-        altText: readiness.headline,
-        contents: bubble,
-      },
-    ],
-  });
+  await sendReplyWithAudit(
+    lineClient,
+    {
+      replyToken,
+      messages: [
+        {
+          type: "flex",
+          altText: readiness.headline,
+          contents: bubble,
+        },
+      ],
+    },
+    {
+      flow: "intake",
+      replyVariant: "resume_or_fresh",
+      note: "Sent resume or fresh choice reply",
+    }
+  );
 }
 
 // Send quote link to customer via push message
@@ -550,16 +692,28 @@ export async function pushQuoteLink(
     },
   };
 
-  await lineClient.pushMessage({
-    to: userId,
-    messages: [
-      {
-        type: "flex",
-        altText: "ใบเสนอราคาจาก FOGUS",
-        contents: bubble,
+  await sendPushWithAudit(
+    lineClient,
+    {
+      to: userId,
+      messages: [
+        {
+          type: "flex",
+          altText: "ใบเสนอราคาจาก FOGUS",
+          contents: bubble,
+        },
+      ],
+    },
+    {
+      flow: "quote",
+      pushVariant: "quote_link",
+      entityType: "quote",
+      note: "Sent quote approval link",
+      payload: {
+        quote_token: quoteToken,
       },
-    ],
-  });
+    }
+  );
 }
 
 function getCustomerStatusCopy(status: string, statusUrl: string): string {
@@ -597,6 +751,19 @@ function getProductionEventLabel(eventType: ProductionEventType): string {
   return "หลักฐาน proof";
 }
 
+function getCommercialDocumentLabel(documentType: string) {
+  switch (documentType) {
+    case "RECEIPT":
+      return "ใบเสร็จรับเงิน";
+    case "TAX_INVOICE_RECEIPT":
+      return "ใบเสร็จรับเงิน/ใบกำกับภาษี";
+    case "TAX_INVOICE":
+      return "ใบกำกับภาษี";
+    default:
+      return documentType;
+  }
+}
+
 // Send status update to customer
 export async function pushStatusUpdate(
   userId: string,
@@ -613,10 +780,64 @@ export async function pushStatusUpdate(
     text: getCustomerStatusCopy(status, statusUrl),
   };
 
-  await lineClient.pushMessage({
-    to: userId,
-    messages: [textMsg],
-  });
+  await sendPushWithAudit(
+    lineClient,
+    {
+      to: userId,
+      messages: [textMsg],
+    },
+    {
+      flow: "production",
+      pushVariant: "status_update",
+      note: "Sent customer status update",
+      payload: {
+        status,
+        status_token: statusToken,
+      },
+    }
+  );
+}
+
+export async function pushCommercialDocumentLink(input: {
+  userId: string;
+  quoteToken: string;
+  documentId: string;
+  documentType: string;
+  documentNumber: string;
+}) {
+  const config = await getRuntimeAppConfig();
+  const lineClient = await getLineClient();
+  const documentUrl = `${config.baseUrl}/status/${input.quoteToken}/documents/${input.documentId}`;
+
+  const text = [
+    `📄 ${getCommercialDocumentLabel(input.documentType)} พร้อมดาวน์โหลดแล้ว`,
+    `เลขที่เอกสาร: ${input.documentNumber}`,
+    `เปิดเอกสาร: ${documentUrl}`,
+  ].join("\n\n");
+
+  await sendPushWithAudit(
+    lineClient,
+    {
+      to: input.userId,
+      messages: [
+        {
+          type: "text",
+          text,
+        },
+      ],
+    },
+    {
+      flow: "document",
+      pushVariant: "commercial_document",
+      note: "Sent commercial document link",
+      payload: {
+        quote_token: input.quoteToken,
+        document_id: input.documentId,
+        document_type: input.documentType,
+        document_number: input.documentNumber,
+      },
+    }
+  );
 }
 
 export async function pushProductionEvidenceUpdate(input: {
@@ -644,15 +865,28 @@ export async function pushProductionEvidenceUpdate(input: {
     .filter(Boolean)
     .join("\n\n");
 
-  await lineClient.pushMessage({
-    to: input.userId,
-    messages: [
-      {
-        type: "text",
-        text,
+  await sendPushWithAudit(
+    lineClient,
+    {
+      to: input.userId,
+      messages: [
+        {
+          type: "text",
+          text,
+        },
+      ],
+    },
+    {
+      flow: "production",
+      pushVariant: "production_evidence",
+      note: "Sent production evidence update",
+      payload: {
+        event_type: input.eventType,
+        status_token: input.statusToken,
+        asset_count: input.assetUrls.length,
       },
-    ],
-  });
+    }
+  );
 }
 
 export async function pushLeadDesignPreviewUpdate(input: {
@@ -678,15 +912,27 @@ export async function pushLeadDesignPreviewUpdate(input: {
     .filter(Boolean)
     .join("\n\n");
 
-  await lineClient.pushMessage({
-    to: input.userId,
-    messages: [
-      {
-        type: "text",
-        text,
+  await sendPushWithAudit(
+    lineClient,
+    {
+      to: input.userId,
+      messages: [
+        {
+          type: "text",
+          text,
+        },
+      ],
+    },
+    {
+      flow: "design",
+      pushVariant: "design_preview",
+      note: "Sent design preview update",
+      payload: {
+        status_token: input.statusToken,
+        asset_count: input.assetUrls.length,
       },
-    ],
-  });
+    }
+  );
 }
 
 export async function pushFollowUpMessage(
@@ -714,10 +960,21 @@ export async function pushFollowUpMessage(
     text = `สวัสดีครับ${name} 👋 ทีมงาน FOGUS ติดตามงานของคุณอยู่นะครับ หากมีข้อสงสัยสอบถามได้เลยครับ 😊`;
   }
 
-  await lineClient.pushMessage({
-    to: userId,
-    messages: [{ type: "text", text }],
-  });
+  await sendPushWithAudit(
+    lineClient,
+    {
+      to: userId,
+      messages: [{ type: "text", text }],
+    },
+    {
+      flow: "follow_up",
+      pushVariant: "follow_up",
+      note: "Sent follow-up message",
+      payload: {
+        conversation_state: conversationState,
+      },
+    }
+  );
 }
 
 // ── Returning-customer context replies ─────────────────────────────────────
@@ -736,27 +993,38 @@ export async function replyWithQuoteApprovalContext(
   const readiness = getLineReplyReadinessSummary("quote_approval_context");
 
   if (!quoteToken) {
-    await lineClient.replyMessage({
-      replyToken,
-      messages: [
-        {
-          type: "text",
-          text: `สวัสดีค่ะ คุณ${displayName} ✉️\n${formatReadinessText(
-            readiness.headline,
-            readiness.detail,
-            readiness.nextActionLabel
-          )}\n\nหากยังไม่มีลิงก์ใบเสนอราคา กรุณาติดต่อทีมงานเพื่อขอลิงก์ได้เลยค่ะ`,
-          quickReply: {
-            items: [
-              {
-                type: "action",
-                action: { type: "message", label: "💬 คุยกับแอดมิน", text: "ขอคุยกับแอดมิน" },
-              },
-            ],
+    await sendReplyWithAudit(
+      lineClient,
+      {
+        replyToken,
+        messages: [
+          {
+            type: "text",
+            text: `สวัสดีค่ะ คุณ${displayName} ✉️\n${formatReadinessText(
+              readiness.headline,
+              readiness.detail,
+              readiness.nextActionLabel
+            )}\n\nหากยังไม่มีลิงก์ใบเสนอราคา กรุณาติดต่อทีมงานเพื่อขอลิงก์ได้เลยค่ะ`,
+            quickReply: {
+              items: [
+                {
+                  type: "action",
+                  action: { type: "message", label: "💬 คุยกับแอดมิน", text: "ขอคุยกับแอดมิน" },
+                },
+              ],
+            },
           },
+        ],
+      },
+      {
+        flow: "quote",
+        replyVariant: "quote_context_missing_link",
+        note: "Sent quote context reply without quote link",
+        payload: {
+          quote_link_present: false,
         },
-      ],
-    });
+      }
+    );
     return;
   }
 
@@ -849,10 +1117,21 @@ export async function replyWithQuoteApprovalContext(
     },
   };
 
-  await lineClient.replyMessage({
-    replyToken,
-    messages: [{ type: "flex", altText: readiness.headline, contents: bubble }],
-  });
+  await sendReplyWithAudit(
+    lineClient,
+    {
+      replyToken,
+      messages: [{ type: "flex", altText: readiness.headline, contents: bubble }],
+    },
+    {
+      flow: "quote",
+      replyVariant: "quote_context",
+      note: "Sent quote approval context reply",
+      payload: {
+        quote_link_present: true,
+      },
+    }
+  );
 }
 
 /**
@@ -868,27 +1147,38 @@ export async function replyWithPaymentContext(
   const readiness = getLineReplyReadinessSummary("payment_context");
 
   if (!quoteToken) {
-    await lineClient.replyMessage({
-      replyToken,
-      messages: [
-        {
-          type: "text",
-          text: `สวัสดีค่ะ คุณ${displayName} 💳\n${formatReadinessText(
-            readiness.headline,
-            readiness.detail,
-            readiness.nextActionLabel
-          )}`,
-          quickReply: {
-            items: [
-              {
-                type: "action",
-                action: { type: "message", label: "💬 คุยกับแอดมิน", text: "ขอคุยกับแอดมิน" },
-              },
-            ],
+    await sendReplyWithAudit(
+      lineClient,
+      {
+        replyToken,
+        messages: [
+          {
+            type: "text",
+            text: `สวัสดีค่ะ คุณ${displayName} 💳\n${formatReadinessText(
+              readiness.headline,
+              readiness.detail,
+              readiness.nextActionLabel
+            )}`,
+            quickReply: {
+              items: [
+                {
+                  type: "action",
+                  action: { type: "message", label: "💬 คุยกับแอดมิน", text: "ขอคุยกับแอดมิน" },
+                },
+              ],
+            },
           },
+        ],
+      },
+      {
+        flow: "payment",
+        replyVariant: "payment_context_missing_link",
+        note: "Sent payment context reply without status link",
+        payload: {
+          status_link_present: false,
         },
-      ],
-    });
+      }
+    );
     return;
   }
 
@@ -970,10 +1260,21 @@ export async function replyWithPaymentContext(
     },
   };
 
-  await lineClient.replyMessage({
-    replyToken,
-    messages: [{ type: "flex", altText: readiness.headline, contents: bubble }],
-  });
+  await sendReplyWithAudit(
+    lineClient,
+    {
+      replyToken,
+      messages: [{ type: "flex", altText: readiness.headline, contents: bubble }],
+    },
+    {
+      flow: "payment",
+      replyVariant: "payment_context",
+      note: "Sent payment context reply",
+      payload: {
+        status_link_present: true,
+      },
+    }
+  );
 }
 
 const PRODUCTION_STATE_HEADERS: Partial<Record<WorkflowState, string>> = {
@@ -998,27 +1299,39 @@ export async function replyWithProductionStatus(
   const readiness = getLineReplyReadinessSummary("production_status");
 
   if (!quoteToken) {
-    await lineClient.replyMessage({
-      replyToken,
-      messages: [
-        {
-          type: "text",
-          text: `สวัสดีค่ะ คุณ${displayName}\n${header}\n\n${formatReadinessText(
-            readiness.headline,
-            readiness.detail,
-            readiness.nextActionLabel
-          )}`,
-          quickReply: {
-            items: [
-              {
-                type: "action",
-                action: { type: "message", label: "💬 คุยกับแอดมิน", text: "ขอคุยกับแอดมิน" },
-              },
-            ],
+    await sendReplyWithAudit(
+      lineClient,
+      {
+        replyToken,
+        messages: [
+          {
+            type: "text",
+            text: `สวัสดีค่ะ คุณ${displayName}\n${header}\n\n${formatReadinessText(
+              readiness.headline,
+              readiness.detail,
+              readiness.nextActionLabel
+            )}`,
+            quickReply: {
+              items: [
+                {
+                  type: "action",
+                  action: { type: "message", label: "💬 คุยกับแอดมิน", text: "ขอคุยกับแอดมิน" },
+                },
+              ],
+            },
           },
+        ],
+      },
+      {
+        flow: "production",
+        replyVariant: "production_status_missing_link",
+        note: "Sent production status reply without status link",
+        payload: {
+          conversation_state: conversationState,
+          status_link_present: false,
         },
-      ],
-    });
+      }
+    );
     return;
   }
 
@@ -1100,10 +1413,22 @@ export async function replyWithProductionStatus(
     },
   };
 
-  await lineClient.replyMessage({
-    replyToken,
-    messages: [{ type: "flex", altText: readiness.headline, contents: bubble }],
-  });
+  await sendReplyWithAudit(
+    lineClient,
+    {
+      replyToken,
+      messages: [{ type: "flex", altText: readiness.headline, contents: bubble }],
+    },
+    {
+      flow: "production",
+      replyVariant: "production_status",
+      note: "Sent production status reply",
+      payload: {
+        conversation_state: conversationState,
+        status_link_present: true,
+      },
+    }
+  );
 }
 
 /**
@@ -1199,9 +1524,20 @@ export async function replyWithTerminalFollowUp(
     },
   };
 
-  await lineClient.replyMessage({
-    replyToken,
-    messages: [{ type: "flex", altText: heroText, contents: bubble }],
-  });
+  await sendReplyWithAudit(
+    lineClient,
+    {
+      replyToken,
+      messages: [{ type: "flex", altText: heroText, contents: bubble }],
+    },
+    {
+      flow: "intake",
+      replyVariant: "terminal_follow_up",
+      note: "Sent terminal follow-up reply",
+      payload: {
+        previous_state: previousState,
+      },
+    }
+  );
 }
 export type { WebhookEvent };

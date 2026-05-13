@@ -12,6 +12,7 @@
     "test": "node scripts/run-tests.mjs",
     "test:node": "node scripts/run-tests.mjs --node-only",
     "test:vitest": "node scripts/run-tests.mjs --vitest-only",
+    "check:liff-health": "node scripts/check-liff-health.mjs",
     "lint": "eslint .",
     "ops:doctor": "node scripts/ops-doctor.mjs",
     "check:line-liff-env": "node scripts/check-line-liff-env.mjs --strict",

@@ -14,6 +14,7 @@ import {
   Link2,
   MessageCircle,
   PackageSearch,
+  RefreshCw,
   ShieldCheck,
   Smartphone,
   TriangleAlert,
@@ -69,6 +70,23 @@ type DocumentAppendixStorageStatus = {
   bucket: string;
   imageConfigured: boolean;
   imageName: string;
+};
+
+type SupabaseDiagnosticsTable = {
+  key: "customers" | "leads" | "quotes" | "jobs" | "productCatalogItems";
+  label: string;
+  count: number | null;
+  status: "populated" | "empty" | "error";
+  errorMessage: string | null;
+};
+
+type SupabaseDiagnostics = {
+  projectHost: string;
+  projectRef: string | null;
+  appSettingsRowPresent: boolean;
+  coreDataPresent: boolean;
+  errorSummary: string | null;
+  tables: SupabaseDiagnosticsTable[];
 };
 
 type SettingsAssetType =
@@ -128,6 +146,7 @@ type SettingsState = {
   aiImageApiKey: string;
   hasAiImageApiKey: boolean;
   updatedAt: string | null;
+  diagnostics: SupabaseDiagnostics;
 };
 
 type SettingsFormMode = "general" | "ai";
@@ -202,7 +221,45 @@ const emptyState: SettingsState = {
   aiImageApiKey: "",
   hasAiImageApiKey: false,
   updatedAt: null,
+  diagnostics: {
+    projectHost: "unknown",
+    projectRef: null,
+    appSettingsRowPresent: false,
+    coreDataPresent: false,
+    errorSummary: null,
+    tables: [
+      { key: "customers", label: "Customers", count: null, status: "error", errorMessage: null },
+      { key: "leads", label: "Leads", count: null, status: "error", errorMessage: null },
+      { key: "quotes", label: "Quotes", count: null, status: "error", errorMessage: null },
+      { key: "jobs", label: "Jobs", count: null, status: "error", errorMessage: null },
+      {
+        key: "productCatalogItems",
+        label: "Product Catalog",
+        count: null,
+        status: "error",
+        errorMessage: null,
+      },
+    ],
+  },
 };
+
+async function fetchSettingsState() {
+  const res = await fetch("/api/settings", { cache: "no-store" });
+
+  let data: { settings?: Partial<SettingsState>; error?: string } | null = null;
+
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+
+  if (!res.ok) {
+    throw new Error(data?.error || "โหลดข้อมูลตั้งค่าไม่สำเร็จ");
+  }
+
+  return { ...emptyState, ...data?.settings } satisfies SettingsState;
+}
 
 function normalizeBaseUrl(value: string) {
   return value.trim().replace(/\/$/, "");
@@ -222,6 +279,28 @@ function isHttpsUrl(value: string) {
     return url.protocol === "https:";
   } catch {
     return false;
+  }
+}
+
+function getDiagnosticsBadgeVariant(status: SupabaseDiagnosticsTable["status"]) {
+  switch (status) {
+    case "populated":
+      return "success" as const;
+    case "empty":
+      return "warning" as const;
+    default:
+      return "destructive" as const;
+  }
+}
+
+function getDiagnosticsStatusLabel(status: SupabaseDiagnosticsTable["status"]) {
+  switch (status) {
+    case "populated":
+      return "มีข้อมูล";
+    case "empty":
+      return "ยังว่าง";
+    default:
+      return "query ไม่ผ่าน";
   }
 }
 
@@ -539,9 +618,11 @@ export default function SettingsForm({
   const [form, setForm] = useState<SettingsState>(emptyState);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [refreshingDiagnostics, setRefreshingDiagnostics] = useState(false);
   const [uploadingAsset, setUploadingAsset] = useState<"" | SettingsAssetType>("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [diagnosticsCheckedAt, setDiagnosticsCheckedAt] = useState<string | null>(null);
   const [importingCatalog, setImportingCatalog] = useState(false);
   const [catalogImportMessage, setCatalogImportMessage] = useState("");
   const [catalogImportError, setCatalogImportError] = useState("");
@@ -549,29 +630,60 @@ export default function SettingsForm({
     useState<ProductCatalogImportResult | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadSettings() {
       try {
-        const res = await fetch("/api/settings", { cache: "no-store" });
-        const data = await res.json();
+        const nextState = await fetchSettingsState();
 
-        if (!res.ok) {
-          setError(data.error || "โหลดข้อมูลตั้งค่าไม่สำเร็จ");
+        if (cancelled) {
           return;
         }
 
-        setForm({ ...emptyState, ...data.settings });
+        setForm(nextState);
+        setDiagnosticsCheckedAt(new Date().toISOString());
+        setError("");
       } catch {
+        if (cancelled) {
+          return;
+        }
+
         setError("โหลดข้อมูลตั้งค่าไม่สำเร็จ");
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
-    loadSettings();
+    void loadSettings();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function updateField<K extends keyof SettingsState>(key: K, value: SettingsState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleRefreshDiagnostics() {
+    setRefreshingDiagnostics(true);
+    setError("");
+
+    try {
+      const nextState = await fetchSettingsState();
+
+      setForm((prev) => ({
+        ...prev,
+        diagnostics: nextState.diagnostics,
+      }));
+      setDiagnosticsCheckedAt(new Date().toISOString());
+    } catch {
+      setError("รีเฟรช diagnostics ไม่สำเร็จ");
+    } finally {
+      setRefreshingDiagnostics(false);
+    }
   }
 
   async function handleAssetUpload(assetType: SettingsAssetType, file: File | null) {
@@ -770,6 +882,18 @@ export default function SettingsForm({
   const liffReady = hasCurrentLiffId && lineLiffUrlReady;
   const lineConnectionReady = lineReceiveReady && lineSendReady && liffReady;
   const generalDefaultTab = lineConnectionReady ? "business" : "line";
+  const productCatalogDiagnostics =
+    form.diagnostics.tables.find((table) => table.key === "productCatalogItems") || null;
+  const workflowDiagnostics = form.diagnostics.tables.filter(
+    (table) => table.key !== "productCatalogItems"
+  );
+  const populatedWorkflowTables = workflowDiagnostics.filter(
+    (table) => table.status === "populated"
+  ).length;
+  const totalWorkflowRows = workflowDiagnostics.reduce(
+    (total, table) => total + (typeof table.count === "number" ? table.count : 0),
+    0
+  );
 
   const LineStatusIcon = lineConnectionReady ? CheckCircle2 : TriangleAlert;
   const lineStatusCards: Array<{
@@ -858,6 +982,10 @@ export default function SettingsForm({
             <TabsTrigger value="production" className="min-w-fit gap-2 px-4 py-2.5 data-active:bg-white data-active:shadow-sm">
               <Upload className="size-4" />
               Production
+            </TabsTrigger>
+            <TabsTrigger value="diagnostics" className="min-w-fit gap-2 px-4 py-2.5 data-active:bg-white data-active:shadow-sm">
+              <ShieldCheck className="size-4" />
+              Diagnostics
             </TabsTrigger>
           </TabsList>
         </div>
@@ -1443,62 +1571,212 @@ export default function SettingsForm({
 
         <TabsContent value="production" className="space-y-6">
 
-      <section className="rounded-3xl border border-cyan-200 bg-cyan-50 p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-950">Production Upload</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          ตั้งค่า flow สำหรับลิงก์รายงานงานจากทีมผลิตและคิวตรวจรูปก่อนส่งให้ลูกค้า
-        </p>
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <label className="grid gap-2 text-sm text-slate-700">
-            <span>เปิดใช้งาน production upload</span>
-            <select
-              value={form.productionUploadEnabled ? "enabled" : "disabled"}
-              onChange={(e) =>
-                updateField("productionUploadEnabled", e.target.value === "enabled")
-              }
-              className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
-            >
-              <option value="enabled">เปิด</option>
-              <option value="disabled">ปิด</option>
-            </select>
-          </label>
-          <label className="grid gap-2 text-sm text-slate-700">
-            <span>ส่งหลักฐานถึงลูกค้าอัตโนมัติหลัง approve</span>
-            <select
-              value={form.productionCustomerAutoSendEnabled ? "enabled" : "disabled"}
-              onChange={(e) =>
-                updateField(
-                  "productionCustomerAutoSendEnabled",
-                  e.target.value === "enabled"
-                )
-              }
-              className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
-            >
-              <option value="disabled">ปิด</option>
-              <option value="enabled">เปิด</option>
-            </select>
-          </label>
-          <label className="grid gap-2 text-sm text-slate-700 md:col-span-2">
-            <span>อายุไฟล์หลักฐานก่อน cleanup อัตโนมัติ (วัน)</span>
-            <input
-              type="number"
-              min={1}
-              value={form.productionAssetRetentionDays}
-              onChange={(e) =>
-                updateField(
-                  "productionAssetRetentionDays",
-                  Number.parseInt(e.target.value || "30", 10)
-                )
-              }
-              className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
-            />
-            <p className="text-xs text-slate-500">
-              metadata จะยังอยู่เพื่อ audit แต่ไฟล์จริงใน private bucket จะถูก cleanup ตามค่านี้
+          <section className="rounded-3xl border border-cyan-200 bg-cyan-50 p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-950">Production Upload</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              ตั้งค่า flow สำหรับลิงก์รายงานงานจากทีมผลิตและคิวตรวจรูปก่อนส่งให้ลูกค้า
             </p>
-          </label>
-        </div>
-      </section>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2 text-sm text-slate-700">
+                <span>เปิดใช้งาน production upload</span>
+                <select
+                  value={form.productionUploadEnabled ? "enabled" : "disabled"}
+                  onChange={(e) =>
+                    updateField("productionUploadEnabled", e.target.value === "enabled")
+                  }
+                  className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
+                >
+                  <option value="enabled">เปิด</option>
+                  <option value="disabled">ปิด</option>
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm text-slate-700">
+                <span>ส่งหลักฐานถึงลูกค้าอัตโนมัติหลัง approve</span>
+                <select
+                  value={form.productionCustomerAutoSendEnabled ? "enabled" : "disabled"}
+                  onChange={(e) =>
+                    updateField(
+                      "productionCustomerAutoSendEnabled",
+                      e.target.value === "enabled"
+                    )
+                  }
+                  className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
+                >
+                  <option value="disabled">ปิด</option>
+                  <option value="enabled">เปิด</option>
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm text-slate-700 md:col-span-2">
+                <span>อายุไฟล์หลักฐานก่อน cleanup อัตโนมัติ (วัน)</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={form.productionAssetRetentionDays}
+                  onChange={(e) =>
+                    updateField(
+                      "productionAssetRetentionDays",
+                      Number.parseInt(e.target.value || "30", 10)
+                    )
+                  }
+                  className="rounded-2xl border border-slate-200 px-4 py-3 outline-none ring-0 transition focus:border-slate-400"
+                />
+                <p className="text-xs text-slate-500">
+                  metadata จะยังอยู่เพื่อ audit แต่ไฟล์จริงใน private bucket จะถูก cleanup ตามค่านี้
+                </p>
+              </label>
+            </div>
+          </section>
 
+        </TabsContent>
+
+        <TabsContent value="diagnostics" className="space-y-6">
+          <section className="rounded-3xl border border-cyan-200 bg-cyan-50/70 p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-700">
+                  Supabase Diagnostics
+                </p>
+                <h2 className="mt-2 text-lg font-semibold text-slate-950">
+                  local ตอนนี้กำลังอ่านฐานไหน
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  ใช้เทียบกับ production ว่า project host ตรงกันไหม และตารางหลักมีข้อมูลจริงในฐานนี้แล้วหรือยัง
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {diagnosticsCheckedAt
+                    ? `ตรวจล่าสุด ${formatBangkokDateTime(diagnosticsCheckedAt)}`
+                    : "ยังไม่ได้ตรวจ diagnostics ใน session นี้"}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                <Badge variant={form.diagnostics.coreDataPresent ? "success" : "warning"}>
+                  {form.diagnostics.coreDataPresent ? "พบ workflow data" : "workflow data ยังว่าง"}
+                </Badge>
+                <Badge
+                  variant={form.diagnostics.appSettingsRowPresent ? "success" : "warning"}
+                >
+                  {form.diagnostics.appSettingsRowPresent
+                    ? "มี app_settings row"
+                    : "ยังไม่มี app_settings row"}
+                </Badge>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleRefreshDiagnostics()}
+                  disabled={refreshingDiagnostics || loading}
+                  className="border-cyan-200 bg-white text-cyan-800 hover:bg-cyan-100"
+                >
+                  <RefreshCw
+                    className={cn("size-3.5", refreshingDiagnostics ? "animate-spin" : undefined)}
+                  />
+                  {refreshingDiagnostics ? "กำลังรีเฟรช..." : "รีเฟรช diagnostics"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+              <div className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  Connected project
+                </p>
+                <p className="mt-2 break-all text-sm font-semibold text-slate-950">
+                  {form.diagnostics.projectHost || "unknown"}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+                  <Badge variant="outline" className="border-cyan-200 bg-cyan-50 text-cyan-700">
+                    project ref {form.diagnostics.projectRef || "unknown"}
+                  </Badge>
+                  <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
+                    {form.baseUrl ? `base URL ${form.baseUrl}` : "ยังไม่มี base URL runtime"}
+                  </Badge>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-slate-500">
+                  ถ้า local กับ production แสดง Supabase host คนละตัว การเห็นข้อมูลไม่เท่ากันถือว่าปกติและไม่ใช่อาการ query พังโดยตรง
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-white/80 bg-white/90 p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  Quick read
+                </p>
+                {form.diagnostics.errorSummary ? (
+                  <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-xs leading-5 text-rose-700">
+                    Diagnostics error: {form.diagnostics.errorSummary}
+                  </div>
+                ) : null}
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[18px] border border-slate-200 bg-slate-50/75 px-3 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      ตาราง workflow ที่มี data
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-950">
+                      {populatedWorkflowTables}/{workflowDiagnostics.length}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] border border-slate-200 bg-slate-50/75 px-3 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      รวม row ที่เจอ
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-950">
+                      {totalWorkflowRows}
+                    </p>
+                  </div>
+                </div>
+                <ul className="mt-4 space-y-2 text-xs leading-5 text-slate-600">
+                  <li>
+                    {form.diagnostics.coreDataPresent
+                      ? "ตาราง workflow หลักมีข้อมูลแล้ว จึงไม่น่าใช่อาการ local อ่านฐานไม่สำเร็จ"
+                      : "ยังไม่พบ row ใน customers / leads / quotes / jobs ของ project นี้"}
+                  </li>
+                  <li>
+                    {productCatalogDiagnostics?.status === "populated"
+                      ? "product catalog ถูกอ่านจาก database แล้ว"
+                      : productCatalogDiagnostics?.status === "empty"
+                        ? "product catalog table ยังว่าง ระบบจึง fallback ไปใช้ default catalog"
+                        : "ยังอ่าน product catalog table ไม่สำเร็จ ตรวจ schema หรือ credentials ต่อ"}
+                  </li>
+                  <li>
+                    {form.diagnostics.appSettingsRowPresent
+                      ? "หน้านี้เคยบันทึก app_settings row ลงฐานนี้แล้ว"
+                      : "ยังไม่มี app_settings row ในฐานนี้ ค่าหลายอย่างจึงยังมาจาก env/runtime fallback"}
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              {form.diagnostics.tables.map((table) => (
+                <div
+                  key={table.key}
+                  className="rounded-[22px] border border-white/80 bg-white/90 p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                        {table.label}
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-950">
+                        {typeof table.count === "number" ? table.count : "--"}
+                      </p>
+                    </div>
+                    <Badge variant={getDiagnosticsBadgeVariant(table.status)}>
+                      {getDiagnosticsStatusLabel(table.status)}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    {table.status === "populated"
+                      ? "พบ row ใน project นี้แล้ว"
+                      : table.status === "empty"
+                        ? "ตารางนี้ยังไม่มี row ใน project ที่ local กำลังอ่าน"
+                        : table.errorMessage
+                          ? `query ตารางนี้ไม่สำเร็จ: ${table.errorMessage}`
+                          : "query ตารางนี้ไม่สำเร็จ ตรวจ schema หรือ credentials ต่อ"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
         </TabsContent>
       </Tabs>
 

@@ -49,7 +49,7 @@ source_refs:
 - Webhook URL: `https://craft-run.vercel.app/api/webhook`
 - LIFF endpoint: `https://craft-run.vercel.app/liff`
 - Logged-out admin test URL: `https://craft-run.vercel.app/admin`
-- ถ้า LIFF พังก่อน submit ให้เช็ก `/admin/liff-monitor` ก่อน
+- ถ้า LIFF พังก่อน submit ให้เช็ก LINE Ops Console (`/admin/liff-monitor`) ก่อน
 
 ## Minimum Evidence For Every Item
 
@@ -308,7 +308,7 @@ Must be visible:
 
 Good backup evidence:
 
-- `/admin/liff-monitor` ถ้ามี incident ก่อนหรือหลัง submit
+- LINE Ops Console (`/admin/liff-monitor`) ถ้ามี incident ก่อนหรือหลัง submit
 
 ### P3-G06 — Quote Approval To WAITING_PAYMENT
 
@@ -410,6 +410,6 @@ Must be visible:
 
 1. Browser screenshot
 2. Vercel function log excerpt
-3. `/admin/liff-monitor`
+3. LINE Ops Console (`/admin/liff-monitor`)
 4. `action_log` row evidence
 5. DB screenshot/query evidence แบบ masked
