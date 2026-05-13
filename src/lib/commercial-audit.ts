@@ -10,6 +10,12 @@ type DocumentIssueAuditErrorCode =
   | "DOCUMENT_ALREADY_ISSUED"
   | "DOCUMENT_NUMBER_CONFLICT";
 
+type DocumentDeliverySkipReason =
+  | "missing_public_token"
+  | "missing_conversation_id"
+  | "conversation_not_found"
+  | "missing_line_user_id";
+
 type AuditLogShape = {
   actionType: string;
   payload: Record<string, unknown>;
@@ -82,6 +88,45 @@ export function buildCommercialDocumentIssueFailureAudit(input: {
       requested_tax_invoice: input.requestedTaxInvoice,
       document_type: input.documentType ?? null,
       document_number: input.documentNumber ?? null,
+    },
+  };
+}
+
+export function buildCommercialDocumentDeliverySkipAudit(input: {
+  reason: DocumentDeliverySkipReason;
+  detail: string;
+  paymentId: string;
+  orderId: string;
+  quoteId: string;
+  documentId: string;
+  documentType: string;
+  documentNumber: string;
+  conversationId?: string | null;
+  lineUserId?: string | null;
+}): AuditLogShape {
+  const actionType =
+    input.reason === "missing_public_token"
+      ? "commercial.document_delivery_skipped_no_token"
+      : input.reason === "missing_conversation_id"
+        ? "commercial.document_delivery_skipped_no_conv"
+        : input.reason === "conversation_not_found"
+          ? "commercial.document_delivery_skipped_conv_missing"
+          : "commercial.document_delivery_skipped_no_user_id";
+
+  return {
+    actionType,
+    payload: {
+      phase: "document_delivery",
+      skip_reason: input.reason,
+      detail: input.detail,
+      payment_id: input.paymentId,
+      order_id: input.orderId,
+      quote_id: input.quoteId,
+      document_id: input.documentId,
+      document_type: input.documentType,
+      document_number: input.documentNumber,
+      conversation_id: input.conversationId ?? null,
+      line_user_id: input.lineUserId ?? null,
     },
   };
 }

@@ -284,6 +284,10 @@ function getOpsSeverity(actionType: string | null | undefined, payload: JsonReco
     actionType === "line.reply_failed" ||
     actionType === "line.push_failed" ||
     actionType === "message.unsent" ||
+    actionType === "commercial.document_delivery_skipped_no_token" ||
+    actionType === "commercial.document_delivery_skipped_no_conv" ||
+    actionType === "commercial.document_delivery_skipped_conv_missing" ||
+    actionType === "commercial.document_delivery_skipped_no_user_id" ||
     (actionType?.startsWith("liff.") && isBlockingLiffStage(stage))
   ) {
     return "warning";
@@ -345,6 +349,14 @@ function getOpsSummary(actionType: string | null | undefined, note: string | nul
       return "Commercial document issued";
     case "commercial.document_sent":
       return "Commercial document delivered";
+    case "commercial.document_delivery_skipped_no_token":
+      return "Document delivery skipped (no quote token)";
+    case "commercial.document_delivery_skipped_no_conv":
+      return "Document delivery skipped (no conversation id)";
+    case "commercial.document_delivery_skipped_conv_missing":
+      return "Document delivery skipped (conversation not found)";
+    case "commercial.document_delivery_skipped_no_user_id":
+      return "Document delivery skipped (no LINE user id)";
     case "commercial.payment_confirmed":
       return "Payment confirmed";
     case "job.status_changed":
@@ -437,6 +449,23 @@ function getOpsDetail(actionType: string | null | undefined, note: string | null
       asString(payload?.document_type),
       asString(payload?.line_user_id) ? `user ${compactId(asString(payload?.line_user_id), 6, 4)}` : null,
       note,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+  }
+
+  if (actionType?.startsWith("commercial.document_delivery_skipped")) {
+    return [
+      asString(payload?.document_number),
+      asString(payload?.document_type),
+      asString(payload?.skip_reason)?.replace(/_/g, " "),
+      asString(payload?.conversation_id)
+        ? `conv ${compactId(asString(payload?.conversation_id), 8, 6)}`
+        : null,
+      asString(payload?.line_user_id)
+        ? `user ${compactId(asString(payload?.line_user_id), 6, 4)}`
+        : null,
+      asString(payload?.detail),
     ]
       .filter(Boolean)
       .join(" | ");

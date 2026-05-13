@@ -50,6 +50,10 @@ export type ActionType =
   | "quote.rejected"
   | "quote.commercial_updated"
   // Commercial
+  | "commercial.document_delivery_skipped_no_token"
+  | "commercial.document_delivery_skipped_no_conv"
+  | "commercial.document_delivery_skipped_conv_missing"
+  | "commercial.document_delivery_skipped_no_user_id"
   | "commercial.document_sent"
   // Job
   | "job.created"
