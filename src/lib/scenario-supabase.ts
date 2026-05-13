@@ -69,6 +69,7 @@ class ScenarioQueryBuilder implements PromiseLike<QueryResult<unknown>> {
   ) {}
 
   select(_columns?: string) {
+    void _columns;
     return this;
   }
 
