@@ -93,6 +93,7 @@ declare global {
       getOS?: () => string;
       requestFriendship: () => Promise<{ friendFlag: boolean }>;
       closeWindow: () => void;
+      openWindow?: (config: { url: string; external?: boolean }) => void;
       isInClient: () => boolean;
       $commonProfile?: {
         get: (
@@ -2413,8 +2414,27 @@ export default function IntakeForm({
                       {uploadUrl ? (
                         <a
                           href={uploadUrl}
-                          target="_blank"
                           rel="noreferrer"
+                          onClick={(event) => {
+                            // Inside LIFF WebView, target="_blank" breaks the LIFF session.
+                            // Use liff.openWindow({ external: true }) to open in the system
+                            // browser without losing the LIFF context. Fallback to default
+                            // navigation if SDK is not available (non-LIFF preview).
+                            if (
+                              typeof window !== "undefined" &&
+                              window.liff?.openWindow
+                            ) {
+                              event.preventDefault();
+                              try {
+                                window.liff.openWindow({
+                                  url: uploadUrl,
+                                  external: true,
+                                });
+                              } catch {
+                                window.location.href = uploadUrl;
+                              }
+                            }
+                          }}
                           className="flex min-h-28 flex-col items-center justify-center rounded-xl border border-stone-200 bg-white/80 px-4 py-4 text-center text-sm font-semibold text-stone-800 transition hover:border-stone-300 hover:bg-white"
                         >
                           <FileText className="mb-2 size-6" aria-hidden="true" />

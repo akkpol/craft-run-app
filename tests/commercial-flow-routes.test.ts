@@ -304,4 +304,197 @@ describe("commercial flow route confirmation", () => {
     expect(rpc).not.toHaveBeenCalled();
     expect(mockLogHumanAction).not.toHaveBeenCalled();
   });
+
+  /**
+   * Helper: build a Supabase mock for the payments/confirm route where the
+   * caller can override any of the four tables the route reads. Centralises
+   * the boilerplate so each launch-blocker scenario stays compact and reads
+   * like a state declaration.
+   */
+  function buildPaymentsConfirmSupabase(overrides: {
+    payment?: Record<string, unknown> | null;
+    commercialOrder?: Record<string, unknown> | null;
+    quotePaymentRecord?: Record<string, unknown> | null;
+    commercialEntity?: Record<string, unknown> | null;
+  }) {
+    const payment =
+      overrides.payment === null
+        ? null
+        : {
+            id: "payment-1",
+            order_id: "order-1",
+            receiver_entity_id: "entity-main",
+            status: "PENDING",
+            amount: 1000,
+            ...overrides.payment,
+          };
+    const commercialOrder =
+      overrides.commercialOrder === null
+        ? null
+        : {
+            id: "order-1",
+            quote_id: "quote-1",
+            selected_receiver_entity_id: "entity-main",
+            payment_receiver_locked_at: null,
+            ...overrides.commercialOrder,
+          };
+    const commercialEntity =
+      overrides.commercialEntity === null
+        ? null
+        : {
+            id: "entity-main",
+            active: true,
+            ...overrides.commercialEntity,
+          };
+
+    return {
+      from: vi.fn((table: string) => {
+        if (table === "payments") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi
+                  .fn()
+                  .mockResolvedValue({ data: payment, error: null }),
+              })),
+            })),
+            update: vi.fn(() => ({ eq: vi.fn() })),
+          };
+        }
+
+        if (table === "commercial_orders") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi
+                  .fn()
+                  .mockResolvedValue({ data: commercialOrder, error: null }),
+              })),
+            })),
+            update: vi.fn(() => ({ eq: vi.fn() })),
+          };
+        }
+
+        if (table === "quote_payment_records") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: overrides.quotePaymentRecord ?? null,
+                  error: null,
+                }),
+              })),
+            })),
+          };
+        }
+
+        if (table === "commercial_entities") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi
+                  .fn()
+                  .mockResolvedValue({ data: commercialEntity, error: null }),
+              })),
+            })),
+          };
+        }
+
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+  }
+
+  async function callPaymentsConfirm() {
+    const { POST } = await import("../src/app/api/payments/confirm/route.ts");
+    return POST(
+      new NextRequest("http://localhost/api/payments/confirm", {
+        method: "POST",
+        body: JSON.stringify({ paymentId: "payment-1" }),
+      })
+    );
+  }
+
+  // C4 — Prepaid customer paid less than amount_due. FIX-1 must reject with
+  // PAYMENT_AMOUNT_UNDERPAID rather than silently confirming. Without this
+  // guard, a partial transfer would lock the receiver and unlock production.
+  it("rejects a prepaid payment whose amount is less than amount_due (C4)", async () => {
+    mockCreateAdminClient.mockReturnValue(
+      buildPaymentsConfirmSupabase({
+        payment: { amount: 800 },
+        quotePaymentRecord: {
+          amount_due: 1000,
+          payment_terms: "prepaid",
+        },
+      })
+    );
+
+    const response = await callPaymentsConfirm();
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body.error).toBe("PAYMENT_AMOUNT_UNDERPAID");
+    expect(mockLogHumanAction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ entityId: "quote-1" })
+    );
+  });
+
+  // C5 — Prepaid customer overpaid (e.g. wrong manual entry). The route must
+  // block overpayment too so the operator decides explicitly whether to refund
+  // or accept; silently confirming an over-amount would distort accounting.
+  it("rejects a prepaid payment whose amount exceeds amount_due (C5)", async () => {
+    mockCreateAdminClient.mockReturnValue(
+      buildPaymentsConfirmSupabase({
+        payment: { amount: 1200 },
+        quotePaymentRecord: {
+          amount_due: 1000,
+          payment_terms: "prepaid",
+        },
+      })
+    );
+
+    const response = await callPaymentsConfirm();
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body.error).toBe("PAYMENT_AMOUNT_OVERPAID");
+  });
+
+  // C6 — Money entered entity A but the order had entity B selected. This
+  // breaks the "เงินเข้าใคร = เอกสารออกชื่อนั้น" invariant and must be
+  // rejected before locking the receiver. The check fires from
+  // validatePaymentConfirm and runs before the amount validation, so we do
+  // not even need a quote_payment_records row here.
+  it("rejects payment when receiver entity does not match the order's selected receiver (C6)", async () => {
+    mockCreateAdminClient.mockReturnValue(
+      buildPaymentsConfirmSupabase({
+        payment: { receiver_entity_id: "entity-secondary" },
+        commercialOrder: { selected_receiver_entity_id: "entity-main" },
+      })
+    );
+
+    const response = await callPaymentsConfirm();
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body.error).toBe("PAYMENT_RECEIVER_MISMATCH");
+  });
+
+  // C7 — Receiver entity exists but has been marked inactive (e.g. a closed
+  // bank account). Even if everything else matches, confirming would lock
+  // money into an unusable account. Must reject with RECEIVER_ENTITY_INACTIVE.
+  it("rejects payment when the receiver entity is inactive (C7)", async () => {
+    mockCreateAdminClient.mockReturnValue(
+      buildPaymentsConfirmSupabase({
+        commercialEntity: { active: false },
+      })
+    );
+
+    const response = await callPaymentsConfirm();
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body.error).toBe("RECEIVER_ENTITY_INACTIVE");
+  });
 });

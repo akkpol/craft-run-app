@@ -430,12 +430,15 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
                 {Array.isArray(lead?.ai_generated_images) && lead.ai_generated_images.length > 0 ? (
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {lead.ai_generated_images.map((imageUrl: string) => (
+                      // Avoid target="_blank" — customer is in LINE's in-app
+                      // browser; spawning a new tab loses the status page and
+                      // can launch a system browser that breaks the LINE flow.
+                      // Opening in the same tab lets them use the back button.
                       <a
                         key={imageUrl}
                         href={imageUrl}
-                        target="_blank"
                         rel="noreferrer"
-                        aria-label="เปิดภาพตัวอย่างแบบในแท็บใหม่"
+                        aria-label="เปิดภาพตัวอย่างแบบขนาดเต็ม"
                         className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
                       >
                         <Image
