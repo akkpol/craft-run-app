@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAiImageRuntimeConfig, type AppSettingsRow } from "@/lib/app-settings";
 import { buildLeadAiPreviewStoragePath } from "@/lib/asset-storage-paths";
+import { uploadPublicObjectToR2 } from "@/lib/customer-media-storage";
 import { generateGoogleAiStudioImage } from "./ai-google-studio";
 
 type LeadAiGenerationInput = {
@@ -46,11 +47,23 @@ async function uploadGeneratedImage(
   fileBytes: Uint8Array,
   contentType = "image/png"
 ): Promise<string> {
-  const supabase = createAdminClient();
   const filePath = buildLeadAiPreviewStoragePath(
     leadId,
     getImageExtensionFromContentType(contentType)
   );
+
+  // Prefer R2 public bucket: free egress + stable URL (required for LINE push messages).
+  // Falls back to Supabase app-assets when CLOUDFLARE_R2_* or CLOUDFLARE_R2_PUBLIC_URL
+  // env vars are not set.
+  const r2Url = await uploadPublicObjectToR2({
+    storagePath: filePath,
+    bytes: fileBytes,
+    contentType,
+  });
+  if (r2Url) return r2Url;
+
+  // Fallback: Supabase app-assets (dev/environments without R2 configured).
+  const supabase = createAdminClient();
   const { error } = await supabase.storage
     .from(APP_ASSETS_BUCKET)
     .upload(filePath, fileBytes, {
