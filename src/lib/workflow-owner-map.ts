@@ -70,7 +70,7 @@ export const WORKFLOW_OWNER_MAP = {
       kind: "action",
     },
     supportingSurfaces: [
-      { href: "/admin/liff-monitor", label: "LIFF monitor", kind: "reference" },
+      { href: "/admin/liff-monitor", label: "LINE Ops Console", kind: "reference" },
     ],
     customerActions: [],
     internalActions: ["inspect_intake_context"],
@@ -263,7 +263,7 @@ export const WORKFLOW_OWNER_MAP = {
       kind: "action",
     },
     supportingSurfaces: [
-      { href: "/admin/liff-monitor", label: "LIFF monitor", kind: "reference" },
+      { href: "/admin/liff-monitor", label: "LINE Ops Console", kind: "reference" },
       { href: "/flow", label: "Workflow policy reference", kind: "reference" },
     ],
     customerActions: ["contact_admin"],

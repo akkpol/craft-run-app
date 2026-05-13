@@ -43,12 +43,15 @@ This runbook covers day-to-day incident triage, scheduled maintenance, and emerg
 
 ### 2c. LIFF Intake Form Not Loading
 
-1. Open LINE app → follow LIFF link → note the error shown in the MINI App webview.
-2. Common errors:
+1. Open `<base-url>/api/liff/health` first. If any check fails, fix the reported runtime/config issue before debugging the LIFF form itself.
+2. Open LINE Ops Console (`/admin/liff-monitor`) and review the readiness panel plus recent incident stages.
+3. Open LINE app → follow LIFF link → note the error shown in the MINI App webview.
+4. Common errors:
    - `LIFF_ID is invalid` → `LIFF_ID`/`NEXT_PUBLIC_LIFF_ID` env var mismatch with LINE console. Update env vars and redeploy.
    - `Not in LINE environment` → user is accessing the URL in a browser, not LINE — expected behavior, not a bug.
    - Blank page → check Vercel logs for runtime errors at `/liff`.
-3. Confirm LIFF endpoint in LINE Developers console is `<base-url>/liff` (not `/liff/intake`).
+5. Confirm LIFF endpoint in LINE Developers console is `<base-url>/liff` (not `/liff/intake`).
+6. Treat desktop browser checks as smoke only. A real production sign-off still needs LINE app / LIFF WebView proof.
 
 ### 2d. Quote/Status Page Returning 404 or Error
 
@@ -313,15 +316,17 @@ If `LINE_CHANNEL_SECRET` is rotated (see handoff package Section 7):
 
 1. Update `LINE_CHANNEL_SECRET` in Vercel env vars immediately.
 2. Trigger a Vercel redeploy immediately (see Section 3 above).
-3. Go to LINE Developers → Messaging API → **Verify** webhook URL to confirm the new secret is accepted.
-4. Send a test LINE message to confirm end-to-end delivery.
+3. Run `npm run check:liff-health` or open `<base-url>/api/liff/health` and confirm the runtime checks pass again.
+4. Go to LINE Developers → Messaging API → **Verify** webhook URL to confirm the new secret is accepted.
+5. Send a test LINE message to confirm end-to-end delivery.
 
 If `LIFF_ID` changes (e.g. channel migration):
 
 1. Update `LIFF_ID` and `NEXT_PUBLIC_LIFF_ID` in Vercel env vars.
 2. Trigger a Vercel redeploy.
-3. Go to LINE Developers → LIFF → confirm endpoint URL is still `<base-url>/liff`.
-4. Test the LIFF link from LINE to confirm intake form loads.
+3. Run `npm run check:liff-health` or open `<base-url>/api/liff/health` and confirm the runtime checks pass again.
+4. Go to LINE Developers → LIFF → confirm endpoint URL is still `<base-url>/liff`.
+5. Test the LIFF link from LINE to confirm intake form loads.
 
 ---
 

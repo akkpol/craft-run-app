@@ -67,12 +67,6 @@ const primaryItems = [
   },
 
   {
-    title: "LIFF / Intake",
-    href: "/admin/liff-monitor",
-    icon: SmartphoneIcon,
-    isActive: (pathname: string) => pathname.startsWith("/admin/liff-monitor"),
-  },
-  {
     title: "เอกสาร / การเงิน",
     href: "/admin/accounting",
     icon: ScrollTextIcon,
@@ -95,6 +89,15 @@ const primaryItems = [
     href: "/admin/profile",
     icon: CircleUserRoundIcon,
     isActive: (pathname: string) => pathname.startsWith("/admin/profile"),
+  },
+] as const;
+
+const maintenanceItems = [
+  {
+    title: "LINE Ops Console",
+    href: "/admin/liff-monitor",
+    icon: SmartphoneIcon,
+    isActive: (pathname: string) => pathname.startsWith("/admin/liff-monitor"),
   },
 ] as const;
 
@@ -155,6 +158,30 @@ export default function AdminSidebar({ user }: AdminSidebarProps) {
           <SidebarGroupContent>
             <SidebarMenu>
               {primaryItems.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={item.isActive(pathname)} tooltip={item.title}>
+                      <Link href={item.href} prefetch={false}>
+                        <Icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarSeparator />
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Maintenance</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {maintenanceItems.map((item) => {
                 const Icon = item.icon;
 
                 return (

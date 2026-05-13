@@ -14,6 +14,7 @@ const PUBLIC_ROUTE_PREFIXES = [
   '/api/webhook',
   '/api/intake',
   '/api/customers/prefill',
+  '/api/liff/health',
   '/api/liff/validation-report',
   '/api/quotes/',
   '/api/production/',

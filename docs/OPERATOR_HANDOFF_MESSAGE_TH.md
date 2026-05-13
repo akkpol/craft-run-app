@@ -133,7 +133,7 @@ docs/OPERATOR_EVIDENCE_CAPTURE_CHECKLIST.md
 4) LIFF-VAL-008 runtime catalog: product picker ต้องโหลด runtime catalog ได้ และหน้า quote/status/download ต้องแสดง product label แบบอ่านได้ ไม่ใช่ slug ดิบ
 5) COMMERCIAL-POLICY-HANDOFF: ยืนยันว่า commercial documents defer หลัง launch ได้ หรือ required before GO
 
-ถ้า LIFF พังก่อน submit หรือไม่แน่ใจว่า request ไปถึง server หรือไม่ ให้เช็ก /admin/liff-monitor ก่อนเป็นจุดแรก
+ถ้า LIFF พังก่อน submit หรือไม่แน่ใจว่า request ไปถึง server หรือไม่ ให้เช็ก LINE Ops Console (`/admin/liff-monitor`) ก่อนเป็นจุดแรก
 
 หมายเหตุ commercial documents: quote PDF ไม่ใช่ invoice/receipt/tax invoice และ LIFF-VAL-007 เป็นแค่ intake validation ไม่ใช่การออกใบกำกับภาษีจริง
 

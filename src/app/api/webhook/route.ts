@@ -274,6 +274,23 @@ export async function POST(request: NextRequest) {
           // Profile fetch can fail for users who haven't added as friend
         }
 
+        await logSystemAction(supabase, {
+          entityType: "conversation",
+          entityId: conversationId,
+          actionType: "line.webhook_received",
+          serviceName: "webhook",
+          note: "Received inbound LINE text message",
+          payload: {
+            line_user_id: userId,
+            message_id: event.message.id,
+            message_type: "text",
+            message_length: messageText.length,
+            reply_token_present: Boolean(event.replyToken),
+            conversation_state: conversationState,
+            reused_conversation: reusedConversation,
+          },
+        });
+
         // 3d. Check for escalation keywords
         const escalationKeywords = [
           "คุยกับคน",
@@ -321,30 +338,98 @@ export async function POST(request: NextRequest) {
           });
 
           if (event.replyToken) {
-            await lineClient.replyMessage({
-              replyToken: event.replyToken,
-              messages: [
-                {
-                  type: "text",
-                  text: "ขอบคุณค่ะ ทีมงานจะติดต่อกลับโดยเร็วที่สุดนะคะ 🙏",
+            try {
+              await lineClient.replyMessage({
+                replyToken: event.replyToken,
+                messages: [
+                  {
+                    type: "text",
+                    text: "ขอบคุณค่ะ ทีมงานจะติดต่อกลับโดยเร็วที่สุดนะคะ 🙏",
+                  },
+                ],
+              });
+
+              await logSystemAction(supabase, {
+                entityType: "conversation",
+                entityId: conversationId,
+                actionType: "line.reply_sent",
+                serviceName: "webhook",
+                note: "Sent escalation acknowledgement",
+                payload: {
+                  channel: "reply",
+                  flow: "support",
+                  reply_variant: "escalation_ack",
+                  line_user_id: userId,
+                  conversation_state: "HUMAN_REVIEW_REQUIRED",
                 },
-              ],
-            });
+              });
+            } catch (error) {
+              await logSystemAction(supabase, {
+                entityType: "conversation",
+                entityId: conversationId,
+                actionType: "line.reply_failed",
+                serviceName: "webhook",
+                note: "Failed to send escalation acknowledgement",
+                payload: {
+                  channel: "reply",
+                  flow: "support",
+                  reply_variant: "escalation_ack",
+                  line_user_id: userId,
+                  conversation_state: "HUMAN_REVIEW_REQUIRED",
+                  error_message: error instanceof Error ? error.message : String(error),
+                },
+              });
+              throw error;
+            }
           }
           continue;
         }
 
         if (conversationState === "HUMAN_REVIEW_REQUIRED") {
           if (event.replyToken) {
-            await lineClient.replyMessage({
-              replyToken: event.replyToken,
-              messages: [
-                {
-                  type: "text",
-                  text: "ทีมงานได้รับเรื่องแล้ว ตอนนี้กำลังตรวจสอบและจะติดต่อกลับโดยเร็วที่สุดค่ะ",
+            try {
+              await lineClient.replyMessage({
+                replyToken: event.replyToken,
+                messages: [
+                  {
+                    type: "text",
+                    text: "ทีมงานได้รับเรื่องแล้ว ตอนนี้กำลังตรวจสอบและจะติดต่อกลับโดยเร็วที่สุดค่ะ",
+                  },
+                ],
+              });
+
+              await logSystemAction(supabase, {
+                entityType: "conversation",
+                entityId: conversationId,
+                actionType: "line.reply_sent",
+                serviceName: "webhook",
+                note: "Sent human review pending acknowledgement",
+                payload: {
+                  channel: "reply",
+                  flow: "support",
+                  reply_variant: "human_review_pending",
+                  line_user_id: userId,
+                  conversation_state: conversationState,
                 },
-              ],
-            });
+              });
+            } catch (error) {
+              await logSystemAction(supabase, {
+                entityType: "conversation",
+                entityId: conversationId,
+                actionType: "line.reply_failed",
+                serviceName: "webhook",
+                note: "Failed to send human review pending acknowledgement",
+                payload: {
+                  channel: "reply",
+                  flow: "support",
+                  reply_variant: "human_review_pending",
+                  line_user_id: userId,
+                  conversation_state: conversationState,
+                  error_message: error instanceof Error ? error.message : String(error),
+                },
+              });
+              throw error;
+            }
           }
           continue;
         }

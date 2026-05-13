@@ -130,7 +130,7 @@ Recommended primary navigation:
 | --- | --- | --- |
 | Backoffice | CRM Inbox | makes `/admin` read as the main operational inbox |
 | Follow Up | Customer Waiting | emphasizes customer-owned blockers/SLA |
-| LIFF Monitor | Intake Ops | treats LIFF as one intake adapter, not a silo |
+| LINE Ops Console | Intake Ops | treats LIFF as one intake adapter inside a broader operator incident console |
 | Accounting | Finance & Documents | makes payment/commercial gate/document work explicit |
 | Profile | Teams & Profiles | clarifies that this surface is about actor profiles, not only the current user |
 

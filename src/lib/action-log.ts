@@ -30,6 +30,12 @@ export type ActionType =
   | "conversation.created"
   | "conversation.state_changed"
   | "conversation.escalated"
+  // LINE ops
+  | "line.webhook_received"
+  | "line.reply_sent"
+  | "line.reply_failed"
+  | "line.push_sent"
+  | "line.push_failed"
   // Message
   | "message.unsent"
   // Lead / Intake
@@ -43,6 +49,8 @@ export type ActionType =
   | "quote.approved"
   | "quote.rejected"
   | "quote.commercial_updated"
+  // Commercial
+  | "commercial.document_sent"
   // Job
   | "job.created"
   | "job.status_changed"

@@ -93,7 +93,7 @@ Owner impact: not user-visible in the tested pages and likely caused by rapid ro
 
 What works:
 
-- The left navigation is structurally clear: CRM, manual intake, customers, follow-up, LIFF monitor, accounting, prompt/AI, staff, profile, settings, and flow are all reachable from one place.
+- The left navigation is structurally clear: CRM, manual intake, customers, follow-up, LINE Ops Console, accounting, prompt/AI, staff, profile, settings, and flow are all reachable from one place.
 - `/admin` gives a good owner-level summary: total active work, auto-flow count, manual-decision count, customer-waiting count, and commercial-gate count.
 - The dashboard shortcuts match the real operating areas instead of generic analytics-only cards.
 
@@ -144,14 +144,14 @@ What currently supports that model:
 
 - Dashboard already separates `ไหลต่ออัตโนมัติ` from `ต้องให้คนตัดสินใจ`, which is the right operating model.
 - Commercial gate count can hit zero, meaning payment/doc lock is not always blocking.
-- LIFF monitor exists, so failures can be inspected without guessing from customer complaints only.
+- LINE Ops Console exists, so failures can be inspected without guessing from customer complaints only.
 
 What still blocks a true minimal-human flow:
 
 - `/admin/follow-up` is explicitly manual. A user must preview recipients, tick a confirmation box, then send follow-up. This is not auto-chase yet.
 - `/admin/prompts` is explicitly manual. A user still has to choose whether to edit prompt and when to generate preview.
 - `/admin/accounting` is still a review/export surface, not an auto-close commercial document engine. It is good for control, but not “lights out” automation.
-- `/admin/liff-monitor` shows incident review and debugging surfaces, which is good operationally, but also confirms that LIFF issues are still expected to be handled by people.
+- LINE Ops Console (`/admin/liff-monitor`) shows incident review and debugging surfaces, which is good operationally, but also confirms that LIFF issues are still expected to be handled by people.
 - The queue model on `/admin` shows `ต้องให้คนตัดสินใจ = 7` in the reviewed session. That is too high if the intended operating model is nearly fully automatic.
 
 Minimal-human conclusion:

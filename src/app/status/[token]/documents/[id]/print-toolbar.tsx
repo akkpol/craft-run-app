@@ -1,0 +1,27 @@
+"use client";
+
+import Link from "next/link";
+import { ArrowLeft, Download } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+
+export default function CustomerCommercialDocumentPrintToolbar({
+  statusHref,
+}: {
+  statusHref: string;
+}) {
+  return (
+    <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end print:hidden">
+      <Button asChild variant="outline" className="w-full sm:w-auto">
+        <Link href={statusHref}>
+          <ArrowLeft className="size-4" />
+          กลับไปหน้าสถานะงาน
+        </Link>
+      </Button>
+      <Button type="button" onClick={() => window.print()} className="w-full sm:w-auto">
+        <Download className="size-4" />
+        ดาวน์โหลด / พิมพ์ PDF
+      </Button>
+    </div>
+  );
+}
