@@ -1,3 +1,7 @@
+"use client"
+
+import { type ComponentPropsWithoutRef, useState } from 'react'
+
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,11 +13,12 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 
 import { loginWithPasswordAction } from '@/app/auth/login/actions'
 
-type LoginFormProps = React.ComponentPropsWithoutRef<'div'> & {
+type LoginFormProps = ComponentPropsWithoutRef<'div'> & {
   message?: string | null
   redirectTo?: string
 }
@@ -24,6 +29,8 @@ export function LoginForm({
   redirectTo = '/admin',
   ...props
 }: LoginFormProps) {
+  const [showPassword, setShowPassword] = useState(false)
+
   return (
     <div className={cn('flex flex-col gap-6', className)} {...props}>
       <Card>
@@ -56,13 +63,28 @@ export function LoginForm({
                     Forgot your password?
                   </Link>
                 </div>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    className="pr-11"
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-controls="password"
+                    aria-pressed={showPassword}
+                    onClick={() => setShowPassword((current) => !current)}
+                  >
+                    {showPassword ? <EyeOff /> : <Eye />}
+                  </Button>
+                </div>
               </div>
               {message ? (
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
