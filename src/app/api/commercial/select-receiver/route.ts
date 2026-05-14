@@ -186,12 +186,67 @@ export async function POST(request: NextRequest) {
   }
 
   const now = new Date().toISOString();
+
+  let customerTaxProfileId: string | null = null;
+  const { data: orderWithProfile } = await supabase
+    .from("commercial_orders")
+    .select("customer_tax_profile_id, customer_id, quote_id")
+    .eq("id", order.id)
+    .maybeSingle();
+
+  if (!orderWithProfile?.customer_tax_profile_id && orderWithProfile?.customer_id) {
+    const { data: leadForProfile } = await supabase
+      .from("quotes")
+      .select(
+        "leads(requested_document_type, billing_name, tax_id, billing_address, billing_branch_type, billing_branch_code)"
+      )
+      .eq("id", orderWithProfile.quote_id)
+      .maybeSingle();
+    const leadRow = Array.isArray(leadForProfile?.leads)
+      ? leadForProfile?.leads[0]
+      : leadForProfile?.leads;
+
+    if (
+      leadRow?.requested_document_type === "tax_invoice" &&
+      leadRow?.billing_name &&
+      leadRow?.billing_address
+    ) {
+      const { data: insertedProfile, error: profileInsertError } = await supabase
+        .from("customer_tax_profiles")
+        .insert({
+          customer_id: orderWithProfile.customer_id,
+          legal_name: leadRow.billing_name,
+          tax_id: leadRow.tax_id || null,
+          address: leadRow.billing_address,
+          branch_type:
+            leadRow.billing_branch_type === "branch" ? "BRANCH" : "HEAD_OFFICE",
+          branch_code: leadRow.billing_branch_code || null,
+        })
+        .select("id")
+        .single();
+
+      if (profileInsertError) {
+        console.error(
+          "[select-receiver] Failed to create customer tax profile:",
+          profileInsertError.message
+        );
+      } else if (insertedProfile) {
+        customerTaxProfileId = insertedProfile.id;
+      }
+    }
+  }
+
+  const updatePayload: Record<string, unknown> = {
+    selected_receiver_entity_id: receiverEntityId,
+    updated_at: now,
+  };
+  if (customerTaxProfileId) {
+    updatePayload.customer_tax_profile_id = customerTaxProfileId;
+  }
+
   const { error: updateError } = await supabase
     .from("commercial_orders")
-    .update({
-      selected_receiver_entity_id: receiverEntityId,
-      updated_at: now,
-    })
+    .update(updatePayload)
     .eq("id", order.id);
 
   if (updateError) {
@@ -210,6 +265,7 @@ export async function POST(request: NextRequest) {
       order_id: order.id,
       receiver_entity_id: receiverEntityId,
       previous_receiver_entity_id: order.selected_receiver_entity_id || null,
+      customer_tax_profile_id: customerTaxProfileId,
     },
   });
 
@@ -217,5 +273,6 @@ export async function POST(request: NextRequest) {
     success: true,
     orderId: order.id,
     receiverEntityId,
+    customerTaxProfileId,
   });
 }
