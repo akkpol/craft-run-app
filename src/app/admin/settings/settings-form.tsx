@@ -624,12 +624,14 @@ export default function SettingsForm({
   const [uploadingAsset, setUploadingAsset] = useState<"" | SettingsAssetType>("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
   const [diagnosticsCheckedAt, setDiagnosticsCheckedAt] = useState<string | null>(null);
   const [importingCatalog, setImportingCatalog] = useState(false);
   const [catalogImportMessage, setCatalogImportMessage] = useState("");
   const [catalogImportError, setCatalogImportError] = useState("");
   const [catalogImportSummary, setCatalogImportSummary] =
     useState<ProductCatalogImportResult | null>(null);
+  const [catalogReloadKey, setCatalogReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -644,13 +646,14 @@ export default function SettingsForm({
 
         setForm(nextState);
         setDiagnosticsCheckedAt(new Date().toISOString());
+        setWarning("");
         setError("");
       } catch {
         if (cancelled) {
           return;
         }
 
-        setError("โหลดข้อมูลตั้งค่าไม่สำเร็จ");
+        showError("โหลดข้อมูลตั้งค่าไม่สำเร็จ");
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -669,8 +672,33 @@ export default function SettingsForm({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function clearFeedback() {
+    setMessage("");
+    setError("");
+    setWarning("");
+  }
+
+  function showError(nextError: string) {
+    setError(nextError);
+    setMessage("");
+    setWarning("");
+  }
+
+  function showMessage(nextMessage: string) {
+    setMessage(nextMessage);
+    setError("");
+    setWarning("");
+  }
+
+  function showWarning(nextWarning: string) {
+    setWarning(nextWarning);
+    setMessage("");
+    setError("");
+  }
+
   async function handleRefreshDiagnostics() {
     setRefreshingDiagnostics(true);
+    setWarning("");
     setError("");
 
     try {
@@ -682,7 +710,7 @@ export default function SettingsForm({
       }));
       setDiagnosticsCheckedAt(new Date().toISOString());
     } catch {
-      setError("รีเฟรช diagnostics ไม่สำเร็จ");
+      showError("รีเฟรช diagnostics ไม่สำเร็จ");
     } finally {
       setRefreshingDiagnostics(false);
     }
@@ -692,8 +720,7 @@ export default function SettingsForm({
     if (!file) return;
 
     setUploadingAsset(assetType);
-    setMessage("");
-    setError("");
+    clearFeedback();
 
     try {
       const formData = new FormData();
@@ -707,7 +734,7 @@ export default function SettingsForm({
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "อัปโหลดไฟล์ไม่สำเร็จ");
+        showError(data.error || "อัปโหลดไฟล์ไม่สำเร็จ");
         return;
       }
 
@@ -740,9 +767,9 @@ export default function SettingsForm({
         }));
       }
 
-      setMessage("อัปโหลดไฟล์เรียบร้อยแล้ว");
+      showMessage("อัปโหลดไฟล์เรียบร้อยแล้ว");
     } catch {
-      setError("อัปโหลดไฟล์ไม่สำเร็จ");
+      showError("อัปโหลดไฟล์ไม่สำเร็จ");
     } finally {
       setUploadingAsset("");
     }
@@ -760,24 +787,22 @@ export default function SettingsForm({
 
   async function copySettingValue(value: string, label: string) {
     if (!value) {
-      setError(`ยังไม่มีค่า ${label} ให้คัดลอก`);
+      showError(`ยังไม่มีค่า ${label} ให้คัดลอก`);
       return;
     }
 
     try {
       await navigator.clipboard.writeText(value);
-      setMessage(`คัดลอก ${label} แล้ว`);
-      setError("");
+      showMessage(`คัดลอก ${label} แล้ว`);
     } catch {
-      setError(`คัดลอก ${label} ไม่สำเร็จ`);
+      showError(`คัดลอก ${label} ไม่สำเร็จ`);
     }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
-    setMessage("");
-    setError("");
+    clearFeedback();
 
     try {
       const res = await fetch("/api/settings", {
@@ -788,29 +813,58 @@ export default function SettingsForm({
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "บันทึกไม่สำเร็จ");
+        showError(data.error || "บันทึกไม่สำเร็จ");
         return;
       }
 
       const saveResult = data as { success: true; warning?: string; droppedGroups?: string[] };
+      const schemaFallbackMessage =
+        saveResult.warning === "SCHEMA_FALLBACK_OCCURRED"
+          ? `บันทึกบางส่วนไม่ครบ: DB ขาด columns สำหรับ ${saveResult.droppedGroups?.join(", ") ?? "payment"} — ตรวจสอบ migration`
+          : "";
 
-      const refreshed = await fetchSettingsState();
-      setForm({
-        ...refreshed,
-        aiImageApiKey: "",
-        lineChannelAccessToken: "",
-        lineChannelSecret: "",
+      setForm((prev) => {
+        const normalizedBaseUrl = normalizeBaseUrl(prev.baseUrl || "");
+
+        return {
+          ...prev,
+          webhookUrl: buildDerivedLineUrl(normalizedBaseUrl, "/api/webhook"),
+          liffEndpointUrl: buildDerivedLineUrl(normalizedBaseUrl, "/liff"),
+          updatedAt: new Date().toISOString(),
+          hasAiImageApiKey: prev.hasAiImageApiKey || Boolean(prev.aiImageApiKey),
+          hasLineChannelAccessToken:
+            prev.hasLineChannelAccessToken || Boolean(prev.lineChannelAccessToken.trim()),
+          hasLineChannelSecret:
+            prev.hasLineChannelSecret || Boolean(prev.lineChannelSecret.trim()),
+          aiImageApiKey: "",
+          lineChannelAccessToken: "",
+          lineChannelSecret: "",
+        };
       });
 
-      if (saveResult.warning === "SCHEMA_FALLBACK_OCCURRED") {
-        setError(
-          `บันทึกบางส่วนไม่ครบ: DB ขาด columns สำหรับ ${saveResult.droppedGroups?.join(", ") ?? "payment"} — ตรวจสอบ migration`
-        );
-      } else {
-        setMessage("บันทึกการตั้งค่าเรียบร้อยแล้ว");
+      try {
+        const refreshed = await fetchSettingsState();
+        setForm({
+          ...refreshed,
+          aiImageApiKey: "",
+          lineChannelAccessToken: "",
+          lineChannelSecret: "",
+        });
+
+        if (schemaFallbackMessage) {
+          showWarning(schemaFallbackMessage);
+        } else {
+          showMessage("บันทึกการตั้งค่าเรียบร้อยแล้ว");
+        }
+      } catch {
+        if (schemaFallbackMessage) {
+          showWarning(`${schemaFallbackMessage} และรีเฟรชค่าล่าสุดไม่สำเร็จ`);
+        } else {
+          showWarning("บันทึกการตั้งค่าแล้ว แต่รีเฟรชค่าล่าสุดไม่สำเร็จ");
+        }
       }
     } catch {
-      setError("บันทึกไม่สำเร็จ");
+      showError("บันทึกไม่สำเร็จ");
     } finally {
       setSaving(false);
     }
@@ -825,6 +879,7 @@ export default function SettingsForm({
     setCatalogImportMessage("");
     setCatalogImportError("");
     setCatalogImportSummary(null);
+    setWarning("");
 
     try {
       const formData = new FormData();
@@ -853,6 +908,7 @@ export default function SettingsForm({
         activeCount: Number(data.activeCount) || 0,
         generatedValueCount: Number(data.generatedValueCount) || 0,
       });
+      setCatalogReloadKey((prev) => prev + 1);
       setCatalogImportMessage(
         `นำเข้า catalog สำเร็จ ${Number(data.importedCount) || 0} รายการ`
       );
@@ -1592,7 +1648,7 @@ export default function SettingsForm({
             <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-[11px]">ขั้นต่ำ</code>
             แล้วกดบันทึกที่ปลายแถว — ระบบจะใช้ราคาใหม่ทันทีโดยไม่ต้อง re-upload CSV
           </p>
-          <CatalogItemsTable reloadKey={catalogImportSummary?.importedCount ?? 0} />
+          <CatalogItemsTable reloadKey={catalogReloadKey} />
         </div>
       </section>
 
@@ -1891,6 +1947,8 @@ export default function SettingsForm({
         <div className="min-w-0 flex-1">
           {error ? (
             <p className="truncate text-sm text-red-600">{error}</p>
+          ) : warning ? (
+            <p className="truncate text-sm text-amber-700">{warning}</p>
           ) : message ? (
             <p className="truncate text-sm text-green-700">{message}</p>
           ) : form.updatedAt ? (

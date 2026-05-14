@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { logHumanAction, logSystemAction } from "@/lib/action-log";
+import { getRuntimeAppConfig } from "@/lib/app-settings";
 import {
   buildCommercialDocumentDeliverySkipAudit,
   buildCommercialDocumentIssueFailureAudit,
 } from "@/lib/commercial-audit";
+import { resolveCommercialDocumentAppendixSnapshot } from "@/lib/commercial-document-appendix";
 import { buildCommercialDocumentIssuePlan } from "@/lib/commercial-document-issue";
 import { pushCommercialDocumentLink } from "@/lib/line";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -314,17 +316,12 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  const leadImages = Array.isArray(lead.ai_generated_images) ? lead.ai_generated_images : [];
-  const perOrderImageUrl = leadImages.find(
-    (url: unknown): url is string => typeof url === "string" && url.length > 0
-  ) ?? null;
-  const documentAppendix = perOrderImageUrl
-    ? {
-        image_url: perOrderImageUrl,
-        image_name: null,
-        source: "lead_ai_generated_images",
-      }
-    : null;
+  const runtimeConfig = await getRuntimeAppConfig();
+  const documentAppendix = resolveCommercialDocumentAppendixSnapshot({
+    leadAiGeneratedImages: lead.ai_generated_images,
+    documentAppendixImageUrl: runtimeConfig.documentAppendixImageUrl,
+    documentAppendixImageName: runtimeConfig.documentAppendixImageName,
+  });
 
   const snapshot = {
     policy_version: "COMMERCIAL_DOCUMENT_POLICY_V1",
