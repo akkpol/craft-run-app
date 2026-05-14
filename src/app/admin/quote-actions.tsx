@@ -636,8 +636,14 @@ export default function AdminQuoteActions({
         }
       >
         <div className="space-y-3">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+            <p className="font-medium">Quote ชุดนี้จะถูกส่งกลับเพื่อทบทวน</p>
+            <p className="mt-1 text-xs leading-5 text-amber-700">
+              workflow จะย้อนกลับไปที่ขั้นตอนทบทวนรายละเอียด และต้องออก quote รอบใหม่ก่อนดำเนินการต่อ
+            </p>
+          </div>
           <label className="block text-sm font-medium text-slate-800">เหตุผลหรือสิ่งที่ต้องแก้</label>
-          <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={5} />
+          <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={4} />
         </div>
       </AdminActionSheet>
 
@@ -659,8 +665,14 @@ export default function AdminQuoteActions({
         }
       >
         <div className="space-y-3">
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-900">
+            <p className="font-medium">การดำเนินการนี้ไม่สามารถย้อนกลับได้</p>
+            <p className="mt-1 text-xs leading-5 text-rose-700">
+              Quote จะถูกปิดถาวรและ workflow จะเข้าสู่สถานะ ยกเลิก — ต้องเริ่ม quote ใหม่ถ้าลูกค้าเปลี่ยนใจ
+            </p>
+          </div>
           <label className="block text-sm font-medium text-slate-800">เหตุผล</label>
-          <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={5} />
+          <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={4} />
         </div>
       </AdminActionSheet>
 

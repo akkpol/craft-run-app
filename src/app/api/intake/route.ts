@@ -147,6 +147,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const providedDevLineUserId =
+    process.env.NODE_ENV !== "production"
+      ? request.nextUrl.searchParams.get("devLineUserId")?.trim() || ""
+      : "";
+
   let intakeIdentity: Awaited<ReturnType<typeof verifyLiffIdToken>>;
   if (providedLiffIdToken) {
     try {
@@ -174,6 +179,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+  } else if (providedDevLineUserId) {
+    intakeIdentity = {
+      userId: providedDevLineUserId,
+      displayName: "Dev Test User",
+    } as Awaited<ReturnType<typeof verifyLiffIdToken>>;
   } else {
     return NextResponse.json(
       {

@@ -194,6 +194,25 @@ async function sendPushWithAudit(
   request: PushRequest,
   audit: PushAuditInput
 ): Promise<void> {
+  if (/^Udev_/.test(request.to)) {
+    await writeLineAudit({
+      actionType: "line.push_skipped_dev_bypass",
+      entityType: audit.entityType,
+      entityId: audit.entityId,
+      note: `LINE push skipped for dev bypass user (${audit.pushVariant})`,
+      payload: {
+        channel: "push",
+        flow: audit.flow,
+        push_variant: audit.pushVariant,
+        line_user_id: request.to,
+        reason: "dev_bypass_user_id",
+        ...audit.payload,
+        ...audit.actionLogPayload,
+      },
+      supabase: audit.supabase,
+    });
+    return;
+  }
   try {
     await lineClient.pushMessage(request);
     await writeLineAudit({

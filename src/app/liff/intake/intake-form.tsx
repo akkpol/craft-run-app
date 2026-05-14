@@ -1039,6 +1039,44 @@ export default function IntakeForm({
         if (!liffId) {
           logIntakeLiffConsole("init_skipped_no_liff_id", { intakeMode });
           setCommonProfileReady(false);
+
+          // Dev mode: run prefill with ?lineUserId= if present
+          if (process.env.NODE_ENV !== "production" && intakeMode !== "fresh") {
+            const devUserId = new URLSearchParams(window.location.search)
+              .get("lineUserId")
+              ?.trim() || "";
+            if (devUserId) {
+              try {
+                const prefillRes = await fetch(
+                  `/api/customers/prefill?lineUserId=${encodeURIComponent(devUserId)}`,
+                  { headers: { "x-liff-debug-fingerprint": liffConsoleFingerprintRef.current } }
+                );
+                if (prefillRes.ok) {
+                  const prefill = await prefillRes.json();
+                  if (prefill.phone) setPhone((cur) => cur || prefill.phone);
+                  if (prefill.recentProductTypes?.length > 0)
+                    setSuggestedProductTypes(prefill.recentProductTypes);
+                  if (prefill.lastValues?.billingName)
+                    setBillingName((cur) => cur || prefill.lastValues.billingName);
+                  if (prefill.lastValues?.billingEntityType)
+                    setBillingEntityType((cur) =>
+                      cur === "person" ? prefill.lastValues.billingEntityType : cur
+                    );
+                  if (prefill.lastValues?.taxId)
+                    setTaxId((cur) => cur || prefill.lastValues.taxId);
+                  if (prefill.lastValues?.billingAddress)
+                    setBillingAddress((cur) => cur || prefill.lastValues.billingAddress);
+                  logIntakeLiffConsole("prefill_ok", {
+                    hasPhone: Boolean(prefill.phone),
+                    suggestedProductTypes: prefill.recentProductTypes?.length || 0,
+                  });
+                }
+              } catch {
+                // prefill is best-effort in dev mode
+              }
+            }
+          }
+
           setReady(true);
           return;
         }
@@ -1697,7 +1735,15 @@ export default function IntakeForm({
           formData.append("referenceFiles", item.file, item.file.name);
         });
 
-        const res = await fetch("/api/intake", {
+        const devLineUserId =
+          !liffId && process.env.NODE_ENV !== "production"
+            ? new URLSearchParams(window.location.search).get("lineUserId")?.trim() || ""
+            : "";
+        const intakeUrl = devLineUserId
+          ? `/api/intake?devLineUserId=${encodeURIComponent(devLineUserId)}`
+          : "/api/intake";
+
+        const res = await fetch(intakeUrl, {
           method: "POST",
           headers: {
             "x-liff-debug-fingerprint": liffConsoleFingerprintRef.current,
@@ -2289,7 +2335,7 @@ export default function IntakeForm({
                             type="checkbox"
                             checked={requestedDocumentTypes.includes(type)}
                             onChange={() => toggleRequestedDocumentType(type)}
-                            className="size-4 rounded border-slate-300 text-sky-600 focus:ring-sky-200"
+                            className="size-4 rounded border-slate-300 accent-sky-600 focus:ring-sky-200"
                           />
                           {DOCUMENT_REQUEST_TYPE_LABELS[type]}
                         </label>
