@@ -40,6 +40,12 @@ import {
   validateTaxDocumentIntake,
 } from "@/lib/tax-document-intake";
 import ProductTypePicker from "./product-type-picker";
+import ScenarioPicker from "./scenario-picker";
+import {
+  buildTestScenarioNotePrefix,
+  findTestScenario,
+  type TestScenario,
+} from "@/lib/test-scenarios";
 
 type CommonProfileScope =
   | "family-name"
@@ -612,6 +618,8 @@ export default function IntakeForm({
   initialCategory,
   initialProduct,
   intakeMode,
+  testModeRequested = false,
+  initialScenarioId,
 }: {
   businessName: string;
   liffId: string;
@@ -620,6 +628,8 @@ export default function IntakeForm({
   initialCategory?: string;
   initialProduct?: string;
   intakeMode: "resume" | "fresh";
+  testModeRequested?: boolean;
+  initialScenarioId?: string;
 }) {
   const [ready, setReady] = useState(() => !liffId);
   const [loading, setLoading] = useState(false);
@@ -1411,6 +1421,71 @@ export default function IntakeForm({
     };
   }, [installCommonProfilePlugin, intakeMode, liffId, logIntakeLiffConsole, reportLiffIncident]);
 
+  // Apply a test scenario to the form. Unlike returning-customer prefill, this
+  // OVERWRITES existing field values — the operator clicked the chip
+  // explicitly, so they want the preset to win. The `note` field gets a
+  // [TEST_SCENARIO:id] marker prepended so admin can filter test entries.
+  const applyTestScenario = useCallback((scenario: TestScenario) => {
+    const v = scenario.values;
+    if (v.productType !== undefined) setProductType(v.productType);
+    if (v.productType !== undefined) {
+      const match = PRODUCT_TYPES.find((p) => p.value === v.productType);
+      setSelectedProductLabel(match?.label || "");
+    }
+    if (v.width !== undefined) setWidth(v.width);
+    if (v.height !== undefined) setHeight(v.height);
+    if (v.unit !== undefined) setUnit(v.unit);
+    if (v.qty !== undefined) setQty(v.qty);
+    if (v.dueDate !== undefined) setDueDate(v.dueDate());
+    if (v.phone !== undefined) setPhone(v.phone);
+    if (v.billingEntityType !== undefined) setBillingEntityType(v.billingEntityType);
+    if (v.billingBranchType !== undefined) setBillingBranchType(v.billingBranchType);
+    if (v.billingBranchCode !== undefined) setBillingBranchCode(v.billingBranchCode);
+    if (v.requestedDocumentTypes !== undefined)
+      setRequestedDocumentTypes(v.requestedDocumentTypes);
+    if (v.billingName !== undefined) setBillingName(v.billingName);
+    if (v.taxId !== undefined) setTaxId(v.taxId);
+    if (v.billingAddress !== undefined) setBillingAddress(v.billingAddress);
+    if (v.fulfillmentMode !== undefined) setFulfillmentMode(v.fulfillmentMode);
+    if (v.fulfillmentAddressLine1 !== undefined)
+      setFulfillmentAddressLine1(v.fulfillmentAddressLine1);
+    if (v.fulfillmentAddressLine2 !== undefined)
+      setFulfillmentAddressLine2(v.fulfillmentAddressLine2);
+    if (v.fulfillmentSubdistrict !== undefined)
+      setFulfillmentSubdistrict(v.fulfillmentSubdistrict);
+    if (v.fulfillmentDistrict !== undefined)
+      setFulfillmentDistrict(v.fulfillmentDistrict);
+    if (v.fulfillmentProvince !== undefined)
+      setFulfillmentProvince(v.fulfillmentProvince);
+    if (v.fulfillmentPostalCode !== undefined)
+      setFulfillmentPostalCode(v.fulfillmentPostalCode);
+    if (v.designBrief !== undefined) setDesignBrief(v.designBrief);
+
+    // Always rewrite the note prefix so re-applying a different scenario
+    // replaces the old marker rather than stacking.
+    const marker = buildTestScenarioNotePrefix(scenario.id);
+    const userNote = v.note ?? "";
+    setNote(`${marker} ${userNote}`.trim());
+
+    // Tax-invoice scenarios should expand the optional details section so the
+    // operator can visually confirm billing fields got filled.
+    if (v.requestedDocumentTypes?.includes("tax_invoice")) {
+      setShowOptionalDetails(true);
+    }
+  }, []);
+
+  // Auto-apply scenario from `?scenario=<id>` URL param once the form is
+  // ready. Runs once; further selections happen via the chip picker.
+  const autoAppliedScenarioRef = useRef(false);
+  useEffect(() => {
+    if (autoAppliedScenarioRef.current) return;
+    if (!ready) return;
+    const scenario = findTestScenario(initialScenarioId);
+    if (!scenario) return;
+    autoAppliedScenarioRef.current = true;
+    applyTestScenario(scenario);
+  }, [ready, initialScenarioId, applyTestScenario]);
+
   const handleReferenceFileSelect = useCallback(async (files: FileList | null) => {
     if (!files?.length) return;
 
@@ -1754,6 +1829,11 @@ export default function IntakeForm({
 
   return (
     <div className="px-3 py-4 pb-safe pt-safe">
+      <ScenarioPicker
+        liffIdToken={liffIdToken}
+        testModeRequested={testModeRequested}
+        onScenarioSelected={applyTestScenario}
+      />
       <div className="mx-auto max-w-lg">
         <div className="flow-theme-card overflow-hidden">
           <div className="liff-flow-hero px-4 py-5 text-white">
