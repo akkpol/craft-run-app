@@ -100,7 +100,77 @@ export async function POST(
 
   let jobCreated = false;
   let jobId: string | null = null;
+  let paymentConfirmedId: string | null = null;
   const nextWorkflowState = getQuoteApprovalState(paymentTerms, paymentStatus);
+
+  const paymentMarkedReceived =
+    paymentStatus === "paid" || paymentStatus === "partial";
+  if (paymentMarkedReceived) {
+    const { data: order } = await supabase
+      .from("commercial_orders")
+      .select(
+        "id, selected_receiver_entity_id, payment_receiver_locked_at"
+      )
+      .eq("quote_id", id)
+      .maybeSingle();
+
+    if (order?.selected_receiver_entity_id) {
+      const { data: existingConfirmed } = await supabase
+        .from("payments")
+        .select("id")
+        .eq("order_id", order.id)
+        .eq("status", "CONFIRMED")
+        .order("paid_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingConfirmed?.id) {
+        paymentConfirmedId = existingConfirmed.id;
+      } else {
+        const now = new Date().toISOString();
+        const { data: insertedPayment, error: paymentInsertError } =
+          await supabase
+            .from("payments")
+            .insert({
+              order_id: order.id,
+              receiver_entity_id: order.selected_receiver_entity_id,
+              amount: Number(quote.total || 0),
+              status: "CONFIRMED",
+              paid_at: now,
+            })
+            .select("id")
+            .single();
+
+        if (paymentInsertError) {
+          console.error(
+            "[quotes/commercial] Failed to insert payment row:",
+            paymentInsertError.message
+          );
+        } else if (insertedPayment) {
+          paymentConfirmedId = insertedPayment.id;
+          if (!order.payment_receiver_locked_at) {
+            await supabase
+              .from("commercial_orders")
+              .update({ payment_receiver_locked_at: now, updated_at: now })
+              .eq("id", order.id);
+          }
+          await logHumanAction(supabase, {
+            entityType: "quote",
+            entityId: id,
+            actionType: "commercial.payment_confirmed",
+            actorLabel: "Admin",
+            payload: {
+              payment_id: insertedPayment.id,
+              order_id: order.id,
+              receiver_entity_id: order.selected_receiver_entity_id,
+              amount: Number(quote.total || 0),
+              auto_created_from_quote_status: paymentStatus,
+            },
+          });
+        }
+      }
+    }
+  }
 
   if (quote.leads?.conversation_id && quote.status === "approved") {
     await supabase
@@ -146,5 +216,6 @@ export async function POST(
     paymentStatus,
     jobCreated,
     jobId,
+    paymentConfirmedId,
   });
 }
