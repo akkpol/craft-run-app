@@ -115,7 +115,7 @@ function getQuoteStatusMeta({
 
   if (waitingPayment) {
     return {
-      badgeLabel: "รอยืนยันการชำระ",
+      badgeLabel: "รอชำระเงิน",
       badgeVariant: "warning",
       title: "อนุมัติแล้ว และกำลังรอทีมงานยืนยันการชำระเงิน",
       description: "หากเงื่อนไขหรือรายละเอียดบางส่วนยังไม่ตรง คุณยังสามารถส่งคำขอแก้ไขกลับให้ทีมงานได้",

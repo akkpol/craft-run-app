@@ -15,6 +15,96 @@ import {
   type PaymentTerm,
 } from "@/lib/types";
 import { logHumanAction } from "@/lib/action-log";
+import { validatePaymentAmount } from "@/lib/commercial-validation";
+
+type CommercialUpdateBody = {
+  paymentTerms?: PaymentTerm;
+  paymentStatus?: PaymentStatus;
+  paymentAmount?: number | string;
+  paymentIdempotencyKey?: string;
+  idempotencyKey?: string;
+};
+
+type ConfirmCommercialPaymentRpcRow = {
+  payment_id?: string | null;
+  paymentId?: string | null;
+  order_id?: string | null;
+  orderId?: string | null;
+  receiver_entity_id?: string | null;
+  receiverEntityId?: string | null;
+  payment_receiver_locked_at?: string | null;
+  paymentReceiverLockedAt?: string | null;
+  reused?: boolean | null;
+};
+
+function getRpcPaymentResult(data: unknown): ConfirmCommercialPaymentRpcRow | null {
+  if (Array.isArray(data)) {
+    return (data[0] as ConfirmCommercialPaymentRpcRow | undefined) || null;
+  }
+
+  if (data && typeof data === "object") {
+    return data as ConfirmCommercialPaymentRpcRow;
+  }
+
+  return null;
+}
+
+function normalizeIdempotencyKey(body: CommercialUpdateBody) {
+  return (body.paymentIdempotencyKey || body.idempotencyKey || "").trim();
+}
+
+function getPaymentAmount(
+  paymentStatus: PaymentStatus,
+  rawAmount: CommercialUpdateBody["paymentAmount"],
+  quoteTotal: number
+):
+  | { ok: true; amount: number }
+  | { ok: false; error: string; detail: string; status: number } {
+  if (paymentStatus === "partial" && rawAmount === undefined) {
+    return {
+      ok: false,
+      error: "PAYMENT_AMOUNT_REQUIRED",
+      detail: "partial payment requires an explicit paymentAmount",
+      status: 400,
+    };
+  }
+
+  const amount = rawAmount === undefined ? quoteTotal : Number(rawAmount);
+
+  if (!Number.isFinite(amount)) {
+    return {
+      ok: false,
+      error: "PAYMENT_AMOUNT_INVALID",
+      detail: "paymentAmount must be a finite number",
+      status: 400,
+    };
+  }
+
+  return { ok: true, amount };
+}
+
+function mapPaymentRpcError(message: string) {
+  const knownErrors: Record<string, number> = {
+    COMMERCIAL_ORDER_NOT_FOUND: 409,
+    PAYMENT_IDEMPOTENCY_CONFLICT: 409,
+    PAYMENT_IDEMPOTENCY_KEY_REQUIRED: 400,
+    PAYMENT_RECEIVER_LOCKED: 409,
+    RECEIVER_ENTITY_INACTIVE: 422,
+    RECEIVER_REQUIRED_BEFORE_PAYMENT: 409,
+  };
+
+  for (const [code, status] of Object.entries(knownErrors)) {
+    if (message.includes(code)) {
+      return { error: code, detail: message, status };
+    }
+  }
+
+  return {
+    error: "PAYMENT_CONFIRMATION_FAILED",
+    detail: message || "Failed to confirm payment",
+    status: 500,
+  };
+}
 
 export async function POST(
   request: NextRequest,
@@ -22,7 +112,7 @@ export async function POST(
 ) {
   const { id } = await props.params;
 
-  let body: { paymentTerms?: PaymentTerm; paymentStatus?: PaymentStatus };
+  let body: CommercialUpdateBody;
   try {
     body = await request.json();
   } catch {
@@ -64,7 +154,7 @@ export async function POST(
   const paymentTerms = body.paymentTerms || quote.payment_terms;
   let paymentStatus = body.paymentStatus || quote.payment_status;
 
-  if (paymentTerms === "credit" && paymentStatus === "unpaid") {
+  if (paymentTerms === "credit") {
     paymentStatus = "not_required";
   }
 
@@ -79,7 +169,107 @@ export async function POST(
     paymentTerms,
   });
 
-  await supabase
+  let jobCreated = false;
+  let jobId: string | null = null;
+  let paymentConfirmedId: string | null = null;
+  let paymentConfirmation:
+    | {
+        orderId: string | null;
+        receiverEntityId: string | null;
+        paymentReceiverLockedAt: string | null;
+        reused: boolean;
+        amount: number;
+      }
+    | null = null;
+  const nextWorkflowState = getQuoteApprovalState(paymentTerms, paymentStatus);
+
+  const paymentMarkedReceived =
+    paymentStatus === "paid" || paymentStatus === "partial";
+  if (paymentMarkedReceived) {
+    const idempotencyKey = normalizeIdempotencyKey(body);
+    if (!idempotencyKey) {
+      return NextResponse.json(
+        {
+          error: "PAYMENT_IDEMPOTENCY_KEY_REQUIRED",
+          detail: "paymentIdempotencyKey is required when marking payment received",
+        },
+        { status: 400 }
+      );
+    }
+
+    const amountResult = getPaymentAmount(
+      paymentStatus,
+      body.paymentAmount,
+      Number(quote.total || 0)
+    );
+    if (!amountResult.ok) {
+      return NextResponse.json(
+        { error: amountResult.error, detail: amountResult.detail },
+        { status: amountResult.status }
+      );
+    }
+
+    const amountValidation = validatePaymentAmount({
+      paymentTerms,
+      paymentAmount: amountResult.amount,
+      amountDue: Number(quote.total || 0),
+    });
+    if (!amountValidation.ok) {
+      return NextResponse.json(
+        { error: amountValidation.error, detail: amountValidation.detail },
+        { status: 422 }
+      );
+    }
+
+    const paidAt = new Date().toISOString();
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      "confirm_commercial_payment",
+      {
+        p_quote_id: id,
+        p_amount: amountResult.amount,
+        p_idempotency_key: idempotencyKey,
+        p_paid_at: paidAt,
+      }
+    );
+
+    if (rpcError) {
+      const mapped = mapPaymentRpcError(rpcError.message || "");
+      return NextResponse.json(
+        { error: mapped.error, detail: mapped.detail },
+        { status: mapped.status }
+      );
+    }
+
+    const paymentResult = getRpcPaymentResult(rpcData);
+    paymentConfirmedId =
+      paymentResult?.payment_id || paymentResult?.paymentId || null;
+
+    if (!paymentConfirmedId) {
+      return NextResponse.json(
+        {
+          error: "PAYMENT_CONFIRMATION_FAILED",
+          detail: "Payment confirmation did not return a payment id",
+        },
+        { status: 500 }
+      );
+    }
+
+    paymentConfirmation = {
+      orderId: paymentResult?.order_id || paymentResult?.orderId || null,
+      receiverEntityId:
+        paymentResult?.receiver_entity_id ||
+        paymentResult?.receiverEntityId ||
+        null,
+      paymentReceiverLockedAt:
+        paymentResult?.payment_receiver_locked_at ||
+        paymentResult?.paymentReceiverLockedAt ||
+        null,
+      reused: Boolean(paymentResult?.reused),
+      amount: amountResult.amount,
+    };
+  }
+
+  const { error: quoteUpdateError } = await supabase
     .from("quotes")
     .update({
       payment_terms: paymentTerms,
@@ -87,6 +277,13 @@ export async function POST(
       payment_profile_snapshot: paymentProfileSnapshot,
     })
     .eq("id", id);
+
+  if (quoteUpdateError) {
+    return NextResponse.json(
+      { error: quoteUpdateError.message || "Failed to update quote payment state" },
+      { status: 500 }
+    );
+  }
 
   await syncQuotePaymentRecord(supabase, {
     quoteId: quote.id,
@@ -98,9 +295,23 @@ export async function POST(
     paymentProfileSnapshot,
   });
 
-  let jobCreated = false;
-  let jobId: string | null = null;
-  const nextWorkflowState = getQuoteApprovalState(paymentTerms, paymentStatus);
+  if (paymentConfirmation && paymentConfirmedId) {
+    await logHumanAction(supabase, {
+      entityType: "quote",
+      entityId: id,
+      actionType: "commercial.payment_confirmed",
+      actorLabel: "Admin",
+      payload: {
+        payment_id: paymentConfirmedId,
+        order_id: paymentConfirmation.orderId,
+        receiver_entity_id: paymentConfirmation.receiverEntityId,
+        amount: paymentConfirmation.amount,
+        payment_receiver_locked_at: paymentConfirmation.paymentReceiverLockedAt,
+        reused: paymentConfirmation.reused,
+        auto_created_from_quote_status: paymentStatus,
+      },
+    });
+  }
 
   if (quote.leads?.conversation_id && quote.status === "approved") {
     await supabase
@@ -146,5 +357,6 @@ export async function POST(
     paymentStatus,
     jobCreated,
     jobId,
+    paymentConfirmedId,
   });
 }

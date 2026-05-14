@@ -111,16 +111,13 @@ test("validatePaymentConfirm: accepts when receiver matches and order is unlocke
   assert.equal(result.ok, true);
 });
 
-test("validatePaymentConfirm: rejects when order already locked", () => {
+test("validatePaymentConfirm: accepts locked order when receiver still matches", () => {
   const result = validatePaymentConfirm({
     paymentReceiverEntityId: "entity-abc",
     selectedReceiverEntityId: "entity-abc",
     paymentReceiverLockedAt: "2026-05-02T10:00:00Z",
   });
-  assert.equal(result.ok, false);
-  if (!result.ok) {
-    assert.equal(result.error, "PAYMENT_RECEIVER_LOCKED");
-  }
+  assert.equal(result.ok, true);
 });
 
 test("validatePaymentConfirm: rejects when no receiver was selected", () => {
@@ -149,8 +146,7 @@ test("validatePaymentConfirm: rejects when payment receiver does not match selec
   }
 });
 
-test("validatePaymentConfirm: lock check takes priority over other errors", () => {
-  // Even when entities mismatch, locked is the first gate.
+test("validatePaymentConfirm: rejects mismatch even when order is already locked", () => {
   const result = validatePaymentConfirm({
     paymentReceiverEntityId: "entity-abc",
     selectedReceiverEntityId: "entity-xyz",
@@ -158,7 +154,7 @@ test("validatePaymentConfirm: lock check takes priority over other errors", () =
   });
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.equal(result.error, "PAYMENT_RECEIVER_LOCKED");
+    assert.equal(result.error, "PAYMENT_RECEIVER_MISMATCH");
   }
 });
 

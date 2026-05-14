@@ -556,6 +556,7 @@ function renderOverviewQueueCardActions({
           quoteId={row.quoteId}
           publicToken={row.publicToken}
           quoteStatus={row.quoteStatus}
+          quoteTotal={row.total}
           paymentTerms={row.paymentTerms}
           paymentStatus={row.paymentStatus}
           hasJob={row.hasJob}
@@ -1112,6 +1113,7 @@ export function AdminStuckQueueContent({
                       quoteId={quote.id}
                       publicToken={quote.public_token}
                       quoteStatus={quote.status}
+                      quoteTotal={Number(quote.total || 0)}
                       paymentTerms={quote.payment_terms}
                       paymentStatus={quote.payment_status}
                       hasJob={Array.isArray(quote.jobs) && quote.jobs.length > 0}
@@ -1185,6 +1187,7 @@ export function AdminStuckQueueContent({
                             quoteId={quote.id}
                             publicToken={quote.public_token}
                             quoteStatus={quote.status}
+                            quoteTotal={Number(quote.total || 0)}
                             paymentTerms={quote.payment_terms}
                             paymentStatus={quote.payment_status}
                             hasJob={Array.isArray(quote.jobs) && quote.jobs.length > 0}
@@ -1756,6 +1759,7 @@ export function SalesQuotesTable({
                         quoteId={quote.id}
                         publicToken={quote.public_token}
                         quoteStatus={quote.status}
+                        quoteTotal={Number(quote.total || 0)}
                         paymentTerms={quote.payment_terms}
                         paymentStatus={quote.payment_status}
                         hasJob={hasJob}
@@ -1881,6 +1885,7 @@ export function OverviewSalesSnapshotTable({
                         quoteId={quote.id}
                         publicToken={quote.public_token}
                         quoteStatus={quote.status}
+                        quoteTotal={Number(quote.total || 0)}
                         paymentTerms={quote.payment_terms}
                         paymentStatus={quote.payment_status}
                         hasJob={hasJob}

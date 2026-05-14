@@ -28,7 +28,7 @@ export interface PaymentConfirmInput {
   paymentReceiverEntityId: string;
   /** Entity pre-selected by admin before payment was taken. */
   selectedReceiverEntityId: string | null;
-  /** ISO timestamp — truthy means already locked from a previous confirmation. */
+  /** ISO timestamp — truthy means the receiver is locked for this order. */
   paymentReceiverLockedAt: string | null;
 }
 
@@ -50,21 +50,13 @@ export type ValidationResult<T = void> =
  * Validate payment confirmation preconditions.
  *
  * Rules (Policy §7.2):
- * 1. If `payment_receiver_locked_at` is already set → reject (idempotency guard).
- * 2. A receiver must have been selected before confirmation.
- * 3. The receiver entity on the payment record must match the selected entity.
+ * 1. A receiver must have been selected before confirmation.
+ * 2. The receiver entity on the payment record must match the selected entity.
+ * 3. A locked order may accept later payments only for the same receiver.
  */
 export function validatePaymentConfirm(
   input: PaymentConfirmInput
 ): ValidationResult {
-  if (input.paymentReceiverLockedAt) {
-    return {
-      ok: false,
-      error: "PAYMENT_RECEIVER_LOCKED",
-      detail: "Payment receiver is already locked for this order.",
-    };
-  }
-
   if (!input.selectedReceiverEntityId) {
     return {
       ok: false,

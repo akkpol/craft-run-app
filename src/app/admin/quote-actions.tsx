@@ -30,6 +30,7 @@ type Props = {
   quoteId: string;
   publicToken: string;
   quoteStatus: string;
+  quoteTotal?: number;
   paymentTerms: PaymentTerm;
   paymentStatus: keyof typeof PAYMENT_STATUS_LABELS;
   hasJob: boolean;
@@ -61,6 +62,7 @@ export default function AdminQuoteActions({
   quoteId,
   publicToken,
   quoteStatus,
+  quoteTotal = 0,
   paymentTerms,
   paymentStatus,
   hasJob,
@@ -80,12 +82,15 @@ export default function AdminQuoteActions({
   >(null);
   const [paymentTermsDraft, setPaymentTermsDraft] = useState(paymentTerms);
   const [paymentStatusDraft, setPaymentStatusDraft] = useState(paymentStatus);
+  const [paymentAmountDraft, setPaymentAmountDraft] = useState("");
+  const [paymentIdempotencyKey, setPaymentIdempotencyKey] = useState("");
   const [receiverEntityIdDraft, setReceiverEntityIdDraft] = useState(
     commercialOrder?.selectedReceiverEntityId || ""
   );
   const [note, setNote] = useState("");
   const paymentTermsSelectId = useId();
   const paymentStatusSelectId = useId();
+  const paymentAmountInputId = useId();
   const router = useRouter();
 
   const selectedReceiverEntity =
@@ -99,6 +104,9 @@ export default function AdminQuoteActions({
   const issuedDocumentId = commercialOrder?.issuedDocumentId || null;
   const issuedDocumentType = commercialOrder?.issuedDocumentType || null;
   const issuedDocumentNumber = commercialOrder?.issuedDocumentNumber || null;
+  const hasSelectedReceiver = Boolean(commercialOrder?.selectedReceiverEntityId);
+  const receivedStatusSelected =
+    paymentStatusDraft === "partial" || paymentStatusDraft === "paid";
   const receiverWarnings = getCommercialReceiverWarnings({
     selectedEntity: selectedReceiverEntity,
     requestedDocumentType,
@@ -129,6 +137,8 @@ export default function AdminQuoteActions({
     setPaymentTermsDraft(paymentTerms);
     setPaymentStatusDraft(paymentStatus);
     setReceiverEntityIdDraft(commercialOrder?.selectedReceiverEntityId || "");
+    setPaymentIdempotencyKey("");
+    setPaymentAmountDraft("");
 
     if (nextPanel === "rescope") {
       setNote("ลูกค้าขอปรับรายละเอียดและออกใบเสนอราคาใหม่");
@@ -140,6 +150,15 @@ export default function AdminQuoteActions({
       return;
     }
 
+    if (nextPanel === "deposit" || nextPanel === "paid") {
+      const key =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${quoteId}-${nextPanel}-${Date.now()}-${Math.random()}`;
+      setPaymentIdempotencyKey(key);
+      setPaymentAmountDraft(nextPanel === "paid" ? String(Number(quoteTotal || 0)) : "");
+    }
+
     setNote("");
   }
 
@@ -149,6 +168,15 @@ export default function AdminQuoteActions({
   }
 
   async function updateCommercial() {
+    if (receivedStatusSelected) {
+      setToast({
+        tone: "warning",
+        title: "ใช้ขั้นตอนรับเงินแยกต่างหาก",
+        description: "ต้องเลือกผู้รับเงินและยืนยัน payment ผ่านปุ่มรับมัดจำ/รับชำระเต็ม",
+      });
+      return;
+    }
+
     try {
       const payload = await callApi(
         `/api/quotes/${quoteId}/commercial`,
@@ -174,10 +202,44 @@ export default function AdminQuoteActions({
   }
 
   async function updateCommercialStatus(nextStatus: Props["paymentStatus"]) {
+    if (!hasSelectedReceiver) {
+      setToast({
+        tone: "warning",
+        title: "ต้องเลือกผู้รับเงินก่อน",
+        description: "ลำดับที่ปลอดภัยคือเลือกผู้รับเงิน แล้วค่อยยืนยันรับเงิน",
+      });
+      return;
+    }
+
+    const paymentAmount =
+      nextStatus === "paid" ? Number(quoteTotal || 0) : Number(paymentAmountDraft);
+
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      setToast({
+        tone: "warning",
+        title: nextStatus === "partial" ? "กรอกยอดมัดจำก่อน" : "ยอดชำระไม่ถูกต้อง",
+        description: "ยอดรับชำระต้องมากกว่า 0",
+      });
+      return;
+    }
+
+    if (!paymentIdempotencyKey) {
+      setToast({
+        tone: "error",
+        title: "ไม่พบ payment idempotency key",
+        description: "ปิดแผงนี้แล้วเปิดใหม่ก่อนยืนยันรับเงิน",
+      });
+      return;
+    }
+
     try {
       const payload = await callApi(
         `/api/quotes/${quoteId}/commercial`,
-        { paymentStatus: nextStatus },
+        {
+          paymentStatus: nextStatus,
+          paymentAmount,
+          paymentIdempotencyKey,
+        },
         "บันทึกสถานะชำระเงินไม่สำเร็จ"
       );
       setToast({
@@ -299,7 +361,8 @@ export default function AdminQuoteActions({
   const canIssueCommercialDocument =
     Boolean(confirmedPaymentId) &&
     !issuedDocumentId &&
-    requestedDocumentType !== "quote";
+    requestedDocumentType !== "quote" &&
+    paymentStatus === "paid";
   const receiverStatusTone = receiverLocked
     ? "locked"
     : commercialOrder?.selectedReceiverEntityId
@@ -348,14 +411,20 @@ export default function AdminQuoteActions({
       ? {
           key: "deposit",
           label: "บันทึกรับมัดจำ",
-          description: "ปรับสถานะเป็นรับมัดจำแล้ว และเช็กว่า workflow ต้องปลดล็อกหรือยัง",
+          description: hasSelectedReceiver
+            ? "ยืนยันยอดมัดจำ สร้าง payment และล็อกผู้รับเงินก่อนปลดล็อก workflow"
+            : "ต้องเลือกผู้รับเงินก่อนรับมัดจำ",
+          disabled: !hasSelectedReceiver,
         }
       : null,
     canCapturePayment && paymentStatus !== "paid"
       ? {
           key: "paid",
           label: "บันทึกรับชำระเต็ม",
-          description: "อัปเดตสถานะชำระเงินและปลดล็อกงานถ้าพร้อมแล้ว",
+          description: hasSelectedReceiver
+            ? "ยืนยันยอดเต็ม สร้าง payment และล็อกผู้รับเงินก่อนปลดล็อก workflow"
+            : "ต้องเลือกผู้รับเงินก่อนรับชำระ",
+          disabled: !hasSelectedReceiver,
         }
       : null,
     canRescopeQuote
@@ -496,11 +565,14 @@ export default function AdminQuoteActions({
               className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
             >
               {PAYMENT_STATUSES.map((status) => (
-                <option key={status} value={status}>
+                <option key={status} value={status} disabled={status === "partial" || status === "paid"}>
                   {PAYMENT_STATUS_LABELS[status]}
                 </option>
               ))}
             </select>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              สถานะ paid/partial ต้องใช้ขั้นตอนรับเงิน เพื่อสร้าง payment และล็อกผู้รับเงินก่อน
+            </p>
           </div>
         </div>
       </AdminActionSheet>
@@ -522,8 +594,32 @@ export default function AdminQuoteActions({
           </div>
         }
       >
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          หลังบันทึกรับมัดจำ quote นี้อาจถูกปลดล็อกไปสู่ขั้นตอนออกแบบทันที ถ้าเงื่อนไขการชำระเงินรองรับ
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            ระบบจะสร้าง confirmed payment และล็อกผู้รับเงินก่อน จึงค่อยปลดล็อก workflow
+          </div>
+          <div>
+            <label htmlFor={paymentAmountInputId} className="mb-2 block text-sm font-medium text-slate-800">
+              ยอดมัดจำที่รับจริง
+            </label>
+            <input
+              id={paymentAmountInputId}
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={paymentAmountDraft}
+              onChange={(event) => setPaymentAmountDraft(event.target.value)}
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+              placeholder="0.00"
+            />
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              ยอดรวม quote: {Number(quoteTotal || 0).toLocaleString("th-TH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })} บาท
+            </p>
+          </div>
         </div>
       </AdminActionSheet>
 
@@ -544,8 +640,19 @@ export default function AdminQuoteActions({
           </div>
         }
       >
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-          ถ้า payment gate ปลดล็อกได้ ระบบจะสร้างงานต่อให้ตาม logic เดิมของ quote workflow
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+            ระบบจะยืนยัน payment เต็มจำนวน สร้าง lock ผู้รับเงิน แล้วค่อยสร้างงานต่อถ้า gate ปลดล็อกได้
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            ยอดรับชำระเต็ม:{" "}
+            <span className="font-semibold text-slate-950">
+              {Number(quoteTotal || 0).toLocaleString("th-TH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })} บาท
+            </span>
+          </div>
         </div>
       </AdminActionSheet>
 
@@ -636,8 +743,14 @@ export default function AdminQuoteActions({
         }
       >
         <div className="space-y-3">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+            <p className="font-medium">Quote ชุดนี้จะถูกส่งกลับเพื่อทบทวน</p>
+            <p className="mt-1 text-xs leading-5 text-amber-700">
+              workflow จะย้อนกลับไปที่ขั้นตอนทบทวนรายละเอียด และต้องออก quote รอบใหม่ก่อนดำเนินการต่อ
+            </p>
+          </div>
           <label className="block text-sm font-medium text-slate-800">เหตุผลหรือสิ่งที่ต้องแก้</label>
-          <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={5} />
+          <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={4} />
         </div>
       </AdminActionSheet>
 
@@ -659,8 +772,14 @@ export default function AdminQuoteActions({
         }
       >
         <div className="space-y-3">
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-900">
+            <p className="font-medium">การดำเนินการนี้ไม่สามารถย้อนกลับได้</p>
+            <p className="mt-1 text-xs leading-5 text-rose-700">
+              Quote จะถูกปิดถาวรและ workflow จะเข้าสู่สถานะ ยกเลิก — ต้องเริ่ม quote ใหม่ถ้าลูกค้าเปลี่ยนใจ
+            </p>
+          </div>
           <label className="block text-sm font-medium text-slate-800">เหตุผล</label>
-          <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={5} />
+          <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={4} />
         </div>
       </AdminActionSheet>
 

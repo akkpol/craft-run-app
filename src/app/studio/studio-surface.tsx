@@ -838,6 +838,7 @@ function StudioDrawer({
                         quoteId={token.quote.id}
                         publicToken={token.quote.public_token}
                         quoteStatus={token.quote.status}
+                        quoteTotal={Number(token.quote.total || 0)}
                         paymentTerms={token.quote.payment_terms}
                         paymentStatus={token.quote.payment_status}
                         hasJob={Boolean(token.quote.jobs?.length)}

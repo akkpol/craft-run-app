@@ -98,6 +98,11 @@ export async function generateLeadAiPreview(
   const aiConfig = await getAiImageRuntimeConfig();
 
   if (!aiConfig.enabled || !aiConfig.apiKey) {
+    if (process.env.NODE_ENV !== "production") {
+      const promptLower = input.prompt.toLowerCase();
+      const stubKey = /sticker|สติ๊?กเกอร/.test(promptLower) ? "sticker" : "vinyl";
+      return [`http://localhost:3000/test-fixtures/ai-preview-sample-${stubKey}.svg`];
+    }
     throw new Error("AI image generation is not configured");
   }
 
