@@ -34,6 +34,16 @@ This repository uses one workflow contract for every AI agent. Keep Claude, Copi
 - Run `node scripts/workflow-policy-smoke.mjs` after changing workflow policy, workflow UI, or workflow transition code.
 - If prose docs conflict with the JSON policy or runtime helpers, the JSON policy and runtime helpers win.
 
+## Commercial Payment Path Guard
+
+`POST /api/quotes/[id]/commercial` is the admin shortcut for updating quote payment status.
+It must reject with 409 if `paymentStatus` is `paid` or `partial` and the commercial order
+has no `selected_receiver_entity_id`. This is separate from — and complementary to — the
+guard in `POST /api/payments/confirm` (`validatePaymentConfirm`).
+
+Do not mark TASK-004 in `plan/feature-commercial-documents-1.md` as complete until TASK-014
+(the shortcut-path receiver guard) is implemented and tested.
+
 ## Escalation Rule
 
 - If a request conflicts with the current workflow policy, do not silently improvise. Update `docs/workflow-policy.json` and the affected runtime code together, or stop and call out the conflict explicitly.

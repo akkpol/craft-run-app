@@ -32,6 +32,8 @@ import {
   PAYMENT_ROUTING_TERM_SCOPE_LABELS,
   PAYMENT_ROUTING_TERM_SCOPES,
 } from "@/lib/payment-routing";
+import { CatalogItemsTable } from "./CatalogItemsTable";
+import { PaymentRoutingPreview } from "./PaymentRoutingPreview";
 import { formatBangkokDateTime } from "@/lib/bangkok-date-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -790,25 +792,23 @@ export default function SettingsForm({
         return;
       }
 
-      setMessage("บันทึกการตั้งค่าเรียบร้อยแล้ว");
-      setForm((prev) => {
-        const normalizedBaseUrl = normalizeBaseUrl(prev.baseUrl || "");
+      const saveResult = data as { success: true; warning?: string; droppedGroups?: string[] };
 
-        return {
-          ...prev,
-          webhookUrl: buildDerivedLineUrl(normalizedBaseUrl, "/api/webhook"),
-          liffEndpointUrl: buildDerivedLineUrl(normalizedBaseUrl, "/liff"),
-          updatedAt: new Date().toISOString(),
-          hasAiImageApiKey: prev.hasAiImageApiKey || Boolean(prev.aiImageApiKey),
-          hasLineChannelAccessToken:
-            prev.hasLineChannelAccessToken || Boolean(prev.lineChannelAccessToken.trim()),
-          hasLineChannelSecret:
-            prev.hasLineChannelSecret || Boolean(prev.lineChannelSecret.trim()),
-          aiImageApiKey: "",
-          lineChannelAccessToken: "",
-          lineChannelSecret: "",
-        };
+      const refreshed = await fetchSettingsState();
+      setForm({
+        ...refreshed,
+        aiImageApiKey: "",
+        lineChannelAccessToken: "",
+        lineChannelSecret: "",
       });
+
+      if (saveResult.warning === "SCHEMA_FALLBACK_OCCURRED") {
+        setError(
+          `บันทึกบางส่วนไม่ครบ: DB ขาด columns สำหรับ ${saveResult.droppedGroups?.join(", ") ?? "payment"} — ตรวจสอบ migration`
+        );
+      } else {
+        setMessage("บันทึกการตั้งค่าเรียบร้อยแล้ว");
+      }
     } catch {
       setError("บันทึกไม่สำเร็จ");
     } finally {
@@ -1196,6 +1196,25 @@ export default function SettingsForm({
               </div>
             </div>
           </div>
+          <div className="md:col-span-2">
+            <PaymentRoutingPreview
+              config={{
+                paymentAccountName: form.paymentAccountName,
+                paymentBankName: form.paymentBankName,
+                paymentAccountNumber: form.paymentAccountNumber,
+                paymentPromptPayId: form.paymentPromptPayId,
+                paymentQrCodeUrl: form.paymentQrCodeUrl,
+                paymentSecondaryAccountName: form.paymentSecondaryAccountName,
+                paymentSecondaryBankName: form.paymentSecondaryBankName,
+                paymentSecondaryAccountNumber: form.paymentSecondaryAccountNumber,
+                paymentSecondaryPromptPayId: form.paymentSecondaryPromptPayId,
+                paymentSecondaryQrCodeUrl: form.paymentSecondaryQrCodeUrl,
+                paymentSecondaryMaxQuoteTotal: form.paymentSecondaryMaxQuoteTotal ?? null,
+                paymentSecondaryCustomerScope: form.paymentSecondaryCustomerScope,
+                paymentSecondaryPaymentTermsScope: form.paymentSecondaryPaymentTermsScope,
+              }}
+            />
+          </div>
           <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>โลโก้ร้าน</span>
             <UploadField
@@ -1565,6 +1584,16 @@ export default function SettingsForm({
             <p>3. LIFF intake จะอ่าน catalog runtime ชุดล่าสุดโดยอัตโนมัติ ถ้า database ยังว่างระบบจะ fallback ไป catalog มาตรฐาน</p>
           </div>
         </div>
+
+        <div className="mt-6">
+          <h3 className="mb-2 text-sm font-semibold text-slate-900">รายการสินค้าในระบบ (แก้ราคารายตัวได้)</h3>
+          <p className="mb-3 text-xs leading-5 text-slate-500">
+            ปรับ <code className="rounded bg-slate-100 px-1 py-0.5 text-[11px]">ราคา/ตร.ม.</code> หรือ
+            <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-[11px]">ขั้นต่ำ</code>
+            แล้วกดบันทึกที่ปลายแถว — ระบบจะใช้ราคาใหม่ทันทีโดยไม่ต้อง re-upload CSV
+          </p>
+          <CatalogItemsTable reloadKey={catalogImportSummary?.importedCount ?? 0} />
+        </div>
       </section>
 
         </TabsContent>
@@ -1858,14 +1887,19 @@ export default function SettingsForm({
         )}
       </section>
 
-      {error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
-      {message ? <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{message}</div> : null}
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-slate-500">
-          {form.updatedAt ? `อัปเดตล่าสุด ${formatBangkokDateTime(form.updatedAt)}` : "ยังไม่มีการบันทึกค่าจากหน้า settings"}
-        </p>
-        <button type="submit" disabled={saving} className="rounded-full bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#16213e] disabled:opacity-50">
+      <div className="sticky bottom-0 z-10 -mx-5 flex items-center justify-between gap-3 border-t border-slate-200 bg-white/95 px-5 py-3 backdrop-blur-sm">
+        <div className="min-w-0 flex-1">
+          {error ? (
+            <p className="truncate text-sm text-red-600">{error}</p>
+          ) : message ? (
+            <p className="truncate text-sm text-green-700">{message}</p>
+          ) : form.updatedAt ? (
+            <p className="text-xs text-slate-500">บันทึกล่าสุด {formatBangkokDateTime(form.updatedAt)}</p>
+          ) : (
+            <p className="text-xs text-slate-400">ยังไม่มีการบันทึกค่าจากหน้า settings</p>
+          )}
+        </div>
+        <button type="submit" disabled={saving} className="shrink-0 rounded-full bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#16213e] disabled:opacity-50">
           {saving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}
         </button>
       </div>

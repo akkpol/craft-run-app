@@ -7,7 +7,6 @@ import {
 } from "@/lib/commercial-audit";
 import { buildCommercialDocumentIssuePlan } from "@/lib/commercial-document-issue";
 import { pushCommercialDocumentLink } from "@/lib/line";
-import { getRuntimeAppConfig } from "@/lib/app-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type IssueDocumentBody = {
@@ -148,7 +147,7 @@ export async function POST(request: NextRequest) {
   const { data: lead, error: leadError } = await supabase
     .from("leads")
     .select(
-      "id, conversation_id, requested_document_type, billing_entity_type, billing_branch_type, billing_branch_code, billing_name, tax_id, billing_address"
+      "id, conversation_id, requested_document_type, billing_entity_type, billing_branch_type, billing_branch_code, billing_name, tax_id, billing_address, ai_generated_images"
     )
     .eq("id", quote.lead_id)
     .maybeSingle();
@@ -315,12 +314,15 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  const runtimeConfig = await getRuntimeAppConfig();
-  const documentAppendix = runtimeConfig.documentAppendixImageUrl
+  const leadImages = Array.isArray(lead.ai_generated_images) ? lead.ai_generated_images : [];
+  const perOrderImageUrl = leadImages.find(
+    (url: unknown): url is string => typeof url === "string" && url.length > 0
+  ) ?? null;
+  const documentAppendix = perOrderImageUrl
     ? {
-        image_url: runtimeConfig.documentAppendixImageUrl,
-        image_name: runtimeConfig.documentAppendixImageName || null,
-        source: "app_settings",
+        image_url: perOrderImageUrl,
+        image_name: null,
+        source: "lead_ai_generated_images",
       }
     : null;
 

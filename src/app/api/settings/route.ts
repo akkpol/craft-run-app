@@ -366,22 +366,24 @@ export async function POST(request: NextRequest) {
   const paymentInstructions = (body.paymentInstructions || "").trim();
   const wantsToSavePaymentSettings = Boolean(
     paymentAccountName ||
-      paymentBankName ||
-      paymentAccountNumber ||
-      paymentPromptPayId ||
-      paymentQrCodeUrl ||
-      paymentQrCodeLabel ||
-        paymentSecondaryAccountName ||
-        paymentSecondaryBankName ||
-        paymentSecondaryAccountNumber ||
-        paymentSecondaryPromptPayId ||
-        paymentSecondaryQrCodeUrl ||
-        paymentSecondaryQrCodeLabel ||
-        paymentSecondaryInstructions ||
-        paymentSecondaryMaxQuoteTotal !== null ||
-        paymentSecondaryCustomerScope !== "none" ||
-          paymentSecondaryPaymentTermsScope !== "none" ||
-      paymentInstructions
+    paymentBankName ||
+    paymentAccountNumber ||
+    paymentPromptPayId ||
+    paymentQrCodeUrl ||
+    paymentQrCodeLabel ||
+    paymentInstructions ||
+    paymentDisplayMode !== DEFAULT_PAYMENT_DISPLAY_MODE ||
+    paymentSecondaryAccountName ||
+    paymentSecondaryBankName ||
+    paymentSecondaryAccountNumber ||
+    paymentSecondaryPromptPayId ||
+    paymentSecondaryQrCodeUrl ||
+    paymentSecondaryQrCodeLabel ||
+    paymentSecondaryInstructions ||
+    paymentSecondaryMaxQuoteTotal !== null ||
+    paymentSecondaryCustomerScope !== "none" ||
+    paymentSecondaryPaymentTermsScope !== "none" ||
+    paymentSecondaryDisplayMode !== DEFAULT_PAYMENT_DISPLAY_MODE
   );
   const wantsToSaveDocumentAppendix = Boolean(
     documentAppendixImageUrl || documentAppendixImageName
@@ -603,6 +605,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const usedSchemaFallback = persistedPayload === basePayload;
   const changedFields = getChangedSettingsFields(currentSettingsRecord, persistedPayload);
 
   if (changedFields.length > 0) {
@@ -614,8 +617,16 @@ export async function POST(request: NextRequest) {
       payload: {
         app_settings_id: APP_SETTINGS_ID,
         changed_fields: changedFields,
-        used_schema_fallback: persistedPayload === basePayload,
+        used_schema_fallback: usedSchemaFallback,
       },
+    });
+  }
+
+  if (usedSchemaFallback) {
+    return NextResponse.json({
+      success: true,
+      warning: "SCHEMA_FALLBACK_OCCURRED",
+      droppedGroups: ["payment"],
     });
   }
 
