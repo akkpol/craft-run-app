@@ -68,7 +68,7 @@ export default async function IntakePageContent(props: {
         initialCategory={initialCategory}
         initialProduct={initialProduct}
         intakeMode={intakeMode}
-        initialScenarioId={initialScenarioId}
+        initialScenarioId={showTestPicker ? initialScenarioId : undefined}
         showTestPicker={showTestPicker}
       />
     </div>
