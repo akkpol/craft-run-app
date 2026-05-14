@@ -44,7 +44,6 @@ export default async function IntakePageContent(props: {
   const disableLiffForLocalTest =
     isLocalHost(requestHost) ||
     (process.env.NODE_ENV !== "production" && firstValue(searchParams.devNoLiff) === "1");
-  const testModeRequested = firstValue(searchParams.testMode) === "1";
   const initialScenarioId = firstValue(searchParams.scenario);
   const readiness = getLiffReadinessSummary({ intakeMode });
 
@@ -60,7 +59,6 @@ export default async function IntakePageContent(props: {
         initialCategory={initialCategory}
         initialProduct={initialProduct}
         intakeMode={intakeMode}
-        testModeRequested={testModeRequested}
         initialScenarioId={initialScenarioId}
       />
     </div>

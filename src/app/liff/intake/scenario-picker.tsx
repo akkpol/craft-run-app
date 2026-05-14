@@ -1,7 +1,7 @@
 "use client";
 
 import { FlaskConicalIcon, SparklesIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,70 +14,15 @@ import {
 import { TEST_SCENARIOS, type TestScenario } from "@/lib/test-scenarios";
 
 type ScenarioPickerProps = {
-  /**
-   * LIFF ID token from the form's liff.getIDToken() call. Used by the server
-   * to verify the caller is in ADMIN_ALLOWED_EMAILS. May be empty when running
-   * in non-LIFF mode (localhost dev) — in that case the gate falls back to the
-   * server's NODE_ENV check.
-   */
-  liffIdToken: string;
-  /**
-   * Whether the parent has confirmed test mode is enabled via `?testMode=1`.
-   * Component still performs its own server-side admin email check before
-   * showing the chip in production.
-   */
-  testModeRequested: boolean;
   /** Called with the chosen scenario. Parent is responsible for applying values. */
   onScenarioSelected: (scenario: TestScenario) => void;
 };
 
 export default function ScenarioPicker({
-  liffIdToken,
-  testModeRequested,
   onScenarioSelected,
 }: ScenarioPickerProps) {
-  // null = not yet checked, true = allowed, false = denied. The effect only
-  // runs when the parent has explicitly requested test mode via the URL flag,
-  // so we never need to "reset" enabled — we just skip rendering instead.
-  const [serverEnabled, setServerEnabled] = useState<boolean | null>(null);
   const [open, setOpen] = useState(false);
   const [appliedId, setAppliedId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!testModeRequested) return;
-
-    let cancelled = false;
-
-    const check = async () => {
-      try {
-        const response = await fetch("/api/test-mode/check", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ liffIdToken }),
-        });
-
-        if (!response.ok) {
-          if (!cancelled) setServerEnabled(false);
-          return;
-        }
-
-        const data = (await response.json()) as { enabled?: boolean };
-        if (!cancelled) setServerEnabled(Boolean(data.enabled));
-      } catch {
-        if (!cancelled) setServerEnabled(false);
-      }
-    };
-
-    void check();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [testModeRequested, liffIdToken]);
-
-  if (!testModeRequested || serverEnabled !== true) {
-    return null;
-  }
 
   const handleSelect = (scenario: TestScenario) => {
     setAppliedId(scenario.id);
@@ -110,8 +55,7 @@ export default function ScenarioPicker({
               เลือก Test Scenario
             </SheetTitle>
             <SheetDescription>
-              แตะเพื่อ autofill ฟอร์มทั้งหมดจาก preset. ปุ่มนี้ปรากฏเฉพาะ admin
-              email หรือ non-prod environment — ลูกค้าจริงจะไม่เห็น.
+              แตะเพื่อ autofill ฟอร์มทั้งหมดจาก preset.
             </SheetDescription>
           </SheetHeader>
 
