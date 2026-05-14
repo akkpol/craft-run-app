@@ -619,6 +619,7 @@ export default function IntakeForm({
   initialProduct,
   intakeMode,
   initialScenarioId,
+  showTestPicker = false,
 }: {
   businessName: string;
   liffId: string;
@@ -628,6 +629,7 @@ export default function IntakeForm({
   initialProduct?: string;
   intakeMode: "resume" | "fresh";
   initialScenarioId?: string;
+  showTestPicker?: boolean;
 }) {
   const [ready, setReady] = useState(() => !liffId);
   const [loading, setLoading] = useState(false);
@@ -1827,7 +1829,7 @@ export default function IntakeForm({
 
   return (
     <div className="px-3 py-4 pb-safe pt-safe">
-      <ScenarioPicker onScenarioSelected={applyTestScenario} />
+      {showTestPicker && <ScenarioPicker onScenarioSelected={applyTestScenario} />}
       <div className="mx-auto max-w-lg">
         <div className="flow-theme-card overflow-hidden">
           <div className="liff-flow-hero px-4 py-5 text-white">
