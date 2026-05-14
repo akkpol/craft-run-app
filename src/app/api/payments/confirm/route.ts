@@ -249,46 +249,50 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 6. Lock the receiver on the order (policy §7.4).
-  // Once locked, no document may be issued against a different entity.
-  const { error: orderLockError } = await supabase
-    .from("commercial_orders")
-    .update({
-      payment_receiver_locked_at: now,
-      updated_at: now,
-    })
-    .eq("id", order.id);
+  // 6. Lock the receiver on the order (policy §7.4). If it is already
+  // locked to the same selected receiver, later payment confirmations are
+  // allowed and must not overwrite the immutable lock timestamp.
+  const paymentReceiverLockedAt = order.payment_receiver_locked_at || now;
+  if (!order.payment_receiver_locked_at) {
+    const { error: orderLockError } = await supabase
+      .from("commercial_orders")
+      .update({
+        payment_receiver_locked_at: now,
+        updated_at: now,
+      })
+      .eq("id", order.id);
 
-  if (orderLockError) {
-    // Payment is confirmed but lock failed — audit and surface as 500 so
-    // the caller can retry. The payment status update is not rolled back
-    // because Supabase does not expose multi-statement transactions here;
-    // the receiver lock will be re-applied on retry since payment is now
-    // CONFIRMED and the order lock check is independent.
-    console.error(
-      "[payments/confirm] Failed to lock receiver after payment confirmation:",
-      orderLockError.message
-    );
-    await logHumanAction(supabase, {
-      entityType: "quote",
-      entityId: order.quote_id,
-      actorLabel: "Admin",
-      ...buildCommercialPaymentConfirmFailureAudit({
-        error: "RECEIVER_LOCK_FAILED",
-        detail: orderLockError.message || "Failed to lock payment receiver. Retry is safe.",
-        paymentId,
-        orderId: order.id,
-        quoteId: order.quote_id,
-        receiverEntityId: payment.receiver_entity_id,
-        selectedReceiverEntityId: order.selected_receiver_entity_id,
-        paymentReceiverLockedAt: order.payment_receiver_locked_at,
-      }),
-    }).catch(() => null);
+    if (orderLockError) {
+      // Payment is confirmed but lock failed — audit and surface as 500 so
+      // the caller can retry. The payment status update is not rolled back
+      // because Supabase does not expose multi-statement transactions here;
+      // the receiver lock will be re-applied on retry since payment is now
+      // CONFIRMED and the order lock check is independent.
+      console.error(
+        "[payments/confirm] Failed to lock receiver after payment confirmation:",
+        orderLockError.message
+      );
+      await logHumanAction(supabase, {
+        entityType: "quote",
+        entityId: order.quote_id,
+        actorLabel: "Admin",
+        ...buildCommercialPaymentConfirmFailureAudit({
+          error: "RECEIVER_LOCK_FAILED",
+          detail: orderLockError.message || "Failed to lock payment receiver. Retry is safe.",
+          paymentId,
+          orderId: order.id,
+          quoteId: order.quote_id,
+          receiverEntityId: payment.receiver_entity_id,
+          selectedReceiverEntityId: order.selected_receiver_entity_id,
+          paymentReceiverLockedAt: order.payment_receiver_locked_at,
+        }),
+      }).catch(() => null);
 
-    return NextResponse.json(
-      { error: "Failed to lock payment receiver. Retry is safe." },
-      { status: 500 }
-    );
+      return NextResponse.json(
+        { error: "Failed to lock payment receiver. Retry is safe." },
+        { status: 500 }
+      );
+    }
   }
 
   // 7. Emit audit event (non-fatal).
@@ -302,7 +306,7 @@ export async function POST(request: NextRequest) {
       order_id: order.id,
       receiver_entity_id: payment.receiver_entity_id,
       amount: payment.amount,
-      payment_receiver_locked_at: now,
+      payment_receiver_locked_at: paymentReceiverLockedAt,
     },
   });
 
@@ -311,6 +315,6 @@ export async function POST(request: NextRequest) {
     paymentId,
     orderId: order.id,
     receiverEntityId: payment.receiver_entity_id,
-    paymentReceiverLockedAt: now,
+    paymentReceiverLockedAt,
   });
 }
