@@ -45,6 +45,15 @@ export default async function IntakePageContent(props: {
     isLocalHost(requestHost) ||
     (process.env.NODE_ENV !== "production" && firstValue(searchParams.devNoLiff) === "1");
   const initialScenarioId = firstValue(searchParams.scenario);
+  // Show the test scenario picker on non-production Vercel deploys (preview +
+  // local dev) automatically. For the production deployment, set
+  // NEXT_PUBLIC_SHOW_TEST_SCENARIOS=true in Vercel env vars to opt in while
+  // the app is still in its test-only phase; remove that var before real
+  // customers are onboarded.
+  const vEnv = process.env.NEXT_PUBLIC_VERCEL_ENV;
+  const showTestPicker =
+    vEnv !== "production" ||
+    process.env.NEXT_PUBLIC_SHOW_TEST_SCENARIOS === "true";
   const readiness = getLiffReadinessSummary({ intakeMode });
 
   return (
@@ -60,6 +69,7 @@ export default async function IntakePageContent(props: {
         initialProduct={initialProduct}
         intakeMode={intakeMode}
         initialScenarioId={initialScenarioId}
+        showTestPicker={showTestPicker}
       />
     </div>
   );
