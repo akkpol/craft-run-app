@@ -78,12 +78,18 @@ export default function AdminQuoteActions({
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<AdminToastState | null>(null);
   const [panel, setPanel] = useState<
-    "commercial" | "deposit" | "paid" | "receiver" | "issueDocument" | "reject" | "rescope" | null
+    "commercial" | "deposit" | "paid" | "balance" | "receiver" | "issueDocument" | "reject" | "rescope" | null
   >(null);
   const [paymentTermsDraft, setPaymentTermsDraft] = useState(paymentTerms);
   const [paymentStatusDraft, setPaymentStatusDraft] = useState(paymentStatus);
   const [paymentAmountDraft, setPaymentAmountDraft] = useState("");
   const [paymentIdempotencyKey, setPaymentIdempotencyKey] = useState("");
+  const [balanceBreakdown, setBalanceBreakdown] = useState<{
+    total: number;
+    paid: number;
+    outstanding: number;
+  } | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
   const [receiverEntityIdDraft, setReceiverEntityIdDraft] = useState(
     commercialOrder?.selectedReceiverEntityId || ""
   );
@@ -139,6 +145,7 @@ export default function AdminQuoteActions({
     setReceiverEntityIdDraft(commercialOrder?.selectedReceiverEntityId || "");
     setPaymentIdempotencyKey("");
     setPaymentAmountDraft("");
+    setBalanceBreakdown(null);
 
     if (nextPanel === "rescope") {
       setNote("ลูกค้าขอปรับรายละเอียดและออกใบเสนอราคาใหม่");
@@ -150,13 +157,39 @@ export default function AdminQuoteActions({
       return;
     }
 
-    if (nextPanel === "deposit" || nextPanel === "paid") {
+    if (nextPanel === "deposit" || nextPanel === "paid" || nextPanel === "balance") {
       const key =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
           : `${quoteId}-${nextPanel}-${Date.now()}-${Math.random()}`;
       setPaymentIdempotencyKey(key);
-      setPaymentAmountDraft(nextPanel === "paid" ? String(Number(quoteTotal || 0)) : "");
+      if (nextPanel === "paid") {
+        setPaymentAmountDraft(String(Number(quoteTotal || 0)));
+      } else if (nextPanel === "balance") {
+        // Fetch outstanding from server (don't trust client math).
+        setBalanceLoading(true);
+        fetch(`/api/quotes/${quoteId}/balance`, { cache: "no-store" })
+          .then(async (res) => {
+            const data = await res.json();
+            if (!res.ok) throw new Error(data?.error || "โหลด outstanding balance ไม่สำเร็จ");
+            setBalanceBreakdown({
+              total: Number(data.total ?? 0),
+              paid: Number(data.paid ?? 0),
+              outstanding: Number(data.outstanding ?? 0),
+            });
+            setPaymentAmountDraft(String(Number(data.outstanding ?? 0)));
+          })
+          .catch((err) => {
+            setToast({
+              tone: "error",
+              title: "โหลด outstanding balance ไม่สำเร็จ",
+              description: err instanceof Error ? err.message : undefined,
+            });
+          })
+          .finally(() => {
+            setBalanceLoading(false);
+          });
+      }
     }
 
     setNote("");
@@ -211,8 +244,15 @@ export default function AdminQuoteActions({
       return;
     }
 
+    // Balance panel: use server-fetched outstanding (NOT quote.total) to
+    // avoid double-charging after a deposit. Fall back to quote.total only
+    // for the regular "paid" upfront panel.
     const paymentAmount =
-      nextStatus === "paid" ? Number(quoteTotal || 0) : Number(paymentAmountDraft);
+      nextStatus === "paid"
+        ? panel === "balance" && balanceBreakdown
+          ? Number(balanceBreakdown.outstanding)
+          : Number(quoteTotal || 0)
+        : Number(paymentAmountDraft);
 
     if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
       setToast({
@@ -424,13 +464,25 @@ export default function AdminQuoteActions({
           disabled: !hasSelectedReceiver,
         }
       : null,
-    canCapturePayment && paymentStatus !== "paid"
+    canCapturePayment && paymentStatus === "unpaid"
       ? {
           key: "paid",
           label: "บันทึกรับชำระเต็ม",
           description: hasSelectedReceiver
             ? "ยืนยันยอดเต็ม สร้าง payment และล็อกผู้รับเงินก่อนปลดล็อก workflow"
             : "ต้องเลือกผู้รับเงินก่อนรับชำระ",
+          disabled: !hasSelectedReceiver,
+        }
+      : null,
+    (quoteStatus === "approved" || quoteStatus === "sent") &&
+    paymentTerms === "deposit" &&
+    paymentStatus === "partial"
+      ? {
+          key: "balance",
+          label: "บันทึกรับชำระยอดที่เหลือ",
+          description: hasSelectedReceiver
+            ? "ดึง outstanding balance อัตโนมัติ → สร้าง payment ส่วนที่เหลือและปิดยอด"
+            : "ต้องเลือกผู้รับเงินก่อน (ปกติล็อกอยู่แล้วจากมัดจำ)",
           disabled: !hasSelectedReceiver,
         }
       : null,
@@ -660,6 +712,93 @@ export default function AdminQuoteActions({
               })} บาท
             </span>
           </div>
+        </div>
+      </AdminActionSheet>
+
+      <AdminActionSheet
+        open={panel === "balance"}
+        onClose={closePanel}
+        title="บันทึกรับชำระยอดที่เหลือ"
+        description="ปิดยอดส่วนที่เหลือหลังรับมัดจำ — ระบบดึง outstanding มาจาก server ไม่ให้เกินยอดใบเสนอราคา"
+        badge="การเงิน"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={closePanel}>
+              ยกเลิก
+            </Button>
+            <Button
+              type="button"
+              onClick={() => updateCommercialStatus("paid")}
+              disabled={
+                loading ||
+                balanceLoading ||
+                !balanceBreakdown ||
+                balanceBreakdown.outstanding <= 0
+              }
+            >
+              {loading ? "กำลังบันทึก..." : "ยืนยันรับชำระยอดที่เหลือ"}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          {balanceLoading ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              กำลังโหลดยอดคงค้าง...
+            </div>
+          ) : balanceBreakdown ? (
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  <p className="uppercase tracking-wide text-slate-500">ยอดใบ</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {balanceBreakdown.total.toLocaleString("th-TH", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                  <p className="uppercase tracking-wide text-emerald-600">รับแล้ว</p>
+                  <p className="mt-1 text-sm font-semibold text-emerald-900">
+                    {balanceBreakdown.paid.toLocaleString("th-TH", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  <p className="uppercase tracking-wide text-amber-600">คงเหลือ</p>
+                  <p className="mt-1 text-sm font-semibold text-amber-900">
+                    {balanceBreakdown.outstanding.toLocaleString("th-TH", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
+              </div>
+              {balanceBreakdown.outstanding <= 0 ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                  ยอดนี้ชำระครบแล้ว ไม่มียอดคงค้างให้รับเพิ่ม
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
+                  ระบบจะ insert payment row ใหม่ ยอด{" "}
+                  <span className="font-semibold text-slate-950">
+                    {balanceBreakdown.outstanding.toLocaleString("th-TH", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                  {" "}แล้วเลื่อน quote.payment_status เป็น <code>paid</code>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              โหลดข้อมูลคงค้างไม่สำเร็จ ปิดหน้าต่างนี้แล้วลองใหม่
+            </div>
+          )}
         </div>
       </AdminActionSheet>
 

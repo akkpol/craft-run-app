@@ -34,6 +34,7 @@ import {
 } from "@/lib/types";
 import QuoteApproveButton from "./approve-button";
 import { QuotePaymentSlipUploader } from "./quote-payment-slip-uploader";
+import { getQuoteOutstandingBalance } from "@/lib/quote-balance";
 import { paymentUnlocksProduction } from "@/lib/quote-workflow";
 import { getPaymentDisplayState } from "@/lib/payment-display";
 import { resolvePaymentProfileFromConfig } from "@/lib/payment-routing";
@@ -283,6 +284,10 @@ export default async function QuotePage(props: { params: Promise<{ token: string
   const requestedDocumentType =
     (lead?.requested_document_type as DocumentRequestType | undefined) || "quote";
   const commercialContext = await fetchCommercialAdminContextForQuoteIds([quote.id]);
+  const balanceBreakdown =
+    paymentTerms === "deposit" && (paymentStatus === "partial" || paymentStatus === "unpaid")
+      ? await getQuoteOutstandingBalance(supabase, quote.id)
+      : null;
   const commercialOrder = commercialContext.orderByQuoteId[quote.id] || null;
   const requiredCommercialDocumentType =
     productionReady || waitingPayment
@@ -549,7 +554,38 @@ export default async function QuotePage(props: { params: Promise<{ token: string
                 {paymentConfirmationText}
               </div>
 
-              {waitingPayment && paymentTerms !== "credit" ? (
+              {balanceBreakdown && balanceBreakdown.outstanding > 0 && paymentStatus === "partial" ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-xs leading-relaxed text-amber-900">
+                  <div className="grid grid-cols-3 gap-2 text-[11px]">
+                    <div>
+                      <p className="text-amber-700">ยอดใบ</p>
+                      <p className="mt-0.5 font-semibold text-amber-950">
+                        {balanceBreakdown.total.toLocaleString("th-TH")}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-amber-700">ชำระแล้ว</p>
+                      <p className="mt-0.5 font-semibold text-emerald-700">
+                        {balanceBreakdown.paid.toLocaleString("th-TH")}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-amber-700">คงเหลือ</p>
+                      <p className="mt-0.5 font-semibold text-amber-950">
+                        {balanceBreakdown.outstanding.toLocaleString("th-TH")}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="mt-2">
+                    คุณชำระมัดจำมาแล้ว — ยอดที่เหลือสำหรับปิดงานคือ
+                    <span className="ml-1 font-semibold">
+                      {balanceBreakdown.outstanding.toLocaleString("th-TH")} บาท
+                    </span>
+                  </p>
+                </div>
+              ) : null}
+
+              {(waitingPayment || (paymentStatus === "partial" && (balanceBreakdown?.outstanding ?? 0) > 0)) && paymentTerms !== "credit" ? (
                 <QuotePaymentSlipUploader token={token} />
               ) : null}
             </div>

@@ -7,6 +7,7 @@ import {
   uploadPaymentSlipFile,
 } from "@/lib/payment-slip-storage";
 import { paymentUnlocksProduction } from "@/lib/quote-workflow";
+import { getQuoteOutstandingBalance } from "@/lib/quote-balance";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   isPaymentStatus,
@@ -88,11 +89,26 @@ export async function POST(
     !hasJob &&
     !paymentUnlocksProduction(paymentTerms, paymentStatus);
 
-  if (!waitingPayment || paymentTerms === "credit") {
+  // Balance-due path: deposit + partial still has outstanding amount
+  // (production unlocked, job created, but customer hasn't paid in full).
+  // Customer should be able to upload balance slip even after IN_DESIGN.
+  let outstandingDue = false;
+  if (
+    quote.status === "approved" &&
+    paymentTerms === "deposit" &&
+    paymentStatus === "partial"
+  ) {
+    const balance = await getQuoteOutstandingBalance(supabase, quote.id);
+    if (balance && balance.outstanding > 0) {
+      outstandingDue = true;
+    }
+  }
+
+  if ((!waitingPayment && !outstandingDue) || paymentTerms === "credit") {
     return NextResponse.json(
       {
-        error: "QUOTE_NOT_WAITING_PAYMENT",
-        detail: "This quote is not accepting payment slip uploads.",
+        error: "QUOTE_NOT_ACCEPTING_PAYMENT_SLIPS",
+        detail: "This quote is fully paid, on credit terms, or no longer accepting slips.",
       },
       { status: 409 }
     );
