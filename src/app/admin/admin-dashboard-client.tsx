@@ -9,6 +9,7 @@ import {
   OverviewCombinedQueueTable,
 } from "./admin-dashboard-sections";
 import { DashboardTrendChart } from "./DashboardTrendChart";
+import { PaymentSlipQueue } from "./payment-slip-queue";
 
 type DashboardProps = {
   baseUrl: string;
@@ -68,6 +69,13 @@ export default function AdminDashboardClient({
                 </span>
               ))}
             </div>
+          </SurfaceSection>
+
+          <SurfaceSection
+            title="สลิปโอนรอตรวจ"
+            description="ลูกค้าอัปโหลดสลิปผ่านหน้า quote — ตรวจแล้ว match กับ payment ที่ admin บันทึก หรือกด reject ถ้าไม่ตรง"
+          >
+            <PaymentSlipQueue />
           </SurfaceSection>
 
           <SurfaceSection

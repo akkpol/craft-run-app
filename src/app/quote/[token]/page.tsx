@@ -33,6 +33,7 @@ import {
   type PaymentTerm,
 } from "@/lib/types";
 import QuoteApproveButton from "./approve-button";
+import { QuotePaymentSlipUploader } from "./quote-payment-slip-uploader";
 import { paymentUnlocksProduction } from "@/lib/quote-workflow";
 import { getPaymentDisplayState } from "@/lib/payment-display";
 import { resolvePaymentProfileFromConfig } from "@/lib/payment-routing";
@@ -547,6 +548,10 @@ export default async function QuotePage(props: { params: Promise<{ token: string
               <div className="rounded-2xl bg-white/70 px-4 py-3 text-xs leading-relaxed text-slate-500 ring-1 ring-slate-200/60">
                 {paymentConfirmationText}
               </div>
+
+              {waitingPayment && paymentTerms !== "credit" ? (
+                <QuotePaymentSlipUploader token={token} />
+              ) : null}
             </div>
           </div>
         </div>
