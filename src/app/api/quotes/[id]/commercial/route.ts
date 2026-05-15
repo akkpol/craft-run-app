@@ -64,7 +64,7 @@ function normalizeIdempotencyKey(body: CommercialUpdateBody) {
 function getPaymentAmount(
   paymentStatus: PaymentStatus,
   rawAmount: CommercialUpdateBody["paymentAmount"],
-  quoteTotal: number
+  defaultAmount: number
 ):
   | { ok: true; amount: number }
   | { ok: false; error: string; detail: string; status: number } {
@@ -77,7 +77,7 @@ function getPaymentAmount(
     };
   }
 
-  const amount = rawAmount === undefined ? quoteTotal : Number(rawAmount);
+  const amount = rawAmount === undefined ? defaultAmount : Number(rawAmount);
 
   if (!Number.isFinite(amount)) {
     return {
@@ -174,6 +174,25 @@ export async function POST(
     paymentStatus = "unpaid";
   }
 
+  let whtRate: number | undefined;
+  if (
+    body.whtRate !== undefined &&
+    body.whtRate !== null &&
+    body.whtRate !== ""
+  ) {
+    const rate = Number(body.whtRate);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 0.2) {
+      return NextResponse.json(
+        {
+          error: "WHT_RATE_INVALID",
+          detail: "whtRate must be a finite number between 0 and 0.20.",
+        },
+        { status: 400 }
+      );
+    }
+    whtRate = rate;
+  }
+
   const appConfig = await getRuntimeAppConfig();
   const paymentProfileSnapshot = resolvePaymentProfileFromConfig(appConfig, {
     total: quote.total,
@@ -213,33 +232,9 @@ export async function POST(
       );
     }
 
-    const amountResult = getPaymentAmount(
-      paymentStatus,
-      body.paymentAmount,
-      Number(quote.total || 0)
-    );
-    if (!amountResult.ok) {
-      return NextResponse.json(
-        { error: amountResult.error, detail: amountResult.detail },
-        { status: amountResult.status }
-      );
-    }
-
-    const amountValidation = validatePaymentAmount({
-      paymentTerms,
-      paymentAmount: amountResult.amount,
-      amountDue: Number(quote.total || 0),
-    });
-    if (!amountValidation.ok) {
-      return NextResponse.json(
-        { error: amountValidation.error, detail: amountValidation.detail },
-        { status: 422 }
-      );
-    }
-
-    // Withholding tax on this specific payment (50ทวิ). The RPC enforces
-    // amount + wht_amount <= outstanding under the order row lock (L11)
-    // so we just forward the validated numeric here.
+    // Withholding tax on this specific payment (50ทวิ). Validate before
+    // amount checks because cash + WHT is the credited amount for prepaid
+    // and outstanding-balance rules.
     const whtRaw = body.whtAmount;
     const whtAmount =
       whtRaw === undefined || whtRaw === null || whtRaw === ""
@@ -252,6 +247,43 @@ export async function POST(
           detail: "whtAmount must be a finite non-negative number",
         },
         { status: 400 }
+      );
+    }
+
+    const quoteTotal = Number(quote.total || 0);
+    const defaultPaymentAmount =
+      paymentStatus === "paid" ? Math.max(0, quoteTotal - whtAmount) : quoteTotal;
+    const amountResult = getPaymentAmount(
+      paymentStatus,
+      body.paymentAmount,
+      defaultPaymentAmount
+    );
+    if (!amountResult.ok) {
+      return NextResponse.json(
+        { error: amountResult.error, detail: amountResult.detail },
+        { status: amountResult.status }
+      );
+    }
+
+    if (amountResult.amount <= 0) {
+      return NextResponse.json(
+        {
+          error: "PAYMENT_AMOUNT_UNDERPAID",
+          detail: "confirmed payment amount must be greater than zero",
+        },
+        { status: 422 }
+      );
+    }
+
+    const amountValidation = validatePaymentAmount({
+      paymentTerms,
+      paymentAmount: amountResult.amount + whtAmount,
+      amountDue: quoteTotal,
+    });
+    if (!amountValidation.ok) {
+      return NextResponse.json(
+        { error: amountValidation.error, detail: amountValidation.detail },
+        { status: 422 }
       );
     }
 
@@ -310,18 +342,8 @@ export async function POST(
     payment_status: paymentStatus,
     payment_profile_snapshot: paymentProfileSnapshot,
   };
-  if (body.whtRate !== undefined && body.whtRate !== null && body.whtRate !== "") {
-    const rate = Number(body.whtRate);
-    if (!Number.isFinite(rate) || rate < 0 || rate > 0.2) {
-      return NextResponse.json(
-        {
-          error: "WHT_RATE_INVALID",
-          detail: "whtRate must be a finite number between 0 and 0.20.",
-        },
-        { status: 400 }
-      );
-    }
-    quoteUpdatePayload.wht_rate = rate;
+  if (whtRate !== undefined) {
+    quoteUpdatePayload.wht_rate = whtRate;
   }
   const { error: quoteUpdateError } = await supabase
     .from("quotes")
