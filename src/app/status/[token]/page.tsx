@@ -465,6 +465,59 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
                 ) : null}
               </section>
             ) : null}
+
+            {fulfillmentMode === "delivery" && job && (job.delivery_provider || job.delivery_tracking_url || job.delivery_tracking_number) ? (
+              <section className="rounded-[24px] border border-sky-200 bg-white px-5 py-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+                <h2 className="text-sm font-semibold text-slate-950">ติดตามการจัดส่ง</h2>
+                <div className="mt-3 grid gap-2 text-sm">
+                  {job.delivery_provider ? (
+                    <p>
+                      <span className="text-slate-500">ผู้ให้บริการ:</span>{" "}
+                      <span className="font-medium text-slate-900">
+                        {job.delivery_provider === "lalamove" && "Lalamove"}
+                        {job.delivery_provider === "grab" && "Grab Express"}
+                        {job.delivery_provider === "kerry" && "Kerry Express"}
+                        {job.delivery_provider === "flash" && "Flash Express"}
+                        {job.delivery_provider === "thaipost" && "ไปรษณีย์ไทย"}
+                        {job.delivery_provider === "inhouse" && "ทีมร้าน"}
+                        {job.delivery_provider === "other" && "อื่นๆ"}
+                      </span>
+                    </p>
+                  ) : null}
+                  {job.delivery_tracking_number ? (
+                    <p>
+                      <span className="text-slate-500">เลขพัสดุ:</span>{" "}
+                      <span className="font-mono font-medium text-slate-900">
+                        {job.delivery_tracking_number}
+                      </span>
+                    </p>
+                  ) : null}
+                  {job.delivery_dispatched_at ? (
+                    <p>
+                      <span className="text-slate-500">ออกจากร้าน:</span>{" "}
+                      {new Intl.DateTimeFormat("th-TH", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                        timeZone: "Asia/Bangkok",
+                      }).format(new Date(job.delivery_dispatched_at))}
+                    </p>
+                  ) : null}
+                  {job.delivery_notes ? (
+                    <p className="text-xs text-slate-600">📝 {job.delivery_notes}</p>
+                  ) : null}
+                  {job.delivery_tracking_url ? (
+                    <a
+                      href={job.delivery_tracking_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center justify-center rounded-full bg-sky-900 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-950"
+                    >
+                      เปิดดูสถานะการจัดส่ง →
+                    </a>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
           </main>
 
           <aside className="space-y-5">
