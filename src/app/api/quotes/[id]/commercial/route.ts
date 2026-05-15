@@ -16,6 +16,7 @@ import {
 } from "@/lib/types";
 import { logHumanAction } from "@/lib/action-log";
 import { validatePaymentAmount } from "@/lib/commercial-validation";
+import { getQuoteOutstandingBalance } from "@/lib/quote-balance";
 
 type CommercialUpdateBody = {
   paymentTerms?: PaymentTerm;
@@ -219,6 +220,31 @@ export async function POST(
         { error: amountValidation.error, detail: amountValidation.detail },
         { status: 422 }
       );
+    }
+
+    // Cumulative balance guard: prevent admin from double-paying when
+    // a deposit (or any prior CONFIRMED payment) already exists. Without
+    // this, "บันทึกรับชำระเต็ม" after a deposit would insert a second
+    // row at quote.total and cause sum(payments) > quote.total. Balance
+    // flow expects amount = outstanding from the new admin balance panel.
+    if (paymentTerms === "deposit") {
+      const balance = await getQuoteOutstandingBalance(supabase, id);
+      if (balance) {
+        const requestedAmount = Number(amountResult.amount);
+        const outstanding = Number(balance.outstanding);
+        if (requestedAmount > outstanding + 0.01) {
+          return NextResponse.json(
+            {
+              error: "PAYMENT_AMOUNT_EXCEEDS_OUTSTANDING",
+              detail: `Payment amount ${requestedAmount} exceeds outstanding balance ${outstanding} (already paid ${balance.paid} of ${balance.total}).`,
+              outstanding,
+              alreadyPaid: balance.paid,
+              total: balance.total,
+            },
+            { status: 422 }
+          );
+        }
+      }
     }
 
     const paidAt = new Date().toISOString();
