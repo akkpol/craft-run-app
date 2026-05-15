@@ -113,11 +113,73 @@ export async function PATCH(
   }
 
   if (body.active !== undefined) {
-    update.active = Boolean(body.active);
+    const nextActive = Boolean(body.active);
+    // L2 — deactivation has downstream impact: confirm_commercial_payment
+    // refuses RECEIVER_ENTITY_INACTIVE on every call (even for balance
+    // payments on already-locked orders), so an in-flight order whose
+    // receiver entity gets deactivated will be stuck. Refuse deactivation
+    // when at least one commercial_orders row references this entity AND
+    // no commercial_document has been issued for it yet — finished orders
+    // are safe to leave behind.
+    if (!nextActive && current.is_vat_registered !== undefined) {
+      const { count: inflightCount, error: inflightErr } = await supabase
+        .from("commercial_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("selected_receiver_entity_id", id)
+        .is("payment_receiver_locked_at", null);
+      if (inflightErr) {
+        return NextResponse.json({ error: inflightErr.message }, { status: 500 });
+      }
+      if ((inflightCount ?? 0) > 0) {
+        return NextResponse.json(
+          {
+            error: "ENTITY_HAS_INFLIGHT_ORDERS",
+            detail: `Entity is referenced by ${inflightCount} unlocked commercial order(s). Wait until those orders confirm payment or pick a different receiver before deactivating.`,
+            inflightCount,
+          },
+          { status: 409 }
+        );
+      }
+    }
+    update.active = nextActive;
   }
 
   if (Object.keys(update).length <= 1) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+  }
+
+  // L2 — derive final VAT/tax_id state from current row + patch + enforce
+  // "VAT entity must have tax_id" so a partial update can't strand a
+  // VAT-registered row without a tax_id (e.g., clearing tax_id without
+  // also flipping is_vat_registered to false).
+  const nextIsVat =
+    body.isVatRegistered !== undefined
+      ? Boolean(body.isVatRegistered)
+      : Boolean(current.is_vat_registered);
+  const nextTaxId =
+    body.taxId !== undefined
+      ? sanitizeText(body.taxId, 50)
+      : ("tax_id" in update && update.tax_id !== undefined
+          ? (update.tax_id as string | null)
+          : undefined);
+  // Look up current tax_id only if we still don't know the post-update value.
+  let resolvedTaxId: string | null | undefined = nextTaxId;
+  if (nextIsVat && resolvedTaxId === undefined) {
+    const { data: currentTax } = await supabase
+      .from("commercial_entities")
+      .select("tax_id")
+      .eq("id", id)
+      .maybeSingle();
+    resolvedTaxId = (currentTax?.tax_id as string | null) ?? null;
+  }
+  if (nextIsVat && !resolvedTaxId) {
+    return NextResponse.json(
+      {
+        error: "VAT_ENTITY_REQUIRES_TAX_ID",
+        detail: "VAT-registered entity must keep a non-empty tax_id.",
+      },
+      { status: 422 }
+    );
   }
 
   const { data: updated, error: updateError } = await supabase
@@ -130,6 +192,16 @@ export async function PATCH(
     .maybeSingle();
 
   if (updateError) {
+    const code23 = (updateError as { code?: string }).code ?? "";
+    if (code23 === "23514") {
+      return NextResponse.json(
+        {
+          error: "ENTITY_CONSTRAINT_VIOLATION",
+          detail: updateError.message,
+        },
+        { status: 422 }
+      );
+    }
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
   if (!updated) {

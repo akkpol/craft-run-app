@@ -143,9 +143,40 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // VAT-registered entity must have a tax_id — downstream document issuance
+  // emits TAX_INVOICE_RECEIPT only on VAT-registered receivers, and Thai
+  // tax invoices require the issuer's 13-digit tax_id. Without this check,
+  // admin could create a "VAT-registered but no tax_id" row that silently
+  // fails or prints a blank tax line. (L2 — trace downstream of new flag.)
+  const taxId = sanitizeText(body.taxId, 50);
+  if (isVat && !taxId) {
+    return NextResponse.json(
+      {
+        error: "VAT_ENTITY_REQUIRES_TAX_ID",
+        detail: "VAT-registered entity must have a tax_id (เลขประจำตัวผู้เสียภาษี).",
+      },
+      { status: 422 }
+    );
+  }
+
   const branchType = ALLOWED_BRANCH_TYPES.includes(body.branchType as EntityBranchType)
     ? (body.branchType as EntityBranchType)
     : "HEAD_OFFICE";
+
+  const branchCode = sanitizeText(body.branchCode, 50);
+  const branchName = sanitizeText(body.branchName, 200);
+  // DB has a check constraint: branch_type='HEAD_OFFICE' OR branch_code OR
+  // branch_name IS NOT NULL. Catch it in the app so the admin sees a clear
+  // error code instead of a 500 with raw Postgres CHECK message.
+  if (branchType === "BRANCH" && !branchCode && !branchName) {
+    return NextResponse.json(
+      {
+        error: "BRANCH_REQUIRES_CODE_OR_NAME",
+        detail: "BRANCH entries must include either a branch_code or branch_name.",
+      },
+      { status: 422 }
+    );
+  }
 
   const supabase = createAdminClient();
   const { data: inserted, error: insertError } = await supabase
@@ -156,11 +187,11 @@ export async function POST(request: NextRequest) {
       role: body.role,
       legal_name: legalName,
       display_name: displayName,
-      tax_id: sanitizeText(body.taxId, 50),
+      tax_id: taxId,
       is_vat_registered: isVat,
       branch_type: branchType,
-      branch_code: sanitizeText(body.branchCode, 50),
-      branch_name: sanitizeText(body.branchName, 200),
+      branch_code: branchCode,
+      branch_name: branchName,
       address: sanitizeText(body.address, 1000),
       bank_account_owner: sanitizeText(body.bankAccountOwner, 500),
       active: true,
@@ -171,9 +202,10 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (insertError || !inserted) {
-    // Map common unique-constraint failure on code.
-    const msg = insertError?.message || "";
-    if (msg.includes("commercial_entities") && msg.toLowerCase().includes("duplicate")) {
+    // Postgres error codes are more reliable than string-matching the message.
+    // 23505 = unique_violation, 23514 = check_violation.
+    const code23 = (insertError as { code?: string } | null)?.code ?? "";
+    if (code23 === "23505") {
       return NextResponse.json(
         {
           error: "ENTITY_CODE_TAKEN",
@@ -182,7 +214,19 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: msg || "Failed to create entity" }, { status: 500 });
+    if (code23 === "23514") {
+      return NextResponse.json(
+        {
+          error: "ENTITY_CONSTRAINT_VIOLATION",
+          detail: insertError?.message || "Check constraint failed.",
+        },
+        { status: 422 }
+      );
+    }
+    return NextResponse.json(
+      { error: insertError?.message || "Failed to create entity" },
+      { status: 500 }
+    );
   }
 
   await logHumanAction(supabase, {
