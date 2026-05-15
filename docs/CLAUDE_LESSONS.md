@@ -130,6 +130,40 @@ const appendix = leadImage
 
 ---
 
+## L8 — `RETURNS TABLE` output column ชนกับ table column ใน `RETURNING`
+
+**Pattern:** ถ้าฟังก์ชัน PL/pgSQL ประกาศ `RETURNS TABLE (col_name ...)` และในตัวฟังก์ชัน update table ที่มี column ชื่อเดียวกัน — `RETURNING col_name INTO var` จะ **ambiguous** เพราะ Postgres ไม่รู้ว่าหมายถึง table column หรือ output column (ที่กลายเป็น variable ใน PL/pgSQL scope)
+
+**ผิดอย่างไร:**
+- migration `20260515080000_add_payment_idempotency_rpc.sql` (จาก PR #54) สร้าง RPC `confirm_commercial_payment` ที่ `RETURNS TABLE (..., payment_receiver_locked_at timestamptz, ...)`
+- ใน function body มี `update commercial_orders SET payment_receiver_locked_at = ... RETURNING payment_receiver_locked_at INTO v_locked_at`
+- RPC **500 ทุกครั้ง** ที่ admin กด confirm payment: `ERROR: 42702: column reference "payment_receiver_locked_at" is ambiguous`
+- Codex ไม่ได้ flag จาก static review (RPC syntax valid) — เจอตอน E2E live test เท่านั้น
+
+**ทำอย่างไรให้ถูก:**
+```sql
+-- ✗ ผิด: ambiguous
+update commercial_orders
+   set payment_receiver_locked_at = v_paid_at
+ where id = v_order.id
+ returning payment_receiver_locked_at into v_locked_at;
+
+-- ✓ ถูก: alias table
+update commercial_orders co
+   set payment_receiver_locked_at = v_paid_at
+ where co.id = v_order.id
+ returning co.payment_receiver_locked_at into v_locked_at;
+```
+
+**Prevention checklist เมื่อเขียน RPC ที่ใช้ `RETURNS TABLE`:**
+- ตั้งชื่อ output column ให้ **ต่าง** จาก column ของ table ที่ update/insert (เช่น `out_payment_locked_at`) **หรือ**
+- ใส่ **table alias** ในทุก `UPDATE` ที่มี `RETURNING` แล้วใช้ `alias.column` ใน returning
+- เขียน **integration test** ที่เรียก RPC จริงๆ ไม่ใช่แค่ smoke test ที่ check signature เพราะ syntax-valid แต่ runtime fail
+
+**Reference fix:** migration `20260515150000_fix_confirm_payment_ambiguous_column.sql`
+
+---
+
 ## L5 — `next-env.d.ts` ห้าม commit
 
 **Pattern:** ไฟล์นี้ Next.js auto-generate แตกต่างระหว่าง `next dev` กับ `next build` (toggle `.next/types` ↔ `.next/dev/types`) — ไม่ใช่ source code
