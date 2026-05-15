@@ -37,6 +37,15 @@ test('public quote token route with nested path is public', () => {
   assert.equal(isPublicRoute('/api/quotes/public/tok-abc-def-123/action'), true)
 })
 
+test('public install proof upload accepts only the token proof endpoint', () => {
+  assert.equal(isPublicRoute('/api/install/install-token-123/proof'), true)
+  assert.equal(isPublicRoute('/api/install/install-token-123/commercial'), false)
+})
+
+test('public install team page is public', () => {
+  assert.equal(isPublicRoute('/install/install-token-123'), true)
+})
+
 // --- Other public routes must be unaffected ---
 
 test('webhook route is still public (LINE platform calls)', () => {

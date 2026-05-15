@@ -280,6 +280,75 @@ validatePaymentAmount({
 
 ---
 
+## L14 — แก้ totals = ต้อง re-resolve snapshot ทุกตัวที่ถูก derive จาก totals
+
+**Pattern:** ถ้า column `X` (e.g. `payment_profile_snapshot`) ถูก derive จาก quote totals ตอน issue — เมื่อ totals เปลี่ยน (item ถูกเพิ่ม/ลบ/ราคาเปลี่ยน) ต้อง **recompute snapshot** ในการ update เดียวกัน ไม่งั้น UI ที่ prefer snapshot จะแสดงของเก่า
+
+**ผิดอย่างไร:**
+- PR #66, `POST/DELETE /api/admin/quotes/[id]/items`: รอบแรกอัปเดตเฉพาะ `subtotal/vat/total` ลืม `payment_profile_snapshot`
+- Customer page อ่าน `quote.payment_profile_snapshot` ก่อน fallback มา recompute → เห็นบัญชี/QR เก่า (ที่ถูกเลือกตอน threshold เดิม)
+- Codex P2 บน #66: เพิ่ม item ทำให้ total ข้าม secondary-routing threshold → snapshot เก่า → ลูกค้าโอนเงินผิดบัญชี
+
+**ทำอย่างไรให้ถูก:**
+```ts
+// ✗ ผิด — update เฉพาะ totals
+await supabase.from("quotes").update({ subtotal, vat, total }).eq("id", id);
+
+// ✓ ถูก — refresh derived snapshot ด้วย
+const paymentProfileSnapshot = resolvePaymentProfileFromConfig(appConfig, {
+  total,
+  billingEntityType,
+  paymentTerms,
+});
+await supabase.from("quotes")
+  .update({ subtotal, vat, total, payment_profile_snapshot: paymentProfileSnapshot })
+  .eq("id", id);
+```
+
+**Prevention checklist:**
+- Grep `payment_profile_snapshot`, `customer_tax_profile`, `snapshot_json` ฯลฯ — ทุก derived snapshot ใน DB
+- ถ้า column ที่จะ update มันเป็น input ให้ snapshot อื่น — recompute ใน transaction เดียว
+- เขียน test ที่ verify snapshot ตรงกับ recompute สดๆ หลัง mutation
+
+**Reference fix:** commit `cded588` "Fix quote item payment routing guards"
+
+---
+
+## L15 — Refuse-action guard ต้องทำงาน **ก่อน** mutation ไม่ใช่หลัง
+
+**Pattern:** Guard ที่ปฏิเสธ destructive action (delete last item, prevent over-spend, etc.) ต้องตรวจ + return 409 **ก่อน** เรียก mutation จริง ไม่ใช่ทำ mutation แล้วค่อย rollback — restore path มักจะหายข้อมูลและ buggy
+
+**ผิดอย่างไร:**
+- PR #66, `DELETE /api/admin/quotes/[id]/items/[itemId]`: รอบแรกทำ DELETE ก่อน → count rows → ถ้า 0 ก็ re-insert ด้วย `{ id, label, qty: 1, unit_price: 0 }`
+- ปัญหา: restore data เก็บแค่ `id + label` ไม่เก็บ qty/unit_price ของจริง → กด delete รายการสุดท้าย → 409 ตอบ "refused" แต่ row จริงๆ ถูกแก้เป็น qty=1, unit_price=0 → ลูกค้าเห็น item เพี้ยน
+- Codex P2 บน #66
+
+**ทำอย่างไรให้ถูก:**
+```ts
+// ✗ ผิด — delete แล้วค่อย check + restore แบบสูญข้อมูล
+await supabase.from("quote_items").delete().eq("id", itemId).select(...);
+const { count } = await supabase.from("quote_items").select("id", { count: "exact", head: true });
+if (count === 0) {
+  await supabase.from("quote_items").insert({ id, label }); // ← lose qty/unit_price
+  return 409;
+}
+
+// ✓ ถูก — count ก่อน, delete หลัง
+const { data: existingItems } = await supabase.from("quote_items").select("id").eq("quote_id", id);
+if (!existingItems.some(i => i.id === itemId)) return 404;
+if (existingItems.length <= 1) return 409 LAST_ITEM_PROTECTED;
+await supabase.from("quote_items").delete()...;
+```
+
+**Prevention checklist สำหรับ destructive endpoints:**
+- ตรวจ pre-condition จาก state ที่ stable (read ก่อน mutate)
+- ถ้าต้อง read+mutate atomically → ใช้ transaction (Postgres function หรือ rpc) — ไม่ใช่ rollback-via-restore
+- restore-after-mutate มักจะลืม column → corrupt data
+
+**Reference fix:** commit `cded588` "Fix quote item payment routing guards"
+
+---
+
 ## L5 — `next-env.d.ts` ห้าม commit
 
 **Pattern:** ไฟล์นี้ Next.js auto-generate แตกต่างระหว่าง `next dev` กับ `next build` (toggle `.next/types` ↔ `.next/dev/types`) — ไม่ใช่ source code
