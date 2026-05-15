@@ -34,7 +34,10 @@ export async function GET(
     quoteId: id,
     total: breakdown.total,
     paid: breakdown.paid,
+    cashReceived: breakdown.cashReceived,
+    whtWithheld: breakdown.whtWithheld,
     outstanding: breakdown.outstanding,
     paymentCount: breakdown.paymentCount,
+    whtRate: breakdown.whtRate,
   });
 }

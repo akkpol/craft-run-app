@@ -83,6 +83,7 @@ export default function AdminQuoteActions({
   const [paymentTermsDraft, setPaymentTermsDraft] = useState(paymentTerms);
   const [paymentStatusDraft, setPaymentStatusDraft] = useState(paymentStatus);
   const [paymentAmountDraft, setPaymentAmountDraft] = useState("");
+  const [whtAmountDraft, setWhtAmountDraft] = useState("");
   const [paymentIdempotencyKey, setPaymentIdempotencyKey] = useState("");
   const [balanceBreakdown, setBalanceBreakdown] = useState<{
     total: number;
@@ -145,6 +146,7 @@ export default function AdminQuoteActions({
     setReceiverEntityIdDraft(commercialOrder?.selectedReceiverEntityId || "");
     setPaymentIdempotencyKey("");
     setPaymentAmountDraft("");
+    setWhtAmountDraft("");
     setBalanceBreakdown(null);
 
     if (nextPanel === "rescope") {
@@ -244,14 +246,28 @@ export default function AdminQuoteActions({
       return;
     }
 
-    // Balance panel: use server-fetched outstanding (NOT quote.total) to
-    // avoid double-charging after a deposit. Fall back to quote.total only
-    // for the regular "paid" upfront panel.
+    // Withholding tax (50ทวิ) per-payment. Optional; admin enters baht
+    // withheld by B2B customer if any. RPC enforces amount + wht ≤ outstanding.
+    const whtAmount = whtAmountDraft.trim() === "" ? 0 : Number(whtAmountDraft);
+    if (!Number.isFinite(whtAmount) || whtAmount < 0) {
+      setToast({
+        tone: "warning",
+        title: "WHT amount ไม่ถูกต้อง",
+        description: "ยอดหัก ณ ที่จ่ายต้องเป็นจำนวนมากกว่าหรือเท่ากับ 0",
+      });
+      return;
+    }
+
+    // Balance panel: paymentAmount = outstanding - wht so that
+    // amount + wht_amount == outstanding inside the RPC's cumulative check.
+    // Legacy "paid" upfront panel: amount = quote.total - wht.
+    const baselineForPaid =
+      panel === "balance" && balanceBreakdown
+        ? Number(balanceBreakdown.outstanding)
+        : Number(quoteTotal || 0);
     const paymentAmount =
       nextStatus === "paid"
-        ? panel === "balance" && balanceBreakdown
-          ? Number(balanceBreakdown.outstanding)
-          : Number(quoteTotal || 0)
+        ? Math.max(0, baselineForPaid - whtAmount)
         : Number(paymentAmountDraft);
 
     if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
@@ -278,6 +294,7 @@ export default function AdminQuoteActions({
         {
           paymentStatus: nextStatus,
           paymentAmount,
+          whtAmount,
           paymentIdempotencyKey,
         },
         "บันทึกสถานะชำระเงินไม่สำเร็จ"
@@ -679,6 +696,24 @@ export default function AdminQuoteActions({
               })} บาท
             </p>
           </div>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-800">
+              หัก ณ ที่จ่าย (50ทวิ) — ออปชั่น
+            </label>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={whtAmountDraft}
+              onChange={(event) => setWhtAmountDraft(event.target.value)}
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+              placeholder="0.00"
+            />
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              ถ้าลูกค้านิติบุคคลหักภาษี ณ ที่จ่าย ใส่ยอดที่หักไว้ — ระบบจะนับเป็นยอดที่ชำระแล้วเช่นกัน
+            </p>
+          </div>
         </div>
       </AdminActionSheet>
 
@@ -711,6 +746,24 @@ export default function AdminQuoteActions({
                 maximumFractionDigits: 2,
               })} บาท
             </span>
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-800">
+              หัก ณ ที่จ่าย (50ทวิ) — ออปชั่น
+            </label>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={whtAmountDraft}
+              onChange={(event) => setWhtAmountDraft(event.target.value)}
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+              placeholder="0.00"
+            />
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              ถ้าลูกค้าโอนน้อยกว่ายอดเต็มเพราะหัก WHT ให้ระบุยอดที่ถูกหักที่นี่ — ระบบนับรวมเป็นยอดที่ชำระแล้ว
+            </p>
           </div>
         </div>
       </AdminActionSheet>
@@ -793,6 +846,26 @@ export default function AdminQuoteActions({
                   {" "}แล้วเลื่อน quote.payment_status เป็น <code>paid</code>
                 </div>
               )}
+              {balanceBreakdown.outstanding > 0 ? (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-800">
+                    หัก ณ ที่จ่าย (50ทวิ) ในยอดที่เหลือ — ออปชั่น
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={whtAmountDraft}
+                    onChange={(event) => setWhtAmountDraft(event.target.value)}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                    placeholder="0.00"
+                  />
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    ถ้าลูกค้านิติบุคคลโอนน้อยกว่า outstanding เพราะหักภาษี — ระบุยอดหักที่นี่ เพื่อให้ amount + wht = outstanding
+                  </p>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">

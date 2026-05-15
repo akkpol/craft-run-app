@@ -21,6 +21,14 @@ type CommercialUpdateBody = {
   paymentTerms?: PaymentTerm;
   paymentStatus?: PaymentStatus;
   paymentAmount?: number | string;
+  /** Optional withheld tax (50ทวิ) on this specific payment. Defaults to 0. */
+  whtAmount?: number | string;
+  /**
+   * Optional quote-level WHT rate (0..0.20 → 0–20%). Persisted on quotes.wht_rate.
+   * Typically 0.03 for Thai service work. Admin can set at deposit time then it
+   * applies to all subsequent payments + document snapshots.
+   */
+  whtRate?: number | string;
   paymentIdempotencyKey?: string;
   idempotencyKey?: string;
 };
@@ -90,6 +98,7 @@ function mapPaymentRpcError(message: string) {
     PAYMENT_IDEMPOTENCY_KEY_REQUIRED: 400,
     PAYMENT_AMOUNT_EXCEEDS_OUTSTANDING: 422,
     PAYMENT_RECEIVER_LOCKED: 409,
+    PAYMENT_WHT_INVALID: 400,
     RECEIVER_ENTITY_INACTIVE: 422,
     RECEIVER_REQUIRED_BEFORE_PAYMENT: 409,
   };
@@ -182,6 +191,7 @@ export async function POST(
         paymentReceiverLockedAt: string | null;
         reused: boolean;
         amount: number;
+        whtAmount: number;
       }
     | null = null;
   const nextWorkflowState = getQuoteApprovalState(paymentTerms, paymentStatus);
@@ -227,6 +237,24 @@ export async function POST(
       );
     }
 
+    // Withholding tax on this specific payment (50ทวิ). The RPC enforces
+    // amount + wht_amount <= outstanding under the order row lock (L11)
+    // so we just forward the validated numeric here.
+    const whtRaw = body.whtAmount;
+    const whtAmount =
+      whtRaw === undefined || whtRaw === null || whtRaw === ""
+        ? 0
+        : Number(whtRaw);
+    if (!Number.isFinite(whtAmount) || whtAmount < 0) {
+      return NextResponse.json(
+        {
+          error: "PAYMENT_WHT_INVALID",
+          detail: "whtAmount must be a finite non-negative number",
+        },
+        { status: 400 }
+      );
+    }
+
     const paidAt = new Date().toISOString();
     const { data: rpcData, error: rpcError } = await supabase.rpc(
       "confirm_commercial_payment",
@@ -235,6 +263,7 @@ export async function POST(
         p_amount: amountResult.amount,
         p_idempotency_key: idempotencyKey,
         p_paid_at: paidAt,
+        p_wht_amount: whtAmount,
       }
     );
 
@@ -272,16 +301,31 @@ export async function POST(
         null,
       reused: Boolean(paymentResult?.reused),
       amount: amountResult.amount,
+      whtAmount,
     };
   }
 
+  const quoteUpdatePayload: Record<string, unknown> = {
+    payment_terms: paymentTerms,
+    payment_status: paymentStatus,
+    payment_profile_snapshot: paymentProfileSnapshot,
+  };
+  if (body.whtRate !== undefined && body.whtRate !== null && body.whtRate !== "") {
+    const rate = Number(body.whtRate);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 0.2) {
+      return NextResponse.json(
+        {
+          error: "WHT_RATE_INVALID",
+          detail: "whtRate must be a finite number between 0 and 0.20.",
+        },
+        { status: 400 }
+      );
+    }
+    quoteUpdatePayload.wht_rate = rate;
+  }
   const { error: quoteUpdateError } = await supabase
     .from("quotes")
-    .update({
-      payment_terms: paymentTerms,
-      payment_status: paymentStatus,
-      payment_profile_snapshot: paymentProfileSnapshot,
-    })
+    .update(quoteUpdatePayload)
     .eq("id", id);
 
   if (quoteUpdateError) {
@@ -312,6 +356,7 @@ export async function POST(
         order_id: paymentConfirmation.orderId,
         receiver_entity_id: paymentConfirmation.receiverEntityId,
         amount: paymentConfirmation.amount,
+        wht_amount: paymentConfirmation.whtAmount,
         payment_receiver_locked_at: paymentConfirmation.paymentReceiverLockedAt,
         reused: paymentConfirmation.reused,
         auto_created_from_quote_status: paymentStatus,
