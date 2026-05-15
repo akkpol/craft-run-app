@@ -164,6 +164,83 @@ update commercial_orders co
 
 ---
 
+## L9 — Race-safe status transition: ใส่ predicate ใน UPDATE ไม่ใช่แค่ pre-read
+
+**Pattern:** เวลา transition status (`pending → matched/rejected/approved/done`) ห้าม pattern `select → check → update by id` เพราะ tab A กับ tab B ที่ read พร้อมกัน ทั้งคู่จะเห็น `status='pending'` → update ทั้งคู่สำเร็จ → **state ขัดแย้งกัน** (เช่น row หลุดเป็น matched แต่ rejected_at ก็ถูก set ไปแล้ว)
+
+**ผิดอย่างไร:**
+- PR #62, `payment-slips/[id]/match/route.ts` + `reject/route.ts` (รอบแรก):
+  ```ts
+  // ✗ ผิด — race window
+  const { data: slip } = await supabase.from("payment_slips").select(...).eq("id", id);
+  if (slip.status !== "pending") return 409;
+  await supabase.from("payment_slips").update({ status: "matched", ... }).eq("id", id);
+  ```
+- Codex P2 บอกว่า 2 tab admin คลิก match + reject พร้อมกัน → ทั้งคู่ pass check + update → record มี matched_at AND rejected_at พร้อมกัน
+
+**ทำอย่างไรให้ถูก:**
+```ts
+// ✓ ถูก — atomic conditional update
+const { data: updated } = await supabase
+  .from("payment_slips")
+  .update({ status: "matched", matched_at: now, ... })
+  .eq("id", id)
+  .eq("status", "pending")          // race guard
+  .select("id")
+  .maybeSingle();
+if (!updated) return NextResponse.json({ error: "Slip is no longer pending" }, { status: 409 });
+```
+
+**Prevention checklist สำหรับ status transition:**
+- Atomic conditional update ที่ filter ด้วย expected current status
+- ตอบ 409 conflict ถ้า 0 rows updated
+- คิดถึง 2-tab / 2-admin race เสมอใน admin queue UI
+- ใช้ Postgres row lock (`for update`) ถ้า logic ซับซ้อนกว่า single update
+
+**Reference fix:** commit `9ed6d6b` "Harden payment slip review gates"
+
+---
+
+## L10 — UI hide ≠ server gate (ป้องกัน abuse ผ่าน saved/shared token)
+
+**Pattern:** Public endpoint ที่ใช้ token-based auth ห้ามเชื่อใจว่า "UI hide ปุ่ม → no one will call" — endpoint ต้อง enforce business state เอง
+
+**ผิดอย่างไร:**
+- PR #62, `POST /api/quotes/[token]/slip` (รอบแรก): public endpoint รับสลิป โดย verify แค่ว่า token valid → quote exists → upload + insert ทันที
+- UI hide uploader ถ้า quote ไม่ใช่ `waitingPayment` แต่ **server ไม่ได้เช็ค**
+- ลูกค้า save token URL ไว้ → ใช้ POST sliding หลังจาก quote completed/rejected/credit/paid → admin queue บวมไปด้วย slip noise
+
+**ทำอย่างไรให้ถูก:**
+```ts
+// ✗ ผิด — trust UI
+const { data: quote } = await supabase.from("quotes")
+  .select("id, public_token")
+  .eq("public_token", token);
+// ...accept upload
+
+// ✓ ถูก — server-side enforcement
+const { data: quote } = await supabase.from("quotes")
+  .select("id, status, payment_terms, payment_status, jobs(id)")
+  .eq("public_token", token);
+const hasJob = (quote.jobs ?? []).length > 0;
+const waitingPayment =
+  quote.status === "approved" &&
+  !hasJob &&
+  !paymentUnlocksProduction(quote.payment_terms, quote.payment_status);
+if (!waitingPayment || quote.payment_terms === "credit") {
+  return NextResponse.json({ error: "QUOTE_NOT_WAITING_PAYMENT" }, { status: 409 });
+}
+```
+
+**Prevention checklist สำหรับ public token endpoints:**
+- ทุก state-mutating endpoint ต้อง re-verify business state จาก DB
+- ใช้ shared predicate helper (`waitingPayment`, `productionReady`) แทนการ inline check
+- คิด attack model: "ถ้าคน save link แล้วเปิดทีหลัง ระบบยอมรับมั้ย?"
+
+**Reference fix:** commit `9ed6d6b` "Harden payment slip review gates"
+
+---
+
 ## L5 — `next-env.d.ts` ห้าม commit
 
 **Pattern:** ไฟล์นี้ Next.js auto-generate แตกต่างระหว่าง `next dev` กับ `next build` (toggle `.next/types` ↔ `.next/dev/types`) — ไม่ใช่ source code
