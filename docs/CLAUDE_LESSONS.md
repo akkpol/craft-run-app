@@ -349,6 +349,78 @@ await supabase.from("quote_items").delete()...;
 
 ---
 
+## L16 — Append element ลง array column ต้องใช้ atomic operator ใน DB ห้าม read-then-write ใน JS
+
+**Pattern:** ถ้า column เป็น array/jsonb และต้อง **append** จากหลาย client ที่ concurrent ได้ — ห้ามอ่าน array มาแล้วเขียนทับด้วย `[...old, new]` ใน app code เพราะ 2 request พร้อมกัน → ทั้งคู่อ่าน array เดียวกัน → ทั้งคู่ write back → **append ตัวหลังหายเสมอ**
+
+**ผิดอย่างไร:**
+- PR #67, `/api/install/[token]/proof`: รอบแรกใช้ pattern:
+  ```ts
+  const nextPaths = [...install.photo_proof_paths, uploadResult.storagePath];
+  await supabase.from("installations").update({ photo_proof_paths: nextPaths })...
+  ```
+- L9 conditional update ที่ผมทำ (`.in("status", [...])`) ป้องกันแค่ **status transition** ไม่ได้ป้องกัน **array overwrite**
+- 2 ทีมงาน upload พร้อมกัน → คนแรก append `['a','b','new1']`, คนสองอ่านเห็น `['a','b']` แล้ว append `['a','b','new2']` → **new1 หายไป**
+- Codex P2 บน PR #67
+
+**ทำอย่างไรให้ถูก:**
+```sql
+-- ✓ ถูก — atomic ภายใน Postgres
+UPDATE installations SET
+  photo_proof_paths = array_append(photo_proof_paths, $1),
+  status = CASE WHEN $2 THEN 'done' ELSE status END,
+  updated_at = NOW()
+WHERE public_token = $3 AND status IN ('scheduled', 'in_progress')
+RETURNING id, status, cardinality(photo_proof_paths);
+```
+
+ห่อเป็น RPC `SECURITY DEFINER` ที่ GRANT EXECUTE เฉพาะ service_role เพื่อให้ app เรียกผ่าน `supabase.rpc(...)`
+
+**Prevention checklist เมื่อ mutate array/jsonb column:**
+- ใช้ `array_append`, `array_remove`, `jsonb_set`, `jsonb_insert` ใน DB เสมอ
+- ห้าม read-modify-write ใน JS ถ้ามีโอกาส concurrent
+- เขียน test concurrent (Promise.all 2-3 calls) เพื่อ verify ไม่หาย element
+
+**Reference fix:** migration `20260516101000_append_installation_proof_rpc.sql` + commit `d512fb2`
+
+---
+
+## L17 — Storage upload + DB write = ต้องมี cleanup เมื่อ DB ล้มเหลว
+
+**Pattern:** ถ้า endpoint ทำ 2 ขั้น "upload file → write DB row อ้างถึง file" — ถ้า DB step ล้ม → **file ค้างอยู่ใน storage ไม่มี ref → orphan ที่ใช้พื้นที่/cost ฟรีๆ ตลอดไป**
+
+**ผิดอย่างไร:**
+- PR #67, `/api/install/[token]/proof`: ขั้น upload สำเร็จ → ขั้น update DB fail (เช่น status changed concurrent) → return 409 แต่ **file ยังอยู่ใน bucket** ไม่มี row อ้าง
+
+**ทำอย่างไรให้ถูก:**
+```ts
+let uploadResult;
+try {
+  uploadResult = await uploadProofFile(installId, file);
+} catch (err) { return 500; }
+
+const { data: rpcData, error: dbError } = await supabase.rpc("append_proof", {...});
+if (dbError) {
+  await deleteProofFile(uploadResult.storagePath).catch(() => null); // cleanup
+  return 500;
+}
+const updated = parseRpc(rpcData);
+if (!updated) {
+  await deleteProofFile(uploadResult.storagePath).catch(() => null); // cleanup
+  return 409 STATE_CHANGED;
+}
+```
+
+**Prevention checklist สำหรับ "upload then DB write" patterns:**
+- รักษา reference ของ storage path ที่ upload แล้ว
+- ทุก error branch หลัง upload → delete file (catch + ignore secondary error)
+- ใช้ Promise.allSettled / try-finally ถ้า cleanup ต้องวิ่งคู่กับ error response
+- พิจารณา deferred cleanup job (lifecycle policy) สำหรับ orphan files ที่อาจเล็ดลอด
+
+**Reference fix:** `deleteInstallProofFile` ใน `src/lib/install-proof-storage.ts` + commit `d512fb2`
+
+---
+
 ## L5 — `next-env.d.ts` ห้าม commit
 
 **Pattern:** ไฟล์นี้ Next.js auto-generate แตกต่างระหว่าง `next dev` กับ `next build` (toggle `.next/types` ↔ `.next/dev/types`) — ไม่ใช่ source code
