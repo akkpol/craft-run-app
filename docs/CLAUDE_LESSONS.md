@@ -243,6 +243,43 @@ if (productionUnlocked) {
 
 ---
 
+## L13 — เพิ่ม split field ใน paymentAmount (cash vs WHT) ต้องอัปเดต **validator** ด้วย ไม่ใช่แค่ amount เดียว
+
+**Pattern:** เมื่อ feature ใหม่ทำให้ "ยอดที่ส่งไปยัง endpoint" แยกเป็น 2 ส่วน (เช่น cash + wht) — validator ทุกตัวที่เคยตรวจ `amount === amountDue` ต้องถูกอัปเดตให้ตรวจ `cash + wht === amountDue` ไม่งั้น flow ใหม่จะ fail ทันที
+
+**ผิดอย่างไร:**
+- PR #65, admin UI: ส่ง `paymentAmount = quoteTotal - whtAmount` (cash portion) + `whtAmount` แยก
+- แต่ commercial route ยังเรียก `validatePaymentAmount({ paymentAmount: cash, amountDue: quote.total })` — สำหรับ prepaid logic คือ `amount === amountDue` exact
+- ผล: B2B prepaid ที่มี WHT → cash < total → 422 `PAYMENT_AMOUNT_UNDERPAID` → flow ใช้ไม่ได้ทันทีตอนเปิด
+- Codex P2 บน PR #65; แก้ใน commit `fe0e0c6` — ปรับ validator ให้ใช้ `cash + wht` ตอน prepaid
+
+**ทำอย่างไรให้ถูก:**
+```ts
+// ✗ ผิด — ใช้ cash อย่างเดียว
+validatePaymentAmount({
+  paymentTerms,
+  paymentAmount: cashAmount,
+  amountDue: Number(quote.total || 0),
+});
+
+// ✓ ถูก — count credited amount เป็น cash + wht
+validatePaymentAmount({
+  paymentTerms,
+  paymentAmount: cashAmount + whtAmount,
+  amountDue: Number(quote.total || 0),
+});
+// RPC ยัง insert cash ไว้ใน payments.amount และ wht ใน payments.wht_amount แยก
+```
+
+**Prevention checklist เมื่อ split single field เป็นหลาย field:**
+- Grep ทุก validator/check ที่อ่าน field เดิม → อัปเดตให้คำนวณ aggregate
+- เขียน test สำหรับเคส **prepaid + split** ทุก term (prepaid/deposit/credit) — เพราะแต่ละ term มี validation rule ต่างกัน
+- คิดจุดเปลี่ยน semantic: "amount ที่ user transfer มา" vs "amount ที่ credit ให้ลูกค้า" (cash + wht) — อย่าให้ปนกัน
+
+**Reference fix:** commit `fe0e0c6` "Fix prepaid WHT payment validation"
+
+---
+
 ## L5 — `next-env.d.ts` ห้าม commit
 
 **Pattern:** ไฟล์นี้ Next.js auto-generate แตกต่างระหว่าง `next dev` กับ `next build` (toggle `.next/types` ↔ `.next/dev/types`) — ไม่ใช่ source code

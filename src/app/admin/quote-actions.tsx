@@ -78,8 +78,15 @@ export default function AdminQuoteActions({
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<AdminToastState | null>(null);
   const [panel, setPanel] = useState<
-    "commercial" | "deposit" | "paid" | "balance" | "receiver" | "issueDocument" | "reject" | "rescope" | null
+    "commercial" | "deposit" | "paid" | "balance" | "receiver" | "issueDocument" | "items" | "reject" | "rescope" | null
   >(null);
+  const [itemDraft, setItemDraft] = useState<{ label: string; qty: string; unitPrice: string }>(
+    { label: "", qty: "1", unitPrice: "" }
+  );
+  const [itemsList, setItemsList] = useState<
+    Array<{ id: string; label: string; qty: number; unit_price: number; line_total: number }> | null
+  >(null);
+  const [itemsLoading, setItemsLoading] = useState(false);
   const [paymentTermsDraft, setPaymentTermsDraft] = useState(paymentTerms);
   const [paymentStatusDraft, setPaymentStatusDraft] = useState(paymentStatus);
   const [paymentAmountDraft, setPaymentAmountDraft] = useState("");
@@ -148,6 +155,25 @@ export default function AdminQuoteActions({
     setPaymentAmountDraft("");
     setWhtAmountDraft("");
     setBalanceBreakdown(null);
+    setItemDraft({ label: "", qty: "1", unitPrice: "" });
+
+    if (nextPanel === "items") {
+      setItemsLoading(true);
+      fetch(`/api/admin/quotes/${quoteId}/items`, { cache: "no-store" })
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || "โหลดรายการไม่สำเร็จ");
+          setItemsList(data.items ?? []);
+        })
+        .catch((err) => {
+          setToast({
+            tone: "error",
+            title: "โหลดรายการไม่สำเร็จ",
+            description: err instanceof Error ? err.message : undefined,
+          });
+        })
+        .finally(() => setItemsLoading(false));
+    }
 
     if (nextPanel === "rescope") {
       setNote("ลูกค้าขอปรับรายละเอียดและออกใบเสนอราคาใหม่");
@@ -200,6 +226,85 @@ export default function AdminQuoteActions({
   function closePanel() {
     setPanel(null);
     setLoading(false);
+  }
+
+  async function reloadItems() {
+    try {
+      const res = await fetch(`/api/admin/quotes/${quoteId}/items`, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "โหลดรายการไม่สำเร็จ");
+      setItemsList(data.items ?? []);
+    } catch (err) {
+      setToast({
+        tone: "error",
+        title: "โหลดรายการไม่สำเร็จ",
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  }
+
+  async function addItem() {
+    const labelTrim = itemDraft.label.trim();
+    const qtyNum = Number(itemDraft.qty);
+    const unitNum = Number(itemDraft.unitPrice);
+    if (!labelTrim) {
+      setToast({ tone: "warning", title: "ใส่ชื่อรายการก่อน" });
+      return;
+    }
+    if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+      setToast({ tone: "warning", title: "จำนวนต้องมากกว่า 0" });
+      return;
+    }
+    if (!Number.isFinite(unitNum) || unitNum < 0) {
+      setToast({ tone: "warning", title: "ราคา/หน่วย ต้อง ≥ 0" });
+      return;
+    }
+    try {
+      const payload = await callApi(
+        `/api/admin/quotes/${quoteId}/items`,
+        { label: labelTrim, qty: qtyNum, unitPrice: unitNum },
+        "เพิ่มรายการไม่สำเร็จ"
+      );
+      setToast({
+        tone: "success",
+        title: "เพิ่มรายการแล้ว",
+        description: `ยอดใหม่: ${Number(payload?.totals?.total ?? 0).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`,
+      });
+      setItemDraft({ label: "", qty: "1", unitPrice: "" });
+      await reloadItems();
+      router.refresh();
+    } catch (err) {
+      setToast({
+        tone: "error",
+        title: "เพิ่มรายการไม่สำเร็จ",
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  }
+
+  async function removeItem(itemId: string) {
+    try {
+      const res = await fetch(`/api/admin/quotes/${quoteId}/items/${itemId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || "ลบรายการไม่สำเร็จ");
+      }
+      setToast({
+        tone: "success",
+        title: "ลบรายการแล้ว",
+        description: `ยอดใหม่: ${Number(data?.totals?.total ?? 0).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`,
+      });
+      await reloadItems();
+      router.refresh();
+    } catch (err) {
+      setToast({
+        tone: "error",
+        title: "ลบรายการไม่สำเร็จ",
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
   }
 
   async function updateCommercial() {
@@ -469,6 +574,13 @@ export default function AdminQuoteActions({
           key: "commercial",
           label: "อัปเดตเงื่อนไขการชำระเงิน",
           description: `${PAYMENT_TERM_LABELS[paymentTerms]} · ${PAYMENT_STATUS_LABELS[paymentStatus]}`,
+        }
+      : null,
+    canEditTerms && quoteStatus === "sent"
+      ? {
+          key: "items",
+          label: "เพิ่ม / ลบรายการในใบเสนอราคา",
+          description: "ใช้สำหรับงานหลายขนาด/หลายสินค้าในใบเดียว — ระบบจะคำนวณยอดใหม่ให้",
         }
       : null,
     canCapturePayment && paymentTerms === "deposit" && paymentStatus === "unpaid"
@@ -872,6 +984,122 @@ export default function AdminQuoteActions({
               โหลดข้อมูลคงค้างไม่สำเร็จ ปิดหน้าต่างนี้แล้วลองใหม่
             </div>
           )}
+        </div>
+      </AdminActionSheet>
+
+      <AdminActionSheet
+        open={panel === "items"}
+        onClose={closePanel}
+        title="รายการในใบเสนอราคา"
+        description="เพิ่ม/ลบรายการที่ต้องคิดเงิน ระบบจะคำนวณยอดรวม VAT ใหม่ทันที — เปลี่ยนได้ก่อนจะมี payment"
+        badge="ใบเสนอราคา"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={closePanel}>
+              ปิด
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
+            ใช้เมื่อ: walk-in/manual intake เพิ่มสินค้าอีกขนาด, ลูกค้าขอเพิ่มงาน, หรือแก้รายการก่อนส่งใบ — ห้ามแก้หลังเก็บเงินไปแล้ว
+          </div>
+
+          <section>
+            <h4 className="mb-2 text-sm font-semibold text-slate-900">รายการปัจจุบัน</h4>
+            {itemsLoading ? (
+              <p className="text-xs text-slate-500">กำลังโหลด...</p>
+            ) : itemsList && itemsList.length > 0 ? (
+              <ul className="space-y-2">
+                {itemsList.map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-slate-900">{item.label}</p>
+                      <p className="mt-0.5 text-slate-500">
+                        {Number(item.qty).toLocaleString("th-TH")} ×{" "}
+                        {Number(item.unit_price).toLocaleString("th-TH", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}{" "}
+                        ={" "}
+                        <span className="font-semibold text-slate-900">
+                          {Number(item.line_total).toLocaleString("th-TH", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          บาท
+                        </span>
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void removeItem(item.id)}
+                      className="shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-100"
+                    >
+                      ลบ
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-slate-500">ยังไม่มีรายการ</p>
+            )}
+          </section>
+
+          <section className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3">
+            <h4 className="text-sm font-semibold text-emerald-950">เพิ่มรายการใหม่</h4>
+            <div className="grid gap-2">
+              <label className="grid gap-1 text-xs text-slate-700">
+                <span>ชื่อรายการ</span>
+                <input
+                  type="text"
+                  value={itemDraft.label}
+                  onChange={(e) => setItemDraft((prev) => ({ ...prev, label: e.target.value }))}
+                  placeholder="เช่น สติกเกอร์ 10x10 ซม. แพ็ก 50 ดวง"
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                  maxLength={200}
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="grid gap-1 text-xs text-slate-700">
+                  <span>จำนวน</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={itemDraft.qty}
+                    onChange={(e) => setItemDraft((prev) => ({ ...prev, qty: e.target.value }))}
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                  />
+                </label>
+                <label className="grid gap-1 text-xs text-slate-700">
+                  <span>ราคา/หน่วย (บาท)</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={itemDraft.unitPrice}
+                    onChange={(e) => setItemDraft((prev) => ({ ...prev, unitPrice: e.target.value }))}
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                  />
+                </label>
+              </div>
+            </div>
+            <Button
+              type="button"
+              onClick={() => void addItem()}
+              disabled={loading}
+              className="self-start"
+            >
+              {loading ? "กำลังเพิ่ม..." : "เพิ่มรายการ"}
+            </Button>
+          </section>
         </div>
       </AdminActionSheet>
 
