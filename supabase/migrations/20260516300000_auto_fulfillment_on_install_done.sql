@@ -19,7 +19,14 @@
 -- still drives that final COMPLETED click for accounting + customer
 -- timeline reasons.
 
-CREATE OR REPLACE FUNCTION public.append_installation_proof(
+DROP FUNCTION IF EXISTS public.append_installation_proof(
+  TEXT,
+  TEXT,
+  BOOLEAN,
+  TIMESTAMPTZ
+);
+
+CREATE FUNCTION public.append_installation_proof(
   p_public_token TEXT,
   p_storage_path TEXT,
   p_mark_done BOOLEAN DEFAULT FALSE,
