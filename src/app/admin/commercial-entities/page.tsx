@@ -28,7 +28,7 @@ export default async function AdminCommercialEntitiesPage() {
           ผู้รับเงิน / Commercial Entities
         </h1>
         <p className="text-xs text-slate-500">
-          แต่ละ entity คือ "ใครรับเงินและใครออกเอกสาร" — บริษัทหลัก, บริษัทย่อย,
+          แต่ละ entity คือ &ldquo;ใครรับเงินและใครออกเอกสาร&rdquo; — บริษัทหลัก, บริษัทย่อย,
           บัญชีบุคคลของเจ้าของร้าน ฯลฯ — สำหรับ commerce flow ทั้งระบบ
         </p>
       </header>
