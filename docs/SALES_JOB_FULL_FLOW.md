@@ -340,13 +340,9 @@
 | 🔄 | jobs.status: → **`COMPLETED`**, completion_package_status='sent' |
 | 🔄 | conversation.state: `READY_FOR_FULFILLMENT` → **`COMPLETED`** |
 | 🔄 | leads.status='completed' |
-| ⚠️ **Missing — delivery** | ไม่มี integration กับ Lalamove / Grab — admin โทรเรียกคนส่งเอง → manual ใส่ tracking number |
-| ⚠️ **Missing — install** | mode `install` มีใน enum แต่ไม่มี: |
-|   | – `installations` table |
-|   | – install date scheduling |
-|   | – install team assignment |
-|   | – on-site proof (รูป + ลายเซ็น recipient) |
-| ⚠️ **Missing — pickup/delivery proof** | ไม่มี delivery_proof_url, recipient_signature, photo of handoff |
+| ✅ **delivery (closed via PR #68)** | `jobs.delivery_provider/tracking_url/tracking_number/dispatched_at/notes` + `/admin/jobs/[id]/delivery` + customer status link |
+| ✅ **install (closed via PR #67)** | `installations` table + scheduling form + `/install/[token]` mobile page + photo proof upload + admin gallery |
+| ⚠️ **Missing — pickup proof** | ไม่มี delivery_proof_url, recipient_signature, photo of handoff สำหรับ pickup mode (deferred) |
 
 ---
 
@@ -445,23 +441,42 @@ Side: `ON_HOLD_CUSTOMER_INPUT`, `HUMAN_REVIEW_REQUIRED`, `CANCELLED`
 
 | Scenario | Automated % | Manual bottleneck |
 |---|---|---|
-| **Prepaid + walk-in + รับเอง + ไม่ใช่ B2B** | 80% | สลิปโอน (ผ่าน LINE chat manual) |
-| **Prepaid + LIFF + delivery (Lalamove)** | 65% | สลิป + เรียก Lalamove เอง |
-| **Deposit + บริษัท B2B + ติดตั้ง + ใบกำกับ + WHT** | **30%** | สลิป + WHT calc + balance payment + install scheduling + install proof |
+| **Prepaid + walk-in + รับเอง + ไม่ใช่ B2B** | ≥ 90% | (ลูกค้าอัปโหลดสลิปได้แล้ว — admin verify ใน queue) |
+| **Prepaid + LIFF + delivery (Lalamove)** | ≥ 85% | admin จองส่งบน Lalamove dashboard เอง แล้ววางลิงก์ tracking |
+| **Deposit + บริษัท B2B + ติดตั้ง + ใบกำกับ + WHT** | ≥ 80% | install team upload รูปหน้างาน + admin review |
 
-**สรุป:** ระบบ "พร้อมใช้จริง" สำหรับ flow ง่ายๆ (prepaid + pickup) แต่ **ยังไม่ autonomous** สำหรับ flow B2B เต็มรูปแบบ
+**สรุป:** flow ทั้งหมดเปลี่ยนจาก LINE-chat-driven → web/queue-driven ครบแล้ว
 
-### P0 gaps ที่บล็อก autonomous flow
+### P0 gaps — ปิดครบทั้ง 7 ตัว ✅
 
-| Gap | กระทบ flow ไหน | ระยะเวลาประมาณ |
+| Gap | ที่ปิด | PR |
 |---|---|---|
-| **Bank slip upload + verify** | ทุก flow ที่มีโอนเงิน | ~1 วัน |
-| **Balance payment UI** | Deposit flow | ~1 วัน |
-| **Withholding tax (3%)** | B2B all | ~1 วัน |
-| **Install scheduling + proof** | mode=install | ~1-2 วัน |
-| **Multi-line item per submit** | งานหลายรายการในใบเดียว | ~半 วัน |
-| **Lalamove/Grab booking link** | delivery flow | ~半 วัน |
-| **Reorder / clone quote** | ลูกค้าเก่า reprint | ~半 วัน |
+| Bank slip upload + verify | `payment_slips` table + customer uploader + admin match/reject queue | #62 |
+| Balance payment UI flow | `getQuoteOutstandingBalance` + balance panel + RPC cumulative guard | #64 |
+| Withholding tax (50ทวิ) | `quotes.wht_rate` + `payments.wht_amount` + RPC `p_wht_amount` + UI fields | #65 |
+| Multi-line item per submit | Admin-side `quote_items` CRUD + race-safe DELETE + totals recompute | #66 |
+| Install scheduling + proof | `installations` + public token mobile page + photo append RPC | #67 |
+| Lalamove/Grab booking link | `jobs.delivery_*` columns + admin form + customer status card | #68 |
+| Reorder / clone quote | `POST /api/admin/quotes/[id]/clone` + cleanup-on-fail + draft guard | #69 |
+
+### P1/P2 backlog (deferred)
+
+| Item | Source |
+|---|---|
+| Pickup proof of delivery (signature + photo) | gap analysis |
+| OCR for bank slips | PR #62 deferred |
+| Bank statement auto-reconciliation | PR #62 deferred |
+| 50ทวิ certificate PDF generation | PR #65 deferred |
+| Auto-suggest WHT rate based on receiver VAT | PR #65 deferred |
+| Per-item discount / unit (sqm vs piece) | PR #66 deferred |
+| Auto-transition jobs.fulfillment_status when installation done | PR #67 deferred |
+| Customer signature canvas in install page | PR #67 deferred |
+| Lalamove/Grab API integration (book + status polling) | PR #68 deferred |
+| Clone with overrides (qty / dimensions) | PR #69 deferred |
+| LIFF intake repeater UI (multi-item at submit) | PR #66 deferred |
+| Commercial entities admin editor page | TASK-025 |
+| Accounting CSV/Excel export | TASK-027 |
+| First-class staff ownership model | TASK-025 |
 
 ---
 
