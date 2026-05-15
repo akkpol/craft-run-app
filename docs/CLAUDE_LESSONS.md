@@ -81,6 +81,55 @@ const appendix = leadImage
 
 ---
 
+## L6 — Filter ด้วย enum value ต้องอ้าง canonical source ห้ามเดา case
+
+**Pattern:** เมื่อ query ที่ filter ด้วย enum (status, type, role) ต้องเช็คค่าจริงจาก enum definition ก่อน ห้ามเดาจาก convention ทั่วไป (lowercase/camelCase/UPPER)
+
+**ผิดอย่างไร:**
+- PR #57, `dashboard-trends.ts`: filter `.eq("status", "completed")` แต่ canonical enum คือ `"COMPLETED"` (uppercase, ดู `JOB_STATUSES` ใน `src/lib/types.ts`)
+- ผลคือ query ไม่ match row ไหนเลย — "Job ปิด" line ในกราฟจะเป็น 0 ตลอดใน production
+
+**ทำอย่างไรให้ถูก:**
+- Grep หา enum definition ก่อนเสมอ:
+  ```
+  grep -E "^export const (JOB|PAYMENT|STATE)_STATUSES" src/lib/types.ts
+  ```
+- Import จาก types เลย ห้ามเขียน string literal:
+  ```ts
+  // ✗ ผิด
+  .eq("status", "completed")
+  // ✓ ถูก
+  .eq("status", JOB_STATUSES.COMPLETED)
+  // หรืออย่างน้อย match case จริง
+  .eq("status", "COMPLETED")
+  ```
+
+**Reference fix:** commit `c91d52a`
+
+---
+
+## L7 — Mix timezone ใน date query ทำให้ undercounted แถวขอบวัน
+
+**Pattern:** ถ้า label หรือ aggregation key เป็น timezone หนึ่ง — bound ของ SQL filter ก็ต้องเป็น timezone เดียวกัน ห้ามผสม
+
+**ผิดอย่างไร:**
+- PR #57, `dashboard-trends.ts`: day keys คำนวณใน Asia/Bangkok แต่ `start.setUTCHours(0,0,0,0)` ใช้ UTC midnight
+- ผลคือวันแรกของกราฟ undercount แถวที่ created 01:00–07:00 Bangkok (ซึ่งเป็น 18:00–00:00 UTC ของวันก่อนหน้า) — รอบ early morning ตกหล่นทุกครั้ง
+
+**ทำอย่างไรให้ถูก:**
+1. ทำ "วันใน timezone เป้าหมาย" → UTC offset → ส่งให้ SQL filter
+   ```ts
+   const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
+   const bangkokMidnight = new Date(now.getTime() + BANGKOK_OFFSET_MS);
+   bangkokMidnight.setUTCHours(0, 0, 0, 0);
+   const utcLowerBound = new Date(bangkokMidnight.getTime() - BANGKOK_OFFSET_MS);
+   ```
+2. หรือใช้ Postgres `AT TIME ZONE 'Asia/Bangkok'` ใน SQL ฝั่ง DB เพื่อกัน drift
+
+**Reference fix:** commit `c91d52a` + tests `tests/dashboard-trends.test.ts`
+
+---
+
 ## L5 — `next-env.d.ts` ห้าม commit
 
 **Pattern:** ไฟล์นี้ Next.js auto-generate แตกต่างระหว่าง `next dev` กับ `next build` (toggle `.next/types` ↔ `.next/dev/types`) — ไม่ใช่ source code
