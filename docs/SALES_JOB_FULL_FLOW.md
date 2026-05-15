@@ -342,7 +342,7 @@
 | 🔄 | leads.status='completed' |
 | ✅ **delivery (closed via PR #68)** | `jobs.delivery_provider/tracking_url/tracking_number/dispatched_at/notes` + `/admin/jobs/[id]/delivery` + customer status link |
 | ✅ **install (closed via PR #67)** | `installations` table + scheduling form + `/install/[token]` mobile page + photo proof upload + admin gallery |
-| ⚠️ **Missing — pickup proof** | ไม่มี delivery_proof_url, recipient_signature, photo of handoff สำหรับ pickup mode (deferred) |
+| ✅ **pickup (closed via PR #74)** | `jobs.pickup_proof_paths/picked_up_at/pickup_recipient_name/_phone` + `record_pickup_proof` RPC + `/admin/jobs/[id]/pickup` + auto-flip `fulfillment_status='picked_up'` (signature canvas still Wave 5) |
 
 ---
 
@@ -463,7 +463,7 @@ Side: `ON_HOLD_CUSTOMER_INPUT`, `HUMAN_REVIEW_REQUIRED`, `CANCELLED`
 
 | Item | Source |
 |---|---|
-| Pickup proof of delivery (signature + photo) | gap analysis |
+| Pickup proof — signature canvas / e-sign (photo + recipient name closed via PR #74) | PR #74 deferred |
 | OCR for bank slips | PR #62 deferred |
 | Bank statement auto-reconciliation | PR #62 deferred |
 | 50ทวิ certificate PDF generation | PR #65 deferred |
