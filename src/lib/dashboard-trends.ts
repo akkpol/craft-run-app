@@ -9,6 +9,8 @@ export type DashboardTrendPoint = {
   issuedDocuments: number;
 };
 
+const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
+
 function toBangkokDateKey(iso: string): string {
   const date = new Date(iso);
   const formatted = new Intl.DateTimeFormat("en-CA", {
@@ -22,17 +24,21 @@ function toBangkokDateKey(iso: string): string {
 
 function buildDateRange(days: number): { start: Date; keys: string[] } {
   const now = new Date();
-  const todayKey = toBangkokDateKey(now.toISOString());
+  const bangkokToday = new Date(now.getTime() + BANGKOK_OFFSET_MS);
+  bangkokToday.setUTCHours(0, 0, 0, 0);
   const keys: string[] = [];
+
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now);
+    const d = new Date(bangkokToday);
     d.setUTCDate(d.getUTCDate() - i);
-    keys.push(toBangkokDateKey(d.toISOString()));
+    keys.push(d.toISOString().slice(0, 10));
   }
-  const start = new Date(now);
-  start.setUTCDate(start.getUTCDate() - (days - 1));
-  start.setUTCHours(0, 0, 0, 0);
-  return { start, keys: keys.includes(todayKey) ? keys : [...keys, todayKey] };
+
+  const bangkokStart = new Date(bangkokToday);
+  bangkokStart.setUTCDate(bangkokStart.getUTCDate() - (days - 1));
+  const start = new Date(bangkokStart.getTime() - BANGKOK_OFFSET_MS);
+
+  return { start, keys };
 }
 
 function tallyByDate(
@@ -62,7 +68,7 @@ export async function getDashboardTrends(days = 7): Promise<DashboardTrendPoint[
       supabase
         .from("jobs")
         .select("updated_at, status")
-        .eq("status", "completed")
+        .eq("status", "COMPLETED")
         .gte("updated_at", startIso),
       supabase
         .from("commercial_documents")
