@@ -421,6 +421,44 @@ if (!updated) {
 
 ---
 
+## L18 — Visibility predicate ที่อาศัยหลาย columns ต้องครอบทุกคอลัมน์ที่เกี่ยวข้อง
+
+**Pattern:** UI ตัดสินใจแสดง/ซ่อน section จาก "มีข้อมูลใน data set นี้รึยัง" — ต้องเช็คทุกคอลัมน์ที่ผู้ใช้กรอกได้ ไม่ใช่แค่บางส่วน ไม่งั้น user ป้อนข้อมูลแค่ subset แล้ว UI ไม่แสดง → ข้อมูลค้างเงียบๆ ใน DB
+
+**ผิดอย่างไร:**
+- PR #68, `/status/[token]` หน้า customer: รอบแรกใช้:
+  ```ts
+  fulfillmentMode === "delivery" && (job.delivery_provider || job.delivery_tracking_url || job.delivery_tracking_number)
+  ```
+- ลืม `delivery_dispatched_at` กับ `delivery_notes` — ถ้า admin ป้อนแค่ "notes" หรือ "dispatchedAt" → ลูกค้าไม่เห็น section ทั้งๆ ที่ข้อมูลถูกบันทึก
+- เจอเองหลังจาก self-review (ไม่ใช่ Codex)
+
+**ทำอย่างไรให้ถูก:**
+```ts
+// ✓ ถูก — extract helper ที่ list ทุก column ของ feature
+export function hasDeliveryTrackingDetails(job: DeliveryTrackingFields | null | undefined) {
+  return Boolean(
+    job?.delivery_provider ||
+      job?.delivery_tracking_url ||
+      job?.delivery_tracking_number ||
+      job?.delivery_dispatched_at ||
+      job?.delivery_notes
+  );
+}
+
+// Usage
+{fulfillmentMode === "delivery" && hasDeliveryTrackingDetails(job) ? (...) : null}
+```
+
+**Prevention checklist:**
+- ถ้า feature เพิ่มหลาย column → helper "isFeatureXPresent" ที่อ่านทั้งหมด
+- เขียน unit test ที่ flip ทีละ column → expect predicate ตอบ true
+- ห้ามใช้ ad-hoc OR ใน JSX สำหรับ predicate ที่ใช้ซ้ำได้ — extract เป็น helper
+
+**Reference fix:** commit `7fd6322` + `src/lib/delivery-tracking.ts` `hasDeliveryTrackingDetails`
+
+---
+
 ## L5 — `next-env.d.ts` ห้าม commit
 
 **Pattern:** ไฟล์นี้ Next.js auto-generate แตกต่างระหว่าง `next dev` กับ `next build` (toggle `.next/types` ↔ `.next/dev/types`) — ไม่ใช่ source code

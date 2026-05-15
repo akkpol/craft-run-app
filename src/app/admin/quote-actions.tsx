@@ -228,6 +228,33 @@ export default function AdminQuoteActions({
     setLoading(false);
   }
 
+  async function cloneQuote() {
+    if (!confirm("ยืนยันสร้างใบเสนอราคาใหม่จากใบนี้?")) {
+      return;
+    }
+    try {
+      const payload = await callApi(
+        `/api/admin/quotes/${quoteId}/clone`,
+        {},
+        "ทำใบใหม่ไม่สำเร็จ"
+      );
+      setToast({
+        tone: "success",
+        title: "สร้างใบใหม่แล้ว",
+        description: payload?.newQuoteToken
+          ? `Token: ${payload.newQuoteToken}`
+          : `Quote: ${payload?.newQuoteId}`,
+      });
+      router.refresh();
+    } catch (err) {
+      setToast({
+        tone: "error",
+        title: "ทำใบใหม่ไม่สำเร็จ",
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  }
+
   async function reloadItems() {
     try {
       const res = await fetch(`/api/admin/quotes/${quoteId}/items`, { cache: "no-store" });
@@ -630,6 +657,15 @@ export default function AdminQuoteActions({
           tone: "destructive" as const,
         }
       : null,
+    // Reorder/clone: available on any quote that has been issued (sent or
+    // beyond). Useful when a returning customer says "เอาแบบเดิม".
+    quoteStatus !== "draft"
+      ? {
+          key: "clone",
+          label: "ทำใบใหม่จากใบนี้ (เอาแบบเดิม)",
+          description: "สร้าง quote ใหม่จากรายการ/ราคา/billing เดิม — เริ่ม sales cycle ใหม่",
+        }
+      : null,
   ].filter((action): action is NonNullable<typeof action> => Boolean(action));
 
   return (
@@ -653,7 +689,13 @@ export default function AdminQuoteActions({
         ) : null}
         <AdminActionMenu
           actions={actions}
-          onSelect={(key) => openPanel(key as typeof panel)}
+          onSelect={(key) => {
+            if (key === "clone") {
+              void cloneQuote();
+              return;
+            }
+            openPanel(key as typeof panel);
+          }}
           disabled={loading}
           compact
           label={effectiveButtonLabel}
