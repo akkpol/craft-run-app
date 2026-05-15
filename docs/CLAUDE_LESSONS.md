@@ -459,6 +459,83 @@ export function hasDeliveryTrackingDetails(job: DeliveryTrackingFields | null | 
 
 ---
 
+## L19 — Multi-step writes ข้ามหลาย tables = ต้อง atomic transaction หรือ cleanup-on-fail
+
+**Pattern:** ถ้า endpoint ต้อง insert/update หลายตารางตามลำดับ (conversation → lead → quote → items) — ห้ามใช้ chained inserts ทีละครั้งโดยไม่มี rollback mechanism เพราะ ถ้า step N ล้ม → step 1..N-1 commit ไปแล้ว → **orphan rows** ค้างใน DB ที่ user มองว่า "request failed" แต่จริงๆ มี partial data + retry จะ duplicate
+
+**ผิดอย่างไร:**
+- PR #69, `POST /api/admin/quotes/[id]/clone`: รอบแรก insert conversations → insert leads → insert quotes → insert quote_items
+- ถ้า items insert ล้มเหลว → endpoint return 500 แต่ conversation/lead/quote ใหม่ยังอยู่ใน DB → ลูกค้าเห็น "WAITING_QUOTE_APPROVAL" ของเปล่าใน /admin
+- Admin retry → สร้างซ้ำอีกชุด → ยิ่งสร้าง orphan
+- Codex P2 บน PR #69
+
+**ทำอย่างไรให้ถูก:**
+
+```ts
+// ✓ Option A — cleanup-on-fail (acceptable when each step is small)
+const createdIds: { conversationId?: string; leadId?: string; quoteId?: string } = {};
+try {
+  const conv = await insertConversation(...);
+  createdIds.conversationId = conv.id;
+  const lead = await insertLead(conv.id);
+  createdIds.leadId = lead.id;
+  const quote = await insertQuote(lead.id);
+  createdIds.quoteId = quote.id;
+  await insertItems(quote.id);
+  return success;
+} catch (err) {
+  // Reverse-order cleanup (children first to satisfy FK if not CASCADE)
+  await supabase.from("quotes").delete().eq("id", createdIds.quoteId);
+  await supabase.from("leads").delete().eq("id", createdIds.leadId);
+  await supabase.from("conversations").delete().eq("id", createdIds.conversationId);
+  return 500;
+}
+
+// ✓ Option B (preferred for stronger atomicity) — Postgres function
+CREATE FUNCTION public.clone_quote(...) RETURNS TABLE(...) AS $$
+BEGIN
+  -- all inserts inside one transaction; on EXCEPTION rolls back automatically
+  ...
+END $$;
+```
+
+**Prevention checklist สำหรับ multi-step write:**
+- ถ้ามี >1 insert ที่ depend on previous result → ต้องมี cleanup branch หรือใช้ RPC
+- เขียน test ที่ inject failure ในแต่ละ step → expect DB clean
+- พิจารณา idempotency key สำหรับ retry-safe (ลูกค้า client retry ไม่สร้างซ้ำ)
+
+**Reference fix:** commit `4b7d1c1` + helper `cleanupFailedClone` / `failCloneAfterPartialWrite`
+
+---
+
+## L20 — Server-side action gate ต้องบังคับ business rule แม้ admin UI ซ่อนปุ่ม
+
+**Pattern:** Admin UI hide ปุ่ม action ตาม business rule (e.g., เฉพาะ status='sent') ไม่พอ — admin endpoint ต้อง enforce rule เดียวกันใน server เพราะ:
+1. Stale browser cache ของ client มี action ที่ UI ใหม่ซ่อนแล้ว
+2. Admin ใช้ curl / Postman / DevTools console ยิงตรงๆ ได้
+3. Bug ใน UI conditional อาจหลุดให้ปุ่มโผล่
+
+L10 พูดถึง public-token endpoint ที่ stranger ยิงได้ — L20 ขยายมาที่ **admin** endpoint ที่ stale/malicious admin client ยิง action ที่ไม่ควรทำได้
+
+**ผิดอย่างไร:**
+- PR #69, `POST /api/admin/quotes/[id]/clone`: UI ซ่อนปุ่ม "ทำใบใหม่จากใบนี้" ถ้า `quoteStatus === "draft"` แต่ server **ไม่ได้ select quotes.status เลย** — admin ที่ POST ตรงๆ ก็ clone draft ได้ → ใบ unissued กลายเป็น sent quote ใหม่ใส่ลูกค้า
+- Codex P2 บน PR #69 — แก้โดย:
+  ```ts
+  if (sourceQuote.status === "draft") {
+    return NextResponse.json({ error: "QUOTE_CLONE_NOT_ALLOWED", ... }, { status: 409 });
+  }
+  ```
+
+**Prevention checklist สำหรับ admin endpoints:**
+- ทุก action ที่ UI conditional แสดง → server ต้อง enforce condition เดียวกัน
+- Select fields ที่ใช้ enforce business rule (e.g., status, payment_status) แม้ไม่ใช้ใน response
+- เขียน test: เรียก endpoint ใน edge state ที่ UI ซ่อน → expect 409/422
+- ถือ admin client เป็น untrusted เช่นเดียวกับ public — เพราะ session อาจ stale หรือถูก replay
+
+**Reference fix:** commit `4b7d1c1` (draft status guard)
+
+---
+
 ## L5 — `next-env.d.ts` ห้าม commit
 
 **Pattern:** ไฟล์นี้ Next.js auto-generate แตกต่างระหว่าง `next dev` กับ `next build` (toggle `.next/types` ↔ `.next/dev/types`) — ไม่ใช่ source code
