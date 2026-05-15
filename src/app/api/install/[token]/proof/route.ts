@@ -14,6 +14,7 @@ type AppendInstallProofRow = {
   job_id?: string | null;
   status?: string | null;
   photo_count?: number | string | null;
+  job_fulfillment_status?: string | null;
 };
 
 function getAppendInstallProofRow(data: unknown): AppendInstallProofRow | null {
@@ -146,12 +147,29 @@ export async function POST(
       storage_path: uploadResult.storagePath,
       mark_done: markDone,
       photo_count: Number(updated.photo_count ?? 0),
+      job_fulfillment_status: updated.job_fulfillment_status ?? null,
     },
   }).catch(() => null);
+
+  // Separate audit row for the auto-transition so finance/timeline UIs
+  // see "fulfillment_status flipped to delivered" as a distinct event.
+  if (markDone && updated.job_fulfillment_status === "delivered") {
+    await logHumanAction(supabase, {
+      entityType: "job",
+      entityId: updated.job_id || install.job_id,
+      actionType: "job.fulfillment_auto_delivered",
+      actorLabel: "System",
+      payload: {
+        trigger: "installation.completed",
+        installation_id: install.id,
+      },
+    }).catch(() => null);
+  }
 
   return NextResponse.json({
     success: true,
     status: updated.status,
     photoCount: Number(updated.photo_count ?? 0),
+    jobFulfillmentStatus: updated.job_fulfillment_status ?? null,
   });
 }

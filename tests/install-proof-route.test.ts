@@ -146,6 +146,52 @@ describe("install proof upload route", () => {
     );
   });
 
+  it("records a separate audit event when installation proof auto-delivers the job", async () => {
+    const supabase = createInstallProofClient({
+      rpcData: [
+        {
+          id: "install-1",
+          job_id: "job-1",
+          status: "done",
+          photo_count: 2,
+          job_fulfillment_status: "delivered",
+        },
+      ],
+    });
+    mockCreateAdminClient.mockReturnValue(supabase);
+
+    const response = await callProofRoute();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      success: true,
+      jobFulfillmentStatus: "delivered",
+    });
+    expect(mockLogHumanAction).toHaveBeenNthCalledWith(
+      1,
+      supabase,
+      expect.objectContaining({
+        actionType: "installation.completed",
+        payload: expect.objectContaining({
+          job_fulfillment_status: "delivered",
+        }),
+      })
+    );
+    expect(mockLogHumanAction).toHaveBeenNthCalledWith(
+      2,
+      supabase,
+      expect.objectContaining({
+        actionType: "job.fulfillment_auto_delivered",
+        actorLabel: "System",
+        payload: expect.objectContaining({
+          trigger: "installation.completed",
+          installation_id: "install-1",
+        }),
+      })
+    );
+  });
+
   it("removes the uploaded object when the installation closes before the DB append", async () => {
     const supabase = createInstallProofClient({ rpcData: [] });
     mockCreateAdminClient.mockReturnValue(supabase);
