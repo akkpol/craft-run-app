@@ -17,6 +17,7 @@ import {
 import { formatBangkokDateTime } from "@/lib/bangkok-date-time";
 import { resolveProductCatalogLabel } from "@/lib/product-catalog";
 import { fetchCommercialAdminContextForQuoteIds } from "@/lib/commercial-admin-context";
+import { hasDeliveryTrackingDetails } from "@/lib/delivery-tracking";
 import { getUiContract } from "@/lib/workflow-policy";
 import {
   DESIGN_STATUS_LABELS,
@@ -466,7 +467,7 @@ export default async function StatusPage(props: { params: Promise<{ token: strin
               </section>
             ) : null}
 
-            {fulfillmentMode === "delivery" && job && (job.delivery_provider || job.delivery_tracking_url || job.delivery_tracking_number) ? (
+            {fulfillmentMode === "delivery" && hasDeliveryTrackingDetails(job) ? (
               <section className="rounded-[24px] border border-sky-200 bg-white px-5 py-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
                 <h2 className="text-sm font-semibold text-slate-950">ติดตามการจัดส่ง</h2>
                 <div className="mt-3 grid gap-2 text-sm">
