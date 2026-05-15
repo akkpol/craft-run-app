@@ -48,6 +48,11 @@ const PG_ERROR_CODE_TO_API: Record<string, { status: number; error: string; deta
     error: "RECIPIENT_NAME_REQUIRED",
     detail: "Mark-done requires the recipient name for legal proof of handoff.",
   },
+  P0005: {
+    status: 409,
+    error: "JOB_NOT_READY_FOR_PICKUP",
+    detail: "Production is not finished. Mark the job ready_for_fulfillment before closing pickup.",
+  },
 };
 
 /**
