@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { logHumanAction } from "@/lib/action-log";
 import { resolveAdminAccess } from "@/lib/admin-auth";
+import { getRuntimeAppConfig } from "@/lib/app-settings";
+import { resolvePaymentProfileFromConfig } from "@/lib/payment-routing";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -24,6 +26,16 @@ type AddItemBody = {
  * leaving room for a future discount feature without overwriting it).
  */
 const VAT_RATE = 0.07;
+
+function getBillingEntityType(leads: unknown) {
+  const lead = Array.isArray(leads) ? leads[0] : leads;
+  if (!lead || typeof lead !== "object") {
+    return null;
+  }
+
+  const value = (lead as { billing_entity_type?: unknown }).billing_entity_type;
+  return typeof value === "string" ? value : null;
+}
 
 export async function POST(
   request: NextRequest,
@@ -81,7 +93,7 @@ export async function POST(
   const supabase = createAdminClient();
   const { data: quote, error: quoteError } = await supabase
     .from("quotes")
-    .select("id, status, discount, payment_terms, payment_status")
+    .select("id, status, discount, payment_terms, payment_status, leads(billing_entity_type)")
     .eq("id", id)
     .maybeSingle();
 
@@ -158,10 +170,21 @@ export async function POST(
   const taxable = Math.max(0, subtotal - discount);
   const vat = Math.round(taxable * VAT_RATE * 100) / 100;
   const total = Math.round((taxable + vat) * 100) / 100;
+  const appConfig = await getRuntimeAppConfig();
+  const paymentProfileSnapshot = resolvePaymentProfileFromConfig(appConfig, {
+    total,
+    billingEntityType: getBillingEntityType(quote.leads),
+    paymentTerms: quote.payment_terms,
+  });
 
   const { error: updateError } = await supabase
     .from("quotes")
-    .update({ subtotal, vat, total })
+    .update({
+      subtotal,
+      vat,
+      total,
+      payment_profile_snapshot: paymentProfileSnapshot,
+    })
     .eq("id", id);
 
   if (updateError) {
