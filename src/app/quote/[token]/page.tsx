@@ -473,6 +473,25 @@ export default async function QuotePage(props: { params: Promise<{ token: string
           <div className="flex justify-between text-sm"><span className="text-gray-500">ราคาก่อน VAT</span><span>{formatMoney(quote.subtotal)}</span></div>
           <div className="flex justify-between text-sm"><span className="text-gray-500">VAT 7%</span><span>{formatMoney(quote.vat)}</span></div>
           <div className="flex justify-between border-t border-gray-100 pt-2 text-base font-bold"><span>รวมทั้งสิ้น</span><span className="text-slate-950">{formatMoney(quote.total)}</span></div>
+          {Number(quote.wht_rate ?? 0) > 0 ? (
+            <>
+              <div className="flex justify-between text-sm text-rose-700">
+                <span>หัก ณ ที่จ่าย ({(Number(quote.wht_rate) * 100).toFixed(2)}%)</span>
+                <span>-{formatMoney(Number(quote.subtotal || 0) * Number(quote.wht_rate))}</span>
+              </div>
+              <div className="flex justify-between border-t border-gray-100 pt-2 text-sm font-semibold text-emerald-700">
+                <span>ยอดสุทธิที่ต้องโอน</span>
+                <span>
+                  {formatMoney(
+                    Number(quote.total || 0) - Number(quote.subtotal || 0) * Number(quote.wht_rate)
+                  )}
+                </span>
+              </div>
+              <p className="text-xs leading-5 text-slate-500">
+                ลูกค้านิติบุคคล: หักภาษี ณ ที่จ่ายแล้วโอนยอดสุทธิ พร้อมออกใบรับรอง 50ทวิ ให้ทางร้าน
+              </p>
+            </>
+          ) : null}
         </div>
 
         <div className="bg-white px-6 py-4 border-b border-gray-100 space-y-1 text-sm">

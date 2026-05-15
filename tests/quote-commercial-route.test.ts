@@ -231,6 +231,78 @@ describe("quote commercial route payment ordering", () => {
     expect(mockCreateJobForApprovedQuote).toHaveBeenCalledOnce();
   });
 
+  it("accepts prepaid full payment when cash plus WHT equals the quote total", async () => {
+    const supabase = buildSupabaseMock({
+      quote: {
+        payment_terms: "prepaid",
+      },
+    });
+    mockCreateAdminClient.mockReturnValue(supabase.client);
+
+    const response = await callCommercialRoute({
+      paymentStatus: "paid",
+      paymentAmount: 970,
+      whtAmount: 30,
+      paymentIdempotencyKey: "key-prepaid-wht-1",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      success: true,
+      paymentStatus: "paid",
+      paymentConfirmedId: "payment-1",
+    });
+    expect(supabase.client.rpc).toHaveBeenCalledWith(
+      "confirm_commercial_payment",
+      expect.objectContaining({
+        p_amount: 970,
+        p_wht_amount: 30,
+      })
+    );
+    expect(supabase.events[0]).toBe("rpc.confirm_commercial_payment");
+  });
+
+  it("rejects prepaid WHT payments when cash plus WHT is still underpaid", async () => {
+    const supabase = buildSupabaseMock({
+      quote: {
+        payment_terms: "prepaid",
+      },
+    });
+    mockCreateAdminClient.mockReturnValue(supabase.client);
+
+    const response = await callCommercialRoute({
+      paymentStatus: "paid",
+      paymentAmount: 960,
+      whtAmount: 30,
+      paymentIdempotencyKey: "key-prepaid-wht-underpaid",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body.error).toBe("PAYMENT_AMOUNT_UNDERPAID");
+    expect(supabase.client.rpc).not.toHaveBeenCalled();
+    expect(supabase.events).toEqual([]);
+  });
+
+  it("rejects invalid WHT rates before payment RPC side effects", async () => {
+    const supabase = buildSupabaseMock();
+    mockCreateAdminClient.mockReturnValue(supabase.client);
+
+    const response = await callCommercialRoute({
+      paymentStatus: "paid",
+      paymentAmount: 1000,
+      whtRate: 0.3,
+      paymentIdempotencyKey: "key-invalid-wht-rate",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe("WHT_RATE_INVALID");
+    expect(supabase.client.rpc).not.toHaveBeenCalled();
+    expect(supabase.events).toEqual([]);
+  });
+
   it("keeps an existing job workflow state when the balance payment completes", async () => {
     const supabase = buildSupabaseMock({
       quote: {

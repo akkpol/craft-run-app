@@ -164,6 +164,85 @@ update commercial_orders co
 
 ---
 
+## L11 — App-level cumulative/balance check มี race window — enforcement ต้องอยู่ใน lock
+
+**Pattern:** ถ้า business rule คำนวณจาก sum/aggregate ของหลาย rows (e.g. cumulative payments ≤ quote.total) — pre-check ใน HTTP route **ก่อนเรียก write RPC** มี race window ที่ admin 2 คน confirm ปริมาณงานพร้อมกัน → ทั้งคู่ pass check → ทั้งคู่ insert → overpay/overcommit
+
+**ผิดอย่างไร:**
+- PR #64, `/api/quotes/[id]/commercial`: หลังตรวจ `validatePaymentAmount` ผมเพิ่ม app-level check:
+  ```ts
+  const balance = await getQuoteOutstandingBalance(supabase, id);
+  if (amount > balance.outstanding + 0.01) return 422;
+  // ...then call RPC
+  ```
+- Codex P2: admin A กับ admin B ส่ง 2 idempotency keys ในเวลาเดียวกัน — ทั้งคู่อ่าน outstanding=70 ก่อน RPC ตัวแรกจะ commit — RPC ตัวที่ 2 serialize บน order row lock แต่ **ไม่ได้ re-check cumulative** → insert payment row อีกหนึ่ง → sum > quote.total
+
+**ทำอย่างไรให้ถูก:**
+- ย้าย cumulative check **เข้าไปใน RPC** ที่ถือ row lock ของ commercial_orders
+  ```sql
+  -- inside confirm_commercial_payment after row lock
+  select coalesce(sum(amount), 0) into v_paid_total
+    from public.payments p
+   where p.order_id = v_order.id and p.status = 'CONFIRMED';
+  v_outstanding := v_quote_total - v_paid_total;
+  if p_amount > v_outstanding + 0.01 then
+    raise exception 'PAYMENT_AMOUNT_EXCEEDS_OUTSTANDING: ...';
+  end if;
+  ```
+- HTTP route ยังคำนวณ balance ได้เพื่อแสดง UI แต่ **ห้ามใช้ enforce business rule**
+
+**Prevention checklist:**
+- ทุก aggregate-based business rule (sum, count, exists check) ที่ตัดสินใจ write → enforcement อยู่ใน DB transaction ที่ถือ lock เดียวกับ write
+- HTTP/app-layer pre-check ใช้ได้แค่เพื่อให้ UX ดี (skip RPC call ที่จะ fail แน่นอน) ไม่ใช่เพื่อความถูกต้อง
+- เขียน concurrent test (2 simultaneous requests) เพื่อ verify
+
+**Reference fix:** commit `88a06ab` + migration `20260515171845_enforce_commercial_payment_balance_lock.sql`
+
+---
+
+## L12 — Status update ของ workflow ห้าม overwrite job-derived state
+
+**Pattern:** เมื่อ payment route อัปเดต conversation.state แบบ unconditional ตาม `getQuoteApprovalState(terms, status)` — มันจะรีเซ็ต state ที่ job เคยขยับไปแล้ว (เช่น IN_PRODUCTION, READY_FOR_FULFILLMENT) กลับเป็น IN_DESIGN
+
+**ผิดอย่างไร:**
+- PR #64, balance payment: ลูกค้าจ่ายมัดจำ → IN_DESIGN → admin start job → IN_PRODUCTION → admin บันทึกรับชำระยอดที่เหลือ
+- Route เดิม:
+  ```ts
+  if (quote.leads?.conversation_id && quote.status === "approved") {
+    await supabase.from("conversations").update({ state: nextWorkflowState }).eq(...);
+    // nextWorkflowState = getQuoteApprovalState("deposit", "paid") = "IN_DESIGN"
+  }
+  ```
+- ผล: IN_PRODUCTION → IN_DESIGN ถอยหลัง workflow
+
+**ทำอย่างไรให้ถูก:**
+```ts
+const existingJobs = Array.isArray(quote.jobs) ? quote.jobs : [];
+const hasExistingJob = existingJobs.length > 0;
+
+if (productionUnlocked) {
+  if (hasExistingJob) {
+    // reuse — don't recreate or rewind state
+    jobId = existingJobs[0]?.id ?? null;
+  } else {
+    // first unlock: create job + transition state
+    const jobResult = await createJobForApprovedQuote(...);
+  }
+} else if (conversation_id && quote.status === "approved" && !hasExistingJob) {
+  // only update state when no job has taken over the workflow
+  await supabase.from("conversations").update({ state: nextWorkflowState })...;
+}
+```
+
+**Prevention checklist:**
+- Payment updates ต้องตอบ "ใครเป็นเจ้าของ state ปัจจุบัน": ถ้ามี job แล้ว → job route เป็นเจ้าของ, payment route ห้ามแตะ
+- Workflow transitions เป็น state machine — ห้ามมี edge ที่ทำให้ถอยหลังโดยไม่ตั้งใจ
+- เขียน test: deposit → job → IN_PRODUCTION → balance payment → expect state ยังเป็น IN_PRODUCTION
+
+**Reference fix:** commit `88a06ab` (`hasExistingJob` branch)
+
+---
+
 ## L5 — `next-env.d.ts` ห้าม commit
 
 **Pattern:** ไฟล์นี้ Next.js auto-generate แตกต่างระหว่าง `next dev` กับ `next build` (toggle `.next/types` ↔ `.next/dev/types`) — ไม่ใช่ source code
