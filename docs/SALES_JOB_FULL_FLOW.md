@@ -466,7 +466,7 @@ Side: `ON_HOLD_CUSTOMER_INPUT`, `HUMAN_REVIEW_REQUIRED`, `CANCELLED`
 | Pickup proof — signature canvas / e-sign (photo + recipient name closed via PR #74) | PR #74 deferred |
 | OCR for bank slips | PR #62 deferred |
 | Bank statement auto-reconciliation | PR #62 deferred |
-| 50ทวิ certificate PDF generation | PR #65 deferred |
+| 50ทวิ certificate generation — admin print page closed via PR #76; **persisted cert number / RD-format PDF** still Wave 5 | PR #65 deferred |
 | Auto-suggest WHT rate based on receiver VAT | PR #65 deferred |
 | Per-item discount / unit (sqm vs piece) | PR #66 deferred |
 | Auto-transition jobs.fulfillment_status when installation done | PR #67 deferred |
