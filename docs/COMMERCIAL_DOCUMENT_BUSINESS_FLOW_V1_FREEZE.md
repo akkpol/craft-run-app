@@ -115,6 +115,20 @@ Non-VAT or personal-account receivers use `NO_VAT` and cannot issue tax invoice 
 - Admin must select receiver entity before payment instructions are treated as usable.
 - UI must warn/block when receiver cannot satisfy the requested tax outcome.
 
+**Server contract for `POST /api/quotes/[id]/commercial`:**
+
+```
+IF body.paymentStatus IN ('paid', 'partial')
+AND commercial_orders.selected_receiver_entity_id IS NULL
+→ return 409 CONFLICT (RECEIVER_NOT_SELECTED)
+   do not update quote.payment_status
+   do not create job
+```
+
+This guard must fire before any database write. The guard in `/api/payments/confirm`
+(`validatePaymentConfirm → PAYMENT_RECEIVER_NOT_SELECTED`) covers the proper
+payment-confirmation path but does NOT cover the shortcut status-change path above.
+
 ### Payment Confirmation
 
 - Payment receiver must match selected receiver.

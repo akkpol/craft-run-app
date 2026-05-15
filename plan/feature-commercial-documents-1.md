@@ -122,7 +122,7 @@ Decision Owner
 
 | Task | Description | Status | Completed Date |
 | --- | --- | --- | --- |
-| TASK-004 | Implement receiver selection validation before payment. | Yes | 2026-05-02 |
+| TASK-004 | Implement receiver selection validation before payment. | Partial — `/api/payments/confirm` guards via `validatePaymentConfirm()` (PAYMENT_RECEIVER_NOT_SELECTED → 422). `/api/quotes/[id]/commercial` shortcut path has no receiver guard; quote.payment_status can be set to paid/partial before receiver is selected. See TASK-014. | 2026-05-02 |
 | TASK-005 | Implement payment confirmation validation and receiver lock. | Yes | 2026-05-02 |
 | TASK-006 | Implement document issue validation for receiver/issuer match, VAT registration, customer tax profile, branch data, and numbering. | Yes | 2026-05-02 |
 | TASK-007 | Implement error codes from policy v1. | Partial (current payment confirm, issue, and intake paths return policy-aligned error codes; full catalog is not centralized yet) | 2026-05-02 |
@@ -168,6 +168,12 @@ Packet state (2026-05-03)
 - Added LIFF/customer tax-document validation shared across client and server intake paths.
 - Added failure-path audit mapping for blocked payment/document flows.
 - Added focused tests for commercial validation, receiver UI warnings, document issue planning, print snapshots, and audit mapping.
+
+### Phase 5 — Payment Gate Hardening (open)
+
+| Task | Description | Status | Completed Date |
+| --- | --- | --- | --- |
+| TASK-014 | Add 409 guard to `POST /api/quotes/[id]/commercial` that rejects `paymentStatus: paid\|partial` when `commercial_orders.selected_receiver_entity_id` is null. Quote status and job creation must not proceed before receiver is selected. Idempotency key on payments insert (replace read-then-insert). `partial` must require explicit `paymentAmount` in body; `paid` defaults to `quote.total` only when omitted. Disable issue-document for partial until deposit-specific document issuance is implemented. | Open | — |
 
 Open follow-up to close packet cleanly
 

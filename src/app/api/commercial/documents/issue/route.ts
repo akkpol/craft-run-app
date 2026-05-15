@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { logHumanAction, logSystemAction } from "@/lib/action-log";
+import { getRuntimeAppConfig } from "@/lib/app-settings";
 import {
   buildCommercialDocumentDeliverySkipAudit,
   buildCommercialDocumentIssueFailureAudit,
 } from "@/lib/commercial-audit";
+import { resolveCommercialDocumentAppendixSnapshot } from "@/lib/commercial-document-appendix";
 import { buildCommercialDocumentIssuePlan } from "@/lib/commercial-document-issue";
 import { pushCommercialDocumentLink } from "@/lib/line";
-import { getRuntimeAppConfig } from "@/lib/app-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type IssueDocumentBody = {
@@ -148,7 +149,7 @@ export async function POST(request: NextRequest) {
   const { data: lead, error: leadError } = await supabase
     .from("leads")
     .select(
-      "id, conversation_id, requested_document_type, billing_entity_type, billing_branch_type, billing_branch_code, billing_name, tax_id, billing_address"
+      "id, conversation_id, requested_document_type, billing_entity_type, billing_branch_type, billing_branch_code, billing_name, tax_id, billing_address, ai_generated_images"
     )
     .eq("id", quote.lead_id)
     .maybeSingle();
@@ -316,13 +317,11 @@ export async function POST(request: NextRequest) {
   });
 
   const runtimeConfig = await getRuntimeAppConfig();
-  const documentAppendix = runtimeConfig.documentAppendixImageUrl
-    ? {
-        image_url: runtimeConfig.documentAppendixImageUrl,
-        image_name: runtimeConfig.documentAppendixImageName || null,
-        source: "app_settings",
-      }
-    : null;
+  const documentAppendix = resolveCommercialDocumentAppendixSnapshot({
+    leadAiGeneratedImages: lead.ai_generated_images,
+    documentAppendixImageUrl: runtimeConfig.documentAppendixImageUrl,
+    documentAppendixImageName: runtimeConfig.documentAppendixImageName,
+  });
 
   const snapshot = {
     policy_version: "COMMERCIAL_DOCUMENT_POLICY_V1",

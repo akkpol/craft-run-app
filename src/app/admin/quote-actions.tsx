@@ -362,7 +362,8 @@ export default function AdminQuoteActions({
     Boolean(confirmedPaymentId) &&
     !issuedDocumentId &&
     requestedDocumentType !== "quote" &&
-    paymentStatus === "paid";
+    (paymentStatus === "paid" ||
+      (paymentTerms === "deposit" && paymentStatus === "partial"));
   const receiverStatusTone = receiverLocked
     ? "locked"
     : commercialOrder?.selectedReceiverEntityId

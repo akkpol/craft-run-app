@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import AdminLeadDesignActions from "@/app/admin/lead-design-actions";
 import LeadAiPreviewActions from "@/app/admin/lead-ai-preview-actions";
+import LeadManualDesignActions from "@/app/admin/lead-manual-design-actions";
 import LeadPromptActions from "@/app/admin/lead-prompt-actions";
 import LeadSendPreviewActions from "@/app/admin/lead-send-preview-actions";
 import { Badge } from "@/components/ui/badge";
@@ -386,6 +387,9 @@ export default async function AdminPromptsPage() {
                               prompt={card.prompt}
                               status={card.aiStatus}
                             />
+                            {card.aiStatus === "failed" ? (
+                              <LeadManualDesignActions leadId={card.lead.id} />
+                            ) : null}
                             <LeadSendPreviewActions
                               leadId={card.lead.id}
                               previewCount={card.previewCount}

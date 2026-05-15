@@ -32,6 +32,8 @@ import {
   PAYMENT_ROUTING_TERM_SCOPE_LABELS,
   PAYMENT_ROUTING_TERM_SCOPES,
 } from "@/lib/payment-routing";
+import { CatalogItemsTable } from "./CatalogItemsTable";
+import { PaymentRoutingPreview } from "./PaymentRoutingPreview";
 import { formatBangkokDateTime } from "@/lib/bangkok-date-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -622,12 +624,14 @@ export default function SettingsForm({
   const [uploadingAsset, setUploadingAsset] = useState<"" | SettingsAssetType>("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
   const [diagnosticsCheckedAt, setDiagnosticsCheckedAt] = useState<string | null>(null);
   const [importingCatalog, setImportingCatalog] = useState(false);
   const [catalogImportMessage, setCatalogImportMessage] = useState("");
   const [catalogImportError, setCatalogImportError] = useState("");
   const [catalogImportSummary, setCatalogImportSummary] =
     useState<ProductCatalogImportResult | null>(null);
+  const [catalogReloadKey, setCatalogReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -642,13 +646,14 @@ export default function SettingsForm({
 
         setForm(nextState);
         setDiagnosticsCheckedAt(new Date().toISOString());
+        setWarning("");
         setError("");
       } catch {
         if (cancelled) {
           return;
         }
 
-        setError("โหลดข้อมูลตั้งค่าไม่สำเร็จ");
+        showError("โหลดข้อมูลตั้งค่าไม่สำเร็จ");
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -667,8 +672,33 @@ export default function SettingsForm({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function clearFeedback() {
+    setMessage("");
+    setError("");
+    setWarning("");
+  }
+
+  function showError(nextError: string) {
+    setError(nextError);
+    setMessage("");
+    setWarning("");
+  }
+
+  function showMessage(nextMessage: string) {
+    setMessage(nextMessage);
+    setError("");
+    setWarning("");
+  }
+
+  function showWarning(nextWarning: string) {
+    setWarning(nextWarning);
+    setMessage("");
+    setError("");
+  }
+
   async function handleRefreshDiagnostics() {
     setRefreshingDiagnostics(true);
+    setWarning("");
     setError("");
 
     try {
@@ -680,7 +710,7 @@ export default function SettingsForm({
       }));
       setDiagnosticsCheckedAt(new Date().toISOString());
     } catch {
-      setError("รีเฟรช diagnostics ไม่สำเร็จ");
+      showError("รีเฟรช diagnostics ไม่สำเร็จ");
     } finally {
       setRefreshingDiagnostics(false);
     }
@@ -690,8 +720,7 @@ export default function SettingsForm({
     if (!file) return;
 
     setUploadingAsset(assetType);
-    setMessage("");
-    setError("");
+    clearFeedback();
 
     try {
       const formData = new FormData();
@@ -705,7 +734,7 @@ export default function SettingsForm({
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "อัปโหลดไฟล์ไม่สำเร็จ");
+        showError(data.error || "อัปโหลดไฟล์ไม่สำเร็จ");
         return;
       }
 
@@ -738,9 +767,9 @@ export default function SettingsForm({
         }));
       }
 
-      setMessage("อัปโหลดไฟล์เรียบร้อยแล้ว");
+      showMessage("อัปโหลดไฟล์เรียบร้อยแล้ว");
     } catch {
-      setError("อัปโหลดไฟล์ไม่สำเร็จ");
+      showError("อัปโหลดไฟล์ไม่สำเร็จ");
     } finally {
       setUploadingAsset("");
     }
@@ -758,24 +787,22 @@ export default function SettingsForm({
 
   async function copySettingValue(value: string, label: string) {
     if (!value) {
-      setError(`ยังไม่มีค่า ${label} ให้คัดลอก`);
+      showError(`ยังไม่มีค่า ${label} ให้คัดลอก`);
       return;
     }
 
     try {
       await navigator.clipboard.writeText(value);
-      setMessage(`คัดลอก ${label} แล้ว`);
-      setError("");
+      showMessage(`คัดลอก ${label} แล้ว`);
     } catch {
-      setError(`คัดลอก ${label} ไม่สำเร็จ`);
+      showError(`คัดลอก ${label} ไม่สำเร็จ`);
     }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
-    setMessage("");
-    setError("");
+    clearFeedback();
 
     try {
       const res = await fetch("/api/settings", {
@@ -786,11 +813,16 @@ export default function SettingsForm({
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "บันทึกไม่สำเร็จ");
+        showError(data.error || "บันทึกไม่สำเร็จ");
         return;
       }
 
-      setMessage("บันทึกการตั้งค่าเรียบร้อยแล้ว");
+      const saveResult = data as { success: true; warning?: string; droppedGroups?: string[] };
+      const schemaFallbackMessage =
+        saveResult.warning === "SCHEMA_FALLBACK_OCCURRED"
+          ? `บันทึกบางส่วนไม่ครบ: DB ขาด columns สำหรับ ${saveResult.droppedGroups?.join(", ") ?? "payment"} — ตรวจสอบ migration`
+          : "";
+
       setForm((prev) => {
         const normalizedBaseUrl = normalizeBaseUrl(prev.baseUrl || "");
 
@@ -809,8 +841,30 @@ export default function SettingsForm({
           lineChannelSecret: "",
         };
       });
+
+      try {
+        const refreshed = await fetchSettingsState();
+        setForm({
+          ...refreshed,
+          aiImageApiKey: "",
+          lineChannelAccessToken: "",
+          lineChannelSecret: "",
+        });
+
+        if (schemaFallbackMessage) {
+          showWarning(schemaFallbackMessage);
+        } else {
+          showMessage("บันทึกการตั้งค่าเรียบร้อยแล้ว");
+        }
+      } catch {
+        if (schemaFallbackMessage) {
+          showWarning(`${schemaFallbackMessage} และรีเฟรชค่าล่าสุดไม่สำเร็จ`);
+        } else {
+          showWarning("บันทึกการตั้งค่าแล้ว แต่รีเฟรชค่าล่าสุดไม่สำเร็จ");
+        }
+      }
     } catch {
-      setError("บันทึกไม่สำเร็จ");
+      showError("บันทึกไม่สำเร็จ");
     } finally {
       setSaving(false);
     }
@@ -825,6 +879,7 @@ export default function SettingsForm({
     setCatalogImportMessage("");
     setCatalogImportError("");
     setCatalogImportSummary(null);
+    setWarning("");
 
     try {
       const formData = new FormData();
@@ -853,6 +908,7 @@ export default function SettingsForm({
         activeCount: Number(data.activeCount) || 0,
         generatedValueCount: Number(data.generatedValueCount) || 0,
       });
+      setCatalogReloadKey((prev) => prev + 1);
       setCatalogImportMessage(
         `นำเข้า catalog สำเร็จ ${Number(data.importedCount) || 0} รายการ`
       );
@@ -1195,6 +1251,25 @@ export default function SettingsForm({
                 </p>
               </div>
             </div>
+          </div>
+          <div className="md:col-span-2">
+            <PaymentRoutingPreview
+              config={{
+                paymentAccountName: form.paymentAccountName,
+                paymentBankName: form.paymentBankName,
+                paymentAccountNumber: form.paymentAccountNumber,
+                paymentPromptPayId: form.paymentPromptPayId,
+                paymentQrCodeUrl: form.paymentQrCodeUrl,
+                paymentSecondaryAccountName: form.paymentSecondaryAccountName,
+                paymentSecondaryBankName: form.paymentSecondaryBankName,
+                paymentSecondaryAccountNumber: form.paymentSecondaryAccountNumber,
+                paymentSecondaryPromptPayId: form.paymentSecondaryPromptPayId,
+                paymentSecondaryQrCodeUrl: form.paymentSecondaryQrCodeUrl,
+                paymentSecondaryMaxQuoteTotal: form.paymentSecondaryMaxQuoteTotal ?? null,
+                paymentSecondaryCustomerScope: form.paymentSecondaryCustomerScope,
+                paymentSecondaryPaymentTermsScope: form.paymentSecondaryPaymentTermsScope,
+              }}
+            />
           </div>
           <div className="grid gap-2 text-sm text-slate-700 md:col-span-2">
             <span>โลโก้ร้าน</span>
@@ -1565,6 +1640,16 @@ export default function SettingsForm({
             <p>3. LIFF intake จะอ่าน catalog runtime ชุดล่าสุดโดยอัตโนมัติ ถ้า database ยังว่างระบบจะ fallback ไป catalog มาตรฐาน</p>
           </div>
         </div>
+
+        <div className="mt-6">
+          <h3 className="mb-2 text-sm font-semibold text-slate-900">รายการสินค้าในระบบ (แก้ราคารายตัวได้)</h3>
+          <p className="mb-3 text-xs leading-5 text-slate-500">
+            ปรับ <code className="rounded bg-slate-100 px-1 py-0.5 text-[11px]">ราคา/ตร.ม.</code> หรือ
+            <code className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-[11px]">ขั้นต่ำ</code>
+            แล้วกดบันทึกที่ปลายแถว — ระบบจะใช้ราคาใหม่ทันทีโดยไม่ต้อง re-upload CSV
+          </p>
+          <CatalogItemsTable reloadKey={catalogReloadKey} />
+        </div>
       </section>
 
         </TabsContent>
@@ -1858,14 +1943,21 @@ export default function SettingsForm({
         )}
       </section>
 
-      {error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
-      {message ? <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{message}</div> : null}
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-slate-500">
-          {form.updatedAt ? `อัปเดตล่าสุด ${formatBangkokDateTime(form.updatedAt)}` : "ยังไม่มีการบันทึกค่าจากหน้า settings"}
-        </p>
-        <button type="submit" disabled={saving} className="rounded-full bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#16213e] disabled:opacity-50">
+      <div className="sticky bottom-0 z-10 -mx-5 flex items-center justify-between gap-3 border-t border-slate-200 bg-white/95 px-5 py-3 backdrop-blur-sm">
+        <div className="min-w-0 flex-1">
+          {error ? (
+            <p className="truncate text-sm text-red-600">{error}</p>
+          ) : warning ? (
+            <p className="truncate text-sm text-amber-700">{warning}</p>
+          ) : message ? (
+            <p className="truncate text-sm text-green-700">{message}</p>
+          ) : form.updatedAt ? (
+            <p className="text-xs text-slate-500">บันทึกล่าสุด {formatBangkokDateTime(form.updatedAt)}</p>
+          ) : (
+            <p className="text-xs text-slate-400">ยังไม่มีการบันทึกค่าจากหน้า settings</p>
+          )}
+        </div>
+        <button type="submit" disabled={saving} className="shrink-0 rounded-full bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#16213e] disabled:opacity-50">
           {saving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}
         </button>
       </div>
