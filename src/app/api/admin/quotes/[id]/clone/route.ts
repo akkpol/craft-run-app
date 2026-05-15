@@ -5,6 +5,66 @@ import { resolveAdminAccess } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+type CloneCleanupIds = {
+  conversationId?: string | null;
+  leadId?: string | null;
+  quoteId?: string | null;
+};
+
+type CloneCleanupTable = "quotes" | "leads" | "conversations";
+
+async function deleteCreatedCloneRow(
+  supabase: ReturnType<typeof createAdminClient>,
+  table: CloneCleanupTable,
+  id: string | null | undefined
+) {
+  if (!id) {
+    return null;
+  }
+
+  const { error } = await supabase.from(table).delete().eq("id", id);
+  return error ? `${table}:${error.message}` : null;
+}
+
+async function cleanupFailedClone(
+  supabase: ReturnType<typeof createAdminClient>,
+  ids: CloneCleanupIds
+) {
+  const cleanupErrors: string[] = [];
+  const quoteCleanupError = await deleteCreatedCloneRow(
+    supabase,
+    "quotes",
+    ids.quoteId
+  );
+  if (quoteCleanupError) cleanupErrors.push(quoteCleanupError);
+  const leadCleanupError = await deleteCreatedCloneRow(supabase, "leads", ids.leadId);
+  if (leadCleanupError) cleanupErrors.push(leadCleanupError);
+  const conversationCleanupError = await deleteCreatedCloneRow(
+    supabase,
+    "conversations",
+    ids.conversationId
+  );
+  if (conversationCleanupError) cleanupErrors.push(conversationCleanupError);
+
+  if (cleanupErrors.length > 0) {
+    console.error("Failed to clean up partial quote clone", {
+      cleanupErrors,
+      conversationId: ids.conversationId,
+      leadId: ids.leadId,
+      quoteId: ids.quoteId,
+    });
+  }
+}
+
+async function failCloneAfterPartialWrite(
+  supabase: ReturnType<typeof createAdminClient>,
+  ids: CloneCleanupIds,
+  error: string
+) {
+  await cleanupFailedClone(supabase, ids);
+  return NextResponse.json({ error }, { status: 500 });
+}
+
 /**
  * POST /api/admin/quotes/[id]/clone
  *
@@ -41,7 +101,7 @@ export async function POST(
   const { data: sourceQuote, error: sourceErr } = await supabase
     .from("quotes")
     .select(
-      "id, subtotal, discount, vat, total, payment_terms, wht_rate, lead_id, leads(id, customer_id, conversation_id, product_type, width_mm, height_mm, qty, note_from_form, reference_info, design_brief, ai_image_prompt, requested_document_type, billing_entity_type, billing_branch_type, billing_branch_code, billing_name, tax_id, billing_address, fulfillment_mode, fulfillment_address_line1, fulfillment_address_line2, fulfillment_subdistrict, fulfillment_district, fulfillment_province, fulfillment_postal_code, due_date, product_label_snapshot, product_category_snapshot, product_category_label_snapshot)"
+      "id, status, subtotal, discount, vat, total, payment_terms, wht_rate, lead_id, leads(id, customer_id, conversation_id, product_type, width_mm, height_mm, qty, note_from_form, reference_info, design_brief, ai_image_prompt, requested_document_type, billing_entity_type, billing_branch_type, billing_branch_code, billing_name, tax_id, billing_address, fulfillment_mode, fulfillment_address_line1, fulfillment_address_line2, fulfillment_subdistrict, fulfillment_district, fulfillment_province, fulfillment_postal_code, due_date, product_label_snapshot, product_category_snapshot, product_category_label_snapshot)"
     )
     .eq("id", sourceQuoteId)
     .maybeSingle();
@@ -51,6 +111,15 @@ export async function POST(
   }
   if (!sourceQuote) {
     return NextResponse.json({ error: "Source quote not found" }, { status: 404 });
+  }
+  if (sourceQuote.status === "draft") {
+    return NextResponse.json(
+      {
+        error: "QUOTE_CLONE_NOT_ALLOWED",
+        detail: "Draft quotes must be sent before they can be cloned.",
+      },
+      { status: 409 }
+    );
   }
 
   const sourceLead = Array.isArray(sourceQuote.leads)
@@ -103,6 +172,7 @@ export async function POST(
   }
 
   // 2. Create new conversation, lead, quote, items.
+  const createdIds: CloneCleanupIds = {};
   const { data: newConv, error: convErr } = await supabase
     .from("conversations")
     .insert({
@@ -117,6 +187,7 @@ export async function POST(
       { status: 500 }
     );
   }
+  createdIds.conversationId = newConv.id;
 
   const { data: newLead, error: leadErr } = await supabase
     .from("leads")
@@ -155,11 +226,13 @@ export async function POST(
     .select("id")
     .single();
   if (leadErr || !newLead) {
-    return NextResponse.json(
-      { error: leadErr?.message || "Failed to create lead" },
-      { status: 500 }
+    return failCloneAfterPartialWrite(
+      supabase,
+      createdIds,
+      leadErr?.message || "Failed to create lead"
     );
   }
+  createdIds.leadId = newLead.id;
 
   const { data: newQuote, error: quoteErr } = await supabase
     .from("quotes")
@@ -178,17 +251,26 @@ export async function POST(
     .select("id, public_token")
     .single();
   if (quoteErr || !newQuote) {
-    return NextResponse.json(
-      { error: quoteErr?.message || "Failed to create quote" },
-      { status: 500 }
+    return failCloneAfterPartialWrite(
+      supabase,
+      createdIds,
+      quoteErr?.message || "Failed to create quote"
     );
   }
+  createdIds.quoteId = newQuote.id;
 
   // Copy items.
-  const { data: sourceItems } = await supabase
+  const { data: sourceItems, error: sourceItemsErr } = await supabase
     .from("quote_items")
     .select("label, qty, unit_price")
     .eq("quote_id", sourceQuoteId);
+  if (sourceItemsErr) {
+    return failCloneAfterPartialWrite(
+      supabase,
+      createdIds,
+      sourceItemsErr.message || "Failed to load quote items"
+    );
+  }
   if (sourceItems && sourceItems.length > 0) {
     const itemsToInsert = sourceItems.map((row) => ({
       quote_id: newQuote.id,
@@ -200,9 +282,10 @@ export async function POST(
       .from("quote_items")
       .insert(itemsToInsert);
     if (itemErr) {
-      return NextResponse.json(
-        { error: itemErr.message || "Failed to copy items" },
-        { status: 500 }
+      return failCloneAfterPartialWrite(
+        supabase,
+        createdIds,
+        itemErr.message || "Failed to copy items"
       );
     }
   }
