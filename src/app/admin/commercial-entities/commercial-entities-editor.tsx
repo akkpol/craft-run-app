@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 
 type Entity = {
   id: string;
@@ -40,12 +40,42 @@ const initialDraft = {
   bankAccountOwner: "",
 };
 
+type EntityDraft = typeof initialDraft;
+
+function draftFromEntity(entity: Entity): EntityDraft {
+  return {
+    code: entity.code,
+    type: entity.type,
+    role: entity.role,
+    legalName: entity.legal_name,
+    displayName: entity.display_name,
+    taxId: entity.tax_id ?? "",
+    isVatRegistered: entity.is_vat_registered,
+    branchType: entity.branch_type,
+    branchCode: entity.branch_code ?? "",
+    branchName: entity.branch_name ?? "",
+    address: entity.address ?? "",
+    bankAccountOwner: entity.bank_account_owner ?? "",
+  };
+}
+
+function hasRequiredEntityFields(draft: EntityDraft) {
+  return Boolean(
+    draft.code.trim() &&
+    draft.legalName.trim() &&
+    draft.displayName.trim() &&
+    (!draft.isVatRegistered || (draft.taxId.trim() && draft.address.trim()))
+  );
+}
+
 export function CommercialEntitiesEditor() {
   const [entities, setEntities] = useState<Entity[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [draft, setDraft] = useState(initialDraft);
+  const [editDraft, setEditDraft] = useState<EntityDraft>(initialDraft);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -120,6 +150,47 @@ export function CommercialEntitiesEditor() {
     }
   }
 
+  function startEdit(entity: Entity) {
+    setError(null);
+    setEditingId(entity.id);
+    setEditDraft(draftFromEntity(entity));
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditDraft(initialDraft);
+  }
+
+  async function saveEntity(entity: Entity) {
+    setBusyId(entity.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/commercial-entities/${entity.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          legalName: editDraft.legalName,
+          displayName: editDraft.displayName,
+          taxId: editDraft.role === "PERSONAL_ACCOUNT" ? null : editDraft.taxId || null,
+          isVatRegistered: editDraft.role === "PERSONAL_ACCOUNT" ? false : editDraft.isVatRegistered,
+          branchType: editDraft.branchType,
+          branchCode: editDraft.branchCode || null,
+          branchName: editDraft.branchName || null,
+          address: editDraft.address || null,
+          bankAccountOwner: editDraft.bankAccountOwner || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || data?.error || "อัปเดตไม่สำเร็จ");
+      cancelEdit();
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "อัปเดตไม่สำเร็จ");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div className="space-y-5">
       {error ? (
@@ -148,39 +219,198 @@ export function CommercialEntitiesEditor() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {entities.map((entity) => (
-                  <tr key={entity.id} className={entity.active ? "" : "bg-slate-50/70 text-slate-500"}>
-                    <td className="px-2 py-2 font-mono">{entity.code}</td>
-                    <td className="px-2 py-2">{ROLE_LABELS[entity.role]}</td>
-                    <td className="px-2 py-2">
-                      <div className="font-medium text-slate-900">{entity.display_name}</div>
-                      <div className="text-[11px] text-slate-500">{entity.legal_name}</div>
-                    </td>
-                    <td className="px-2 py-2 font-mono">{entity.tax_id ?? "—"}</td>
-                    <td className="px-2 py-2">
-                      {entity.is_vat_registered ? (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800">VAT</span>
-                      ) : (
-                        <span className="text-slate-500">—</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-2">
-                      {entity.active ? (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800">เปิดใช้</span>
-                      ) : (
-                        <span className="rounded-full bg-slate-200 px-2 py-0.5 text-slate-700">ปิด</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-right">
-                      <button
-                        type="button"
-                        onClick={() => void toggleActive(entity)}
-                        disabled={busyId === entity.id}
-                        className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                      >
-                        {entity.active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
-                      </button>
-                    </td>
-                  </tr>
+                  <Fragment key={entity.id}>
+                    <tr className={entity.active ? "" : "bg-slate-50/70 text-slate-500"}>
+                      <td className="px-2 py-2 font-mono">{entity.code}</td>
+                      <td className="px-2 py-2">{ROLE_LABELS[entity.role]}</td>
+                      <td className="px-2 py-2">
+                        <div className="font-medium text-slate-900">{entity.display_name}</div>
+                        <div className="text-[11px] text-slate-500">{entity.legal_name}</div>
+                      </td>
+                      <td className="px-2 py-2 font-mono">{entity.tax_id ?? "—"}</td>
+                      <td className="px-2 py-2">
+                        {entity.is_vat_registered ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800">VAT</span>
+                        ) : (
+                          <span className="text-slate-500">—</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2">
+                        {entity.active ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800">เปิดใช้</span>
+                        ) : (
+                          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-slate-700">ปิด</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => (editingId === entity.id ? cancelEdit() : startEdit(entity))}
+                            disabled={busyId === entity.id}
+                            className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            {editingId === entity.id ? "ยกเลิก" : "แก้ไข"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void toggleActive(entity)}
+                            disabled={busyId === entity.id}
+                            className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            {entity.active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {editingId === entity.id ? (
+                      <tr className="bg-slate-50">
+                        <td colSpan={7} className="px-2 py-4">
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <label className="grid gap-1 text-xs">
+                              <span className="font-medium text-slate-700">Legal name</span>
+                              <input
+                                type="text"
+                                value={editDraft.legalName}
+                                onChange={(e) =>
+                                  setEditDraft((d) => ({ ...d, legalName: e.target.value }))
+                                }
+                                maxLength={500}
+                                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+                              />
+                            </label>
+
+                            <label className="grid gap-1 text-xs">
+                              <span className="font-medium text-slate-700">Display name</span>
+                              <input
+                                type="text"
+                                value={editDraft.displayName}
+                                onChange={(e) =>
+                                  setEditDraft((d) => ({ ...d, displayName: e.target.value }))
+                                }
+                                maxLength={200}
+                                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+                              />
+                            </label>
+
+                            <label className="grid gap-1 text-xs">
+                              <span className="font-medium text-slate-700">Tax ID</span>
+                              <input
+                                type="text"
+                                value={editDraft.taxId}
+                                onChange={(e) =>
+                                  setEditDraft((d) => ({ ...d, taxId: e.target.value }))
+                                }
+                                maxLength={50}
+                                disabled={editDraft.role === "PERSONAL_ACCOUNT"}
+                                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 font-mono disabled:bg-slate-100"
+                              />
+                            </label>
+
+                            <label className="flex items-center gap-2 text-xs">
+                              <input
+                                type="checkbox"
+                                checked={editDraft.isVatRegistered}
+                                disabled={editDraft.role === "PERSONAL_ACCOUNT"}
+                                onChange={(e) =>
+                                  setEditDraft((d) => ({ ...d, isVatRegistered: e.target.checked }))
+                                }
+                                className="size-4"
+                              />
+                              <span className="font-medium text-slate-700">VAT registered</span>
+                            </label>
+
+                            <label className="grid gap-1 text-xs">
+                              <span className="font-medium text-slate-700">Branch type</span>
+                              <select
+                                value={editDraft.branchType}
+                                onChange={(e) =>
+                                  setEditDraft((d) => ({
+                                    ...d,
+                                    branchType: e.target.value as Entity["branch_type"],
+                                  }))
+                                }
+                                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+                              >
+                                <option value="HEAD_OFFICE">สำนักงานใหญ่</option>
+                                <option value="BRANCH">สาขา</option>
+                              </select>
+                            </label>
+
+                            <label className="grid gap-1 text-xs">
+                              <span className="font-medium text-slate-700">Branch code</span>
+                              <input
+                                type="text"
+                                value={editDraft.branchCode}
+                                onChange={(e) =>
+                                  setEditDraft((d) => ({ ...d, branchCode: e.target.value }))
+                                }
+                                maxLength={50}
+                                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 font-mono"
+                              />
+                            </label>
+
+                            <label className="grid gap-1 text-xs">
+                              <span className="font-medium text-slate-700">Branch name</span>
+                              <input
+                                type="text"
+                                value={editDraft.branchName}
+                                onChange={(e) =>
+                                  setEditDraft((d) => ({ ...d, branchName: e.target.value }))
+                                }
+                                maxLength={200}
+                                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+                              />
+                            </label>
+
+                            <label className="md:col-span-2 grid gap-1 text-xs">
+                              <span className="font-medium text-slate-700">Address</span>
+                              <textarea
+                                value={editDraft.address}
+                                onChange={(e) =>
+                                  setEditDraft((d) => ({ ...d, address: e.target.value }))
+                                }
+                                rows={2}
+                                maxLength={1000}
+                                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+                              />
+                            </label>
+
+                            <label className="md:col-span-2 grid gap-1 text-xs">
+                              <span className="font-medium text-slate-700">Bank account owner</span>
+                              <input
+                                type="text"
+                                value={editDraft.bankAccountOwner}
+                                onChange={(e) =>
+                                  setEditDraft((d) => ({ ...d, bankAccountOwner: e.target.value }))
+                                }
+                                maxLength={500}
+                                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+                              />
+                            </label>
+                          </div>
+
+                          <div className="mt-3 flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={cancelEdit}
+                              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              ยกเลิก
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void saveEntity(entity)}
+                              disabled={busyId === entity.id || !hasRequiredEntityFields(editDraft)}
+                              className="rounded-full bg-[#1a1a2e] px-4 py-2 text-xs font-semibold text-white hover:bg-[#16213e] disabled:opacity-50"
+                            >
+                              {busyId === entity.id ? "กำลังบันทึก..." : "บันทึก"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -290,7 +520,7 @@ export function CommercialEntitiesEditor() {
           </label>
 
           <label className="grid gap-1 text-xs">
-            <span className="font-medium text-slate-700">Branch code / name</span>
+            <span className="font-medium text-slate-700">Branch code</span>
             <input
               type="text"
               value={draft.branchCode}
@@ -298,6 +528,18 @@ export function CommercialEntitiesEditor() {
               placeholder="เช่น 00001"
               maxLength={50}
               className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 font-mono"
+            />
+          </label>
+
+          <label className="grid gap-1 text-xs">
+            <span className="font-medium text-slate-700">Branch name</span>
+            <input
+              type="text"
+              value={draft.branchName}
+              onChange={(e) => setDraft((d) => ({ ...d, branchName: e.target.value }))}
+              placeholder="เช่น สาขาบางนา"
+              maxLength={200}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"
             />
           </label>
 
@@ -328,7 +570,7 @@ export function CommercialEntitiesEditor() {
         <button
           type="button"
           onClick={() => void createEntity()}
-          disabled={creating || !draft.code || !draft.legalName || !draft.displayName}
+          disabled={creating || !hasRequiredEntityFields(draft)}
           className="mt-4 rounded-full bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#16213e] disabled:opacity-50"
         >
           {creating ? "กำลังบันทึก..." : "เพิ่ม entity"}

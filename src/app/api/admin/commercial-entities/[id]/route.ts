@@ -55,7 +55,7 @@ export async function PATCH(
   // Read current entity to enforce cross-row business rules (L20).
   const { data: current, error: currentErr } = await supabase
     .from("commercial_entities")
-    .select("id, type, role, is_vat_registered")
+    .select("id, type, role, is_vat_registered, tax_id, address")
     .eq("id", id)
     .maybeSingle();
   if (currentErr) {
@@ -114,19 +114,15 @@ export async function PATCH(
 
   if (body.active !== undefined) {
     const nextActive = Boolean(body.active);
-    // L2 — deactivation has downstream impact: confirm_commercial_payment
-    // refuses RECEIVER_ENTITY_INACTIVE on every call (even for balance
-    // payments on already-locked orders), so an in-flight order whose
-    // receiver entity gets deactivated will be stuck. Refuse deactivation
-    // when at least one commercial_orders row references this entity AND
-    // no commercial_document has been issued for it yet — finished orders
-    // are safe to leave behind.
-    if (!nextActive && current.is_vat_registered !== undefined) {
+    // Balance payments still call confirm_commercial_payment with the locked
+    // receiver. Keep a receiver active while any selected order is unpaid or
+    // partially paid, otherwise the final payment can become impossible.
+    if (!nextActive) {
       const { count: inflightCount, error: inflightErr } = await supabase
         .from("commercial_orders")
-        .select("id", { count: "exact", head: true })
+        .select("id, quotes!inner(payment_status)", { count: "exact", head: true })
         .eq("selected_receiver_entity_id", id)
-        .is("payment_receiver_locked_at", null);
+        .in("quotes.payment_status", ["unpaid", "partial"]);
       if (inflightErr) {
         return NextResponse.json({ error: inflightErr.message }, { status: 500 });
       }
@@ -134,7 +130,7 @@ export async function PATCH(
         return NextResponse.json(
           {
             error: "ENTITY_HAS_INFLIGHT_ORDERS",
-            detail: `Entity is referenced by ${inflightCount} unlocked commercial order(s). Wait until those orders confirm payment or pick a different receiver before deactivating.`,
+            detail: `Entity is referenced by ${inflightCount} unpaid or partial commercial order(s). Confirm payment or pick a different receiver before deactivating.`,
             inflightCount,
           },
           { status: 409 }
@@ -159,24 +155,25 @@ export async function PATCH(
   const nextTaxId =
     body.taxId !== undefined
       ? sanitizeText(body.taxId, 50)
-      : ("tax_id" in update && update.tax_id !== undefined
-          ? (update.tax_id as string | null)
-          : undefined);
-  // Look up current tax_id only if we still don't know the post-update value.
-  let resolvedTaxId: string | null | undefined = nextTaxId;
-  if (nextIsVat && resolvedTaxId === undefined) {
-    const { data: currentTax } = await supabase
-      .from("commercial_entities")
-      .select("tax_id")
-      .eq("id", id)
-      .maybeSingle();
-    resolvedTaxId = (currentTax?.tax_id as string | null) ?? null;
-  }
-  if (nextIsVat && !resolvedTaxId) {
+      : ((current.tax_id as string | null) ?? null);
+  const nextAddress =
+    body.address !== undefined
+      ? sanitizeText(body.address, 1000)
+      : ((current.address as string | null) ?? null);
+  if (nextIsVat && !nextTaxId) {
     return NextResponse.json(
       {
         error: "VAT_ENTITY_REQUIRES_TAX_ID",
         detail: "VAT-registered entity must keep a non-empty tax_id.",
+      },
+      { status: 422 }
+    );
+  }
+  if (nextIsVat && !nextAddress) {
+    return NextResponse.json(
+      {
+        error: "VAT_ENTITY_REQUIRES_ADDRESS",
+        detail: "VAT-registered entity must keep a non-empty issuer address.",
       },
       { status: 422 }
     );

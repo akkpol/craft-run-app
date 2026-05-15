@@ -159,9 +159,28 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const branchType = ALLOWED_BRANCH_TYPES.includes(body.branchType as EntityBranchType)
-    ? (body.branchType as EntityBranchType)
-    : "HEAD_OFFICE";
+  const address = sanitizeText(body.address, 1000);
+  if (isVat && !address) {
+    return NextResponse.json(
+      {
+        error: "VAT_ENTITY_REQUIRES_ADDRESS",
+        detail: "VAT-registered entity must have an issuer address.",
+      },
+      { status: 422 }
+    );
+  }
+
+  const branchTypeInput = body.branchType ?? "HEAD_OFFICE";
+  if (!ALLOWED_BRANCH_TYPES.includes(branchTypeInput as EntityBranchType)) {
+    return NextResponse.json(
+      {
+        error: "ENTITY_BRANCH_TYPE_INVALID",
+        detail: "branchType must be HEAD_OFFICE or BRANCH.",
+      },
+      { status: 400 }
+    );
+  }
+  const branchType = branchTypeInput as EntityBranchType;
 
   const branchCode = sanitizeText(body.branchCode, 50);
   const branchName = sanitizeText(body.branchName, 200);
@@ -192,7 +211,7 @@ export async function POST(request: NextRequest) {
       branch_type: branchType,
       branch_code: branchCode,
       branch_name: branchName,
-      address: sanitizeText(body.address, 1000),
+      address,
       bank_account_owner: sanitizeText(body.bankAccountOwner, 500),
       active: true,
     })
