@@ -96,7 +96,7 @@ export async function POST(
   }
 
   const now = new Date().toISOString();
-  const { error: updateError } = await supabase
+  const { data: updatedSlip, error: updateError } = await supabase
     .from("payment_slips")
     .update({
       payment_id: paymentId,
@@ -106,10 +106,19 @@ export async function POST(
       updated_at: now,
       note: body.note?.toString().trim().slice(0, 500) ?? undefined,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
+  }
+  if (!updatedSlip) {
+    return NextResponse.json(
+      { error: "Slip is no longer pending" },
+      { status: 409 }
+    );
   }
 
   await logHumanAction(supabase, {

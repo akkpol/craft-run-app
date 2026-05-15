@@ -6,7 +6,14 @@ import {
   isAllowedPaymentSlipMime,
   uploadPaymentSlipFile,
 } from "@/lib/payment-slip-storage";
+import { paymentUnlocksProduction } from "@/lib/quote-workflow";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  isPaymentStatus,
+  isPaymentTerm,
+  type PaymentStatus,
+  type PaymentTerm,
+} from "@/lib/types";
 
 export async function POST(
   request: NextRequest,
@@ -53,7 +60,7 @@ export async function POST(
   const supabase = createAdminClient();
   const { data: quote, error: quoteError } = await supabase
     .from("quotes")
-    .select("id, public_token, lead_id")
+    .select("id, public_token, lead_id, status, payment_terms, payment_status, jobs(id)")
     .eq("public_token", token)
     .maybeSingle();
 
@@ -65,6 +72,30 @@ export async function POST(
   }
   if (!quote) {
     return NextResponse.json({ error: "Quote not found" }, { status: 404 });
+  }
+
+  const paymentTerms = isPaymentTerm(quote.payment_terms)
+    ? (quote.payment_terms as PaymentTerm)
+    : null;
+  const paymentStatus = isPaymentStatus(quote.payment_status)
+    ? (quote.payment_status as PaymentStatus)
+    : null;
+  const hasJob = Array.isArray(quote.jobs) && quote.jobs.length > 0;
+  const waitingPayment =
+    quote.status === "approved" &&
+    paymentTerms !== null &&
+    paymentStatus !== null &&
+    !hasJob &&
+    !paymentUnlocksProduction(paymentTerms, paymentStatus);
+
+  if (!waitingPayment || paymentTerms === "credit") {
+    return NextResponse.json(
+      {
+        error: "QUOTE_NOT_WAITING_PAYMENT",
+        detail: "This quote is not accepting payment slip uploads.",
+      },
+      { status: 409 }
+    );
   }
 
   let uploadResult;
