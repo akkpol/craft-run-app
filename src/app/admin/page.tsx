@@ -5,6 +5,7 @@ import {
 } from "@/lib/admin-overview";
 import { buildBackofficeAutomationSnapshot } from "@/lib/backoffice-automation";
 import { fetchBackofficeSnapshot } from "@/lib/backoffice-snapshot";
+import { getDashboardTrends } from "@/lib/dashboard-trends";
 
 import AdminDashboardClient from "./admin-dashboard-client";
 
@@ -22,9 +23,10 @@ export default async function AdminPage(props: {
   const requestedPage = Number(firstValue(searchParams.page) || "1");
   const filter = normalizeOverviewFilterKey(requestedFilter) || "all";
 
-  const [config, snapshot] = await Promise.all([
+  const [config, snapshot, trends] = await Promise.all([
     getRuntimeAppConfig(),
     fetchBackofficeSnapshot(),
+    getDashboardTrends(7),
   ]);
   const automation = buildBackofficeAutomationSnapshot(snapshot);
   const overview = await fetchAdminOverviewPage({
@@ -38,6 +40,7 @@ export default async function AdminPage(props: {
       baseUrl={config.baseUrl}
       automation={automation}
       overview={overview}
+      trends={trends}
     />
   );
 }
