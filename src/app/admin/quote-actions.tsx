@@ -358,12 +358,18 @@ export default function AdminQuoteActions({
   const canShowReceiverAction =
     commercialReceiverEntities.length > 0 &&
     (receiverLocked || (!hasJob && (quoteStatus === "sent" || quoteStatus === "approved")));
+  // v1 freeze: document issuance is only after full payment.
+  // Deposit + partial intentionally blocked until a follow-up packet
+  // teaches the issue flow to document deposit amount + Thai-tax-law
+  // partial tax invoice rules. See:
+  //   docs/COMMERCIAL_DOCUMENT_BUSINESS_FLOW_V1_FREEZE.md
+  //   plan/feature-commercial-documents-1.md TASK-014
+  //   docs/CLAUDE_LESSONS.md L2 (Codex P1 on PR #56)
   const canIssueCommercialDocument =
     Boolean(confirmedPaymentId) &&
     !issuedDocumentId &&
     requestedDocumentType !== "quote" &&
-    (paymentStatus === "paid" ||
-      (paymentTerms === "deposit" && paymentStatus === "partial"));
+    paymentStatus === "paid";
   const receiverStatusTone = receiverLocked
     ? "locked"
     : commercialOrder?.selectedReceiverEntityId

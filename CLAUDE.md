@@ -171,6 +171,7 @@ Admin settings (LINE Channel Secret, Channel Access Token, LIFF ID, Base URL) ca
 | File | Purpose |
 |---|---|
 | `docs/CLAUDE_LESSONS.md` | **อ่านก่อนเริ่มทุก session** — บทเรียนจากความผิดพลาดของ AI ใน PR ที่ผ่านมา |
+| `docs/SALES_JOB_FULL_FLOW.md` | End-to-end sales job walkthrough + gap analysis (manual workarounds, missing P0 features) |
 | `AI_WORKFLOW_GUARD.md` | Required read before workflow changes |
 | `docs/workflow-policy.json` | Canonical machine-readable workflow contract |
 | `docs/WORKFLOW_TRANSITION_TABLE.md` | Human-readable derivative (read-only reference) |
