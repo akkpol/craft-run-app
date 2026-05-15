@@ -16,7 +16,6 @@ import {
 } from "@/lib/types";
 import { logHumanAction } from "@/lib/action-log";
 import { validatePaymentAmount } from "@/lib/commercial-validation";
-import { getQuoteOutstandingBalance } from "@/lib/quote-balance";
 
 type CommercialUpdateBody = {
   paymentTerms?: PaymentTerm;
@@ -89,6 +88,7 @@ function mapPaymentRpcError(message: string) {
     COMMERCIAL_ORDER_NOT_FOUND: 409,
     PAYMENT_IDEMPOTENCY_CONFLICT: 409,
     PAYMENT_IDEMPOTENCY_KEY_REQUIRED: 400,
+    PAYMENT_AMOUNT_EXCEEDS_OUTSTANDING: 422,
     PAYMENT_RECEIVER_LOCKED: 409,
     RECEIVER_ENTITY_INACTIVE: 422,
     RECEIVER_REQUIRED_BEFORE_PAYMENT: 409,
@@ -144,7 +144,7 @@ export async function POST(
   const supabase = createAdminClient();
   const { data: quote, error } = await supabase
     .from("quotes")
-    .select("*, leads(conversation_id, billing_entity_type)")
+    .select("*, leads(conversation_id, billing_entity_type), jobs(id)")
     .eq("id", id)
     .single();
 
@@ -154,6 +154,8 @@ export async function POST(
 
   const paymentTerms = body.paymentTerms || quote.payment_terms;
   let paymentStatus = body.paymentStatus || quote.payment_status;
+  const existingJobs = Array.isArray(quote.jobs) ? quote.jobs : [];
+  const hasExistingJob = existingJobs.length > 0;
 
   if (paymentTerms === "credit") {
     paymentStatus = "not_required";
@@ -183,6 +185,9 @@ export async function POST(
       }
     | null = null;
   const nextWorkflowState = getQuoteApprovalState(paymentTerms, paymentStatus);
+  const productionUnlocked =
+    quote.status === "approved" &&
+    paymentUnlocksProduction(paymentTerms, paymentStatus);
 
   const paymentMarkedReceived =
     paymentStatus === "paid" || paymentStatus === "partial";
@@ -220,31 +225,6 @@ export async function POST(
         { error: amountValidation.error, detail: amountValidation.detail },
         { status: 422 }
       );
-    }
-
-    // Cumulative balance guard: prevent admin from double-paying when
-    // a deposit (or any prior CONFIRMED payment) already exists. Without
-    // this, "บันทึกรับชำระเต็ม" after a deposit would insert a second
-    // row at quote.total and cause sum(payments) > quote.total. Balance
-    // flow expects amount = outstanding from the new admin balance panel.
-    if (paymentTerms === "deposit") {
-      const balance = await getQuoteOutstandingBalance(supabase, id);
-      if (balance) {
-        const requestedAmount = Number(amountResult.amount);
-        const outstanding = Number(balance.outstanding);
-        if (requestedAmount > outstanding + 0.01) {
-          return NextResponse.json(
-            {
-              error: "PAYMENT_AMOUNT_EXCEEDS_OUTSTANDING",
-              detail: `Payment amount ${requestedAmount} exceeds outstanding balance ${outstanding} (already paid ${balance.paid} of ${balance.total}).`,
-              outstanding,
-              alreadyPaid: balance.paid,
-              total: balance.total,
-            },
-            { status: 422 }
-          );
-        }
-      }
     }
 
     const paidAt = new Date().toISOString();
@@ -339,28 +319,35 @@ export async function POST(
     });
   }
 
-  if (quote.leads?.conversation_id && quote.status === "approved") {
+  if (productionUnlocked) {
+    if (hasExistingJob) {
+      jobCreated = false;
+      jobId = existingJobs[0]?.id ?? null;
+    } else {
+      const jobResult = await createJobForApprovedQuote(supabase, {
+        id: quote.id,
+        lead_id: quote.lead_id,
+        public_token: quote.public_token,
+        total: Number(quote.total || 0),
+        status: quote.status,
+        payment_terms: paymentTerms,
+        payment_status: paymentStatus,
+        payment_profile_snapshot: paymentProfileSnapshot,
+        leads: quote.leads,
+      });
+
+      jobCreated = jobResult.created;
+      jobId = jobResult.jobId;
+    }
+  } else if (
+    quote.leads?.conversation_id &&
+    quote.status === "approved" &&
+    !hasExistingJob
+  ) {
     await supabase
       .from("conversations")
       .update({ state: nextWorkflowState })
       .eq("id", quote.leads.conversation_id);
-  }
-
-  if (quote.status === "approved" && paymentUnlocksProduction(paymentTerms, paymentStatus)) {
-    const jobResult = await createJobForApprovedQuote(supabase, {
-      id: quote.id,
-      lead_id: quote.lead_id,
-      public_token: quote.public_token,
-      total: Number(quote.total || 0),
-      status: quote.status,
-      payment_terms: paymentTerms,
-      payment_status: paymentStatus,
-      payment_profile_snapshot: paymentProfileSnapshot,
-      leads: quote.leads,
-    });
-
-    jobCreated = jobResult.created;
-    jobId = jobResult.jobId;
   }
 
   await logHumanAction(supabase, {

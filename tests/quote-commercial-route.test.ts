@@ -67,6 +67,7 @@ function buildSupabaseMock(options: SupabaseMockOptions = {}) {
     status: "approved",
     payment_terms: "deposit",
     payment_status: "unpaid",
+    jobs: [],
     leads: {
       conversation_id: "conversation-1",
       billing_entity_type: "person",
@@ -228,6 +229,59 @@ describe("quote commercial route payment ordering", () => {
     });
     expect(mockSyncQuotePaymentRecord).toHaveBeenCalledOnce();
     expect(mockCreateJobForApprovedQuote).toHaveBeenCalledOnce();
+  });
+
+  it("keeps an existing job workflow state when the balance payment completes", async () => {
+    const supabase = buildSupabaseMock({
+      quote: {
+        payment_status: "partial",
+        jobs: [{ id: "job-existing" }],
+      },
+    });
+    mockCreateAdminClient.mockReturnValue(supabase.client);
+
+    const response = await callCommercialRoute({
+      paymentStatus: "paid",
+      paymentAmount: 500,
+      paymentIdempotencyKey: "key-balance-1",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      success: true,
+      paymentStatus: "paid",
+      jobCreated: false,
+      jobId: "job-existing",
+    });
+    expect(supabase.events).toEqual([
+      "rpc.confirm_commercial_payment",
+      "quotes.update",
+    ]);
+    expect(mockCreateJobForApprovedQuote).not.toHaveBeenCalled();
+  });
+
+  it("returns the locked RPC outstanding-balance rejection before quote state changes", async () => {
+    const supabase = buildSupabaseMock({
+      rpcError: {
+        message:
+          "PAYMENT_AMOUNT_EXCEEDS_OUTSTANDING: payment amount 1000 exceeds outstanding balance 500 for quote quote-1.",
+      },
+    });
+    mockCreateAdminClient.mockReturnValue(supabase.client);
+
+    const response = await callCommercialRoute({
+      paymentStatus: "paid",
+      paymentAmount: 1000,
+      paymentIdempotencyKey: "key-overpay-1",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body.error).toBe("PAYMENT_AMOUNT_EXCEEDS_OUTSTANDING");
+    expect(supabase.events).toEqual(["rpc.confirm_commercial_payment"]);
+    expect(mockSyncQuotePaymentRecord).not.toHaveBeenCalled();
+    expect(mockCreateJobForApprovedQuote).not.toHaveBeenCalled();
   });
 
   it("returns an existing payment on idempotent retry without creating a different quote state", async () => {

@@ -173,7 +173,7 @@ describe("payment slip routes", () => {
     const body = await response.json();
 
     expect(response.status).toBe(409);
-    expect(body.error).toBe("QUOTE_NOT_WAITING_PAYMENT");
+    expect(body.error).toBe("QUOTE_NOT_ACCEPTING_PAYMENT_SLIPS");
     expect(mockUploadPaymentSlipFile).not.toHaveBeenCalled();
     expect(mockLogHumanAction).not.toHaveBeenCalled();
   });
