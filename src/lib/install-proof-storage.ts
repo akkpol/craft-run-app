@@ -80,6 +80,11 @@ export async function uploadInstallProofFile(
   };
 }
 
+export async function deleteInstallProofFile(storagePath: string): Promise<void> {
+  const supabase = createAdminClient();
+  await supabase.storage.from(INSTALL_PROOFS_BUCKET).remove([storagePath]);
+}
+
 export async function createInstallProofSignedUrl(
   storagePath: string,
   expiresInSeconds = 60 * 10

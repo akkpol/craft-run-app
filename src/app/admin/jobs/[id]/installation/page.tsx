@@ -98,7 +98,7 @@ export default async function AdminInstallationPage(props: { params: Promise<{ i
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-950">นัดติดตั้ง + ทีมงาน</h2>
         <p className="mt-1 text-xs text-slate-500">
-          บันทึก/อัปเดตได้ตลอดจนกว่าทีมงานจะ mark "ติดตั้งเสร็จ" — ไม่กระทบ workflow state ของงาน
+          บันทึก/อัปเดตได้ตลอดจนกว่าทีมงานจะ mark &quot;ติดตั้งเสร็จ&quot; — ไม่กระทบ workflow state ของงาน
         </p>
         <div className="mt-4">
           <InstallScheduleForm

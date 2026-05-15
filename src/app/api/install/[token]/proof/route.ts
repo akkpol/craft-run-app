@@ -2,11 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { logHumanAction } from "@/lib/action-log";
 import {
+  deleteInstallProofFile,
   INSTALL_PROOF_MAX_BYTES,
   isAllowedInstallProofMime,
   uploadInstallProofFile,
 } from "@/lib/install-proof-storage";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+type AppendInstallProofRow = {
+  id?: string | null;
+  job_id?: string | null;
+  status?: string | null;
+  photo_count?: number | string | null;
+};
+
+function getAppendInstallProofRow(data: unknown): AppendInstallProofRow | null {
+  if (Array.isArray(data)) {
+    return (data[0] as AppendInstallProofRow | undefined) || null;
+  }
+  if (data && typeof data === "object") {
+    return data as AppendInstallProofRow;
+  }
+  return null;
+}
 
 /**
  * On-site install team posts a photo here. Public token auth — no login.
@@ -62,7 +80,7 @@ export async function POST(
   const supabase = createAdminClient();
   const { data: install, error: installError } = await supabase
     .from("installations")
-    .select("id, public_token, status, photo_proof_paths, job_id, quote_id")
+    .select("id, public_token, status, job_id")
     .eq("public_token", token)
     .maybeSingle();
   if (installError) {
@@ -94,38 +112,23 @@ export async function POST(
     );
   }
 
-  // Race-safe append: filter by current photo_proof_paths length is not
-  // possible; rely on the fact that array_append is associative. Use the
-  // status filter for the markDone branch (L9).
-  const nextPaths = [...(install.photo_proof_paths ?? []), uploadResult.storagePath];
-
-  const updatePayload: Record<string, unknown> = {
-    photo_proof_paths: nextPaths,
-    updated_at: new Date().toISOString(),
-  };
-  if (markDone) {
-    updatePayload.status = "done";
-    updatePayload.completed_at = new Date().toISOString();
-  }
-
-  const updateQuery = supabase
-    .from("installations")
-    .update(updatePayload)
-    .eq("id", install.id);
-
-  // L9: when transitioning status, scope the update to the expected
-  // current value so two concurrent submissions don't overwrite each other.
-  const { data: updated, error: updateError } = markDone
-    ? await updateQuery
-        .in("status", ["scheduled", "in_progress"])
-        .select("id, status")
-        .maybeSingle()
-    : await updateQuery.select("id, status").maybeSingle();
+  const { data: rpcData, error: updateError } = await supabase.rpc(
+    "append_installation_proof",
+    {
+      p_public_token: token,
+      p_storage_path: uploadResult.storagePath,
+      p_mark_done: markDone,
+      p_completed_at: new Date().toISOString(),
+    }
+  );
 
   if (updateError) {
+    await deleteInstallProofFile(uploadResult.storagePath).catch(() => null);
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
+  const updated = getAppendInstallProofRow(rpcData);
   if (!updated) {
+    await deleteInstallProofFile(uploadResult.storagePath).catch(() => null);
     return NextResponse.json(
       { error: "INSTALLATION_NOT_OPEN", detail: "Installation status changed mid-upload" },
       { status: 409 }
@@ -134,7 +137,7 @@ export async function POST(
 
   await logHumanAction(supabase, {
     entityType: "job",
-    entityId: install.job_id,
+    entityId: updated.job_id || install.job_id,
     actionType: markDone ? "installation.completed" : "installation.proof_uploaded",
     actorLabel: "InstallTeam",
     note: note ?? undefined,
@@ -142,13 +145,13 @@ export async function POST(
       installation_id: install.id,
       storage_path: uploadResult.storagePath,
       mark_done: markDone,
-      photo_count: nextPaths.length,
+      photo_count: Number(updated.photo_count ?? 0),
     },
   }).catch(() => null);
 
   return NextResponse.json({
     success: true,
     status: updated.status,
-    photoCount: nextPaths.length,
+    photoCount: Number(updated.photo_count ?? 0),
   });
 }
