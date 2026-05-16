@@ -18,7 +18,6 @@ import {
   getProductTypeLabel,
   type DesignStatus,
 } from "@/lib/types";
-import { getWorkflowOwnerContract } from "@/lib/workflow-owner-map";
 
 export const dynamic = "force-dynamic";
 
@@ -76,22 +75,22 @@ const PROMPT_LANE_COPY: Record<
   }
 > = {
   ready: {
-    label: "Prompt Ops",
-    description: "คิวที่มี prompt พร้อมแล้ว แต่ทีมออกแบบยังต้องกด generate, retry หรือปรับข้อความก่อนปล่อย preview loop",
+    label: "พร้อมสั่ง AI",
+    description: "มีพรอมพ์พร้อมแล้ว — ตรวจข้อความและสั่ง AI สร้างภาพได้เลย",
     panelClassName: "border-violet-200 bg-violet-50/70",
     badgeClassName: "border-violet-200 bg-violet-100 text-violet-800",
     countClassName: "text-violet-900",
   },
   active: {
-    label: "Preview Loop",
-    description: "คิวที่ AI กำลังวิ่ง, มี preview แล้ว หรือส่งแบบให้ลูกค้าตรวจแล้ว ต้องคุมคุณภาพและการส่งต่อ",
+    label: "มี preview แล้ว",
+    description: "AI สร้างภาพแล้ว หรือส่งให้ลูกค้าตรวจแล้ว — คุมคุณภาพและส่งต่อ",
     panelClassName: "border-emerald-200 bg-emerald-50/70",
     badgeClassName: "border-emerald-200 bg-emerald-100 text-emerald-800",
     countClassName: "text-emerald-900",
   },
   missing: {
-    label: "Need Context",
-    description: "คิวที่ยังไม่มี prompt พร้อมใช้ ต้องเติม brief, override หรือรายละเอียดงานก่อนให้ AI ขยับต่อ",
+    label: "รอเติมข้อมูล",
+    description: "ยังไม่มีข้อมูลพอให้ AI ทำงาน — เติม brief หรือรายละเอียดงานก่อน",
     panelClassName: "border-amber-200 bg-amber-50/70",
     badgeClassName: "border-amber-200 bg-amber-100 text-amber-800",
     countClassName: "text-amber-900",
@@ -191,10 +190,7 @@ function buildPromptCardModel(lead: PromptLeadRow): PromptCardModel {
       : "คิวนี้ยังต้องเพิ่มบริบทก่อนให้ AI ขยับต่อ",
     previewCount,
     evidence: [
-      preparedPrompt ? `seed ${PROMPT_SEED_LABELS[preparedPrompt.seed]}` : "ยังไม่มี seed prompt",
-      `AI ${AI_STATUS_LABELS[aiStatus]}`,
-      `แบบ ${DESIGN_STATUS_LABELS[designStatus]}`,
-      previewCount > 0 ? `preview ${previewCount}` : null,
+      previewCount > 0 ? `${previewCount} preview` : null,
       formatDimensions(lead),
     ].filter((value): value is string => Boolean(value)),
   };
@@ -211,7 +207,6 @@ export default async function AdminPromptsPage() {
     .limit(80);
 
   const leads = (data || []) as unknown as PromptLeadRow[];
-  const designContract = getWorkflowOwnerContract("IN_DESIGN");
   const cards = leads.map(buildPromptCardModel);
   const groupedCards = (Object.keys(PROMPT_LANE_COPY) as PromptWorkbenchLaneKey[]).map(
     (key) => ({
@@ -226,7 +221,7 @@ export default async function AdminPromptsPage() {
   const activeCount = groupedCards.find((group) => group.key === "active")?.cards.length || 0;
 
   return (
-    <div className="admin-shell min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50">
       <div className="border-b border-slate-200 bg-white px-6 py-4">
         <div className="mx-auto max-w-6xl">
           <Link
@@ -236,95 +231,50 @@ export default async function AdminPromptsPage() {
           >
             ← กลับแดชบอร์ด
           </Link>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-violet-700">
-            {designContract.ownerLabel}
+          <h1 className="text-2xl font-bold text-slate-950">ออกแบบ · AI</h1>
+          <p className="mt-1.5 text-sm text-slate-500">
+            คิวงานออกแบบที่ต้องตรวจพรอมพ์ สั่ง AI สร้างภาพ และส่ง preview ให้ลูกค้า
           </p>
-          <h1 className="mt-2 text-2xl font-bold text-slate-950">Prompt &amp; AI Workbench</h1>
-          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">
-            surface นี้ใช้คุม prompt, preview loop และสถานะแบบในคิวออกแบบ เพื่อให้เห็นว่า lead ไหนพร้อม generate, lead ไหนมี preview แล้ว และ lead ไหนยังขาดบริบทจน AI ยังไม่ควรวิ่งต่อ
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-700">
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
-              owner {designContract.ownerLabel}
-            </span>
-            {designContract.autoEvents.map((event) => (
-              <span
-                key={event}
-                className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-violet-800"
-              >
-                auto {event}
-              </span>
-            ))}
-          </div>
         </div>
       </div>
 
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-4 grid gap-3 sm:grid-cols-3">
           <div className="admin-kpi-card">
-            <p className="text-xs font-medium text-slate-500">Lead ล่าสุด</p>
-            <p className="mt-1 text-2xl font-bold text-slate-950">{leads.length}</p>
+            <p className="text-sm font-medium text-slate-500">รอเติมข้อมูล</p>
+            <p className={`mt-1 text-3xl font-bold ${missingCount > 0 ? "text-amber-600" : "text-slate-400"}`}>
+              {missingCount}
+            </p>
           </div>
           <div className="admin-kpi-card">
-            <p className="text-xs font-medium text-slate-500">Need Context</p>
-            <p className="mt-1 text-2xl font-bold text-amber-700">{missingCount}</p>
+            <p className="text-sm font-medium text-slate-500">พร้อมสั่ง AI</p>
+            <p className={`mt-1 text-3xl font-bold ${readyCount > 0 ? "text-violet-600" : "text-slate-400"}`}>
+              {readyCount}
+            </p>
           </div>
           <div className="admin-kpi-card">
-            <p className="text-xs font-medium text-slate-500">Prompt Ops</p>
-            <p className="mt-1 text-2xl font-bold text-violet-700">{readyCount}</p>
-          </div>
-          <div className="admin-kpi-card">
-            <p className="text-xs font-medium text-slate-500">Preview Loop</p>
-            <p className="mt-1 text-2xl font-bold text-emerald-700">{activeCount}</p>
+            <p className="text-sm font-medium text-slate-500">มี preview แล้ว</p>
+            <p className={`mt-1 text-3xl font-bold ${activeCount > 0 ? "text-emerald-600" : "text-slate-400"}`}>
+              {activeCount}
+            </p>
           </div>
         </div>
 
-        <section className="admin-panel mb-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="max-w-4xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Design Queue Contract</p>
-            <h2 className="mt-2 text-xl font-bold text-slate-950">AI ช่วย generate ได้ แต่ design loop ยังต้องมีคนคุมคุณภาพ</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{designContract.summary}</p>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            {groupedCards.map((group) => (
-              <div
-                key={group.key}
-                className={`rounded-[20px] border px-4 py-4 ${group.panelClassName}`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${group.badgeClassName}`}>
-                    {group.label}
-                  </span>
-                  <span className={`text-lg font-semibold ${group.countClassName}`}>{group.cards.length}</span>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-slate-700">{group.description}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
         <section className="space-y-4">
-          {groupedCards.map((group) => (
+          {groupedCards.filter((group) => group.cards.length > 0).map((group) => (
             <section
               key={group.key}
               className={`rounded-[28px] border p-5 shadow-sm ${group.panelClassName}`}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="max-w-3xl">
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-                    <span className={`rounded-full border px-3 py-1 ${group.badgeClassName}`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${group.badgeClassName}`}>
                       {group.label}
                     </span>
-                    <span className="rounded-full border border-white/80 bg-white/70 px-3 py-1 text-slate-600">
-                      owner {designContract.ownerLabel}
-                    </span>
+                    <span className={`text-2xl font-semibold ${group.countClassName}`}>{group.cards.length}</span>
                   </div>
-                  <h2 className="mt-3 text-lg font-semibold text-slate-950">{group.label}</h2>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">{group.description}</p>
-                </div>
-                <div className="rounded-[18px] border border-white/80 bg-white/80 px-4 py-3 text-right shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">รายการ</p>
-                  <p className={`mt-1 text-2xl font-semibold ${group.countClassName}`}>{group.cards.length}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">{group.description}</p>
                 </div>
               </div>
 
@@ -409,31 +359,36 @@ export default async function AdminPromptsPage() {
                           </p>
                         </div>
 
-                        <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1.3fr]">
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Design brief</p>
-                            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                              {card.lead.design_brief || "ยังไม่มี design brief"}
-                            </p>
+                        <details className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                          <summary className="cursor-pointer text-sm font-semibold text-slate-700 hover:text-slate-900">
+                            ดูบรีฟและพรอมพ์ทั้งหมด
+                          </summary>
+                          <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1fr_1.3fr]">
+                            <div className="rounded-xl border border-slate-200 bg-white p-3">
+                              <p className="text-xs font-semibold text-slate-500">Design brief จากลูกค้า</p>
+                              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                                {card.lead.design_brief || "ยังไม่มี design brief"}
+                              </p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-white p-3">
+                              <p className="text-xs font-semibold text-slate-500">แหล่งพรอมพ์</p>
+                              <p className="mt-2 text-sm font-medium text-slate-700">
+                                {card.preparedPrompt
+                                  ? PROMPT_SEED_LABELS[card.preparedPrompt.seed]
+                                  : "ยังไม่มีแหล่งให้สร้างพรอมพ์"}
+                              </p>
+                              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                                {card.lead.ai_image_prompt || card.lead.ai_prompt_snapshot || card.lead.reference_info || "ยังไม่มี override หรือ snapshot"}
+                              </p>
+                            </div>
+                            <div className="rounded-xl border border-dashed border-violet-200 bg-violet-50/60 p-3">
+                              <p className="text-xs font-semibold text-violet-700">พรอมพ์สุดท้าย</p>
+                              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                                {card.prompt ? truncate(card.prompt) : "ยังไม่มีพรอมพ์ที่พร้อมใช้"}
+                              </p>
+                            </div>
                           </div>
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Prompt source</p>
-                            <p className="mt-2 text-sm font-medium text-slate-700">
-                              {card.preparedPrompt
-                                ? PROMPT_SEED_LABELS[card.preparedPrompt.seed]
-                                : "ยังไม่มี source ที่ compose เป็น prompt ได้"}
-                            </p>
-                            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                              {card.lead.ai_image_prompt || card.lead.ai_prompt_snapshot || card.lead.reference_info || "ยังไม่มี prompt override หรือ snapshot"}
-                            </p>
-                          </div>
-                          <div className="rounded-2xl border border-dashed border-violet-200 bg-violet-50/60 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-violet-700">Final prompt</p>
-                            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                              {card.prompt ? truncate(card.prompt) : "ยังไม่มี prompt ที่พร้อมใช้"}
-                            </p>
-                          </div>
-                        </div>
+                        </details>
                       </article>
                     );
                   })}
