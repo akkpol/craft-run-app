@@ -468,7 +468,7 @@ Side: `ON_HOLD_CUSTOMER_INPUT`, `HUMAN_REVIEW_REQUIRED`, `CANCELLED`
 | Bank statement auto-reconciliation | PR #62 deferred |
 | 50ทวิ certificate generation — admin print page closed via PR #76; **persisted cert number / RD-format PDF** still Wave 5 | PR #65 deferred |
 | Auto-suggest WHT rate based on receiver VAT | PR #65 deferred |
-| Per-item discount / unit (sqm vs piece) | PR #66 deferred |
+| Per-item discount closed via PR #79 (admin can edit qty/price/discount on existing items); **unit field (sqm vs piece) + unit-aware pricing** still Wave 5 | PR #66 deferred |
 | Auto-transition jobs.fulfillment_status when installation done | PR #67 deferred |
 | Customer signature canvas in install page | PR #67 deferred |
 | Lalamove/Grab API integration (book + status polling) | PR #68 deferred |

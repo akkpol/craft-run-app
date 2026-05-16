@@ -259,10 +259,11 @@ export async function POST(
   }
   createdIds.quoteId = newQuote.id;
 
-  // Copy items.
+  // Copy items — including per-line discount so the clone preserves the
+  // promo/loyalty pricing the original quote carried.
   const { data: sourceItems, error: sourceItemsErr } = await supabase
     .from("quote_items")
-    .select("label, qty, unit_price")
+    .select("label, qty, unit_price, discount")
     .eq("quote_id", sourceQuoteId);
   if (sourceItemsErr) {
     return failCloneAfterPartialWrite(
@@ -277,6 +278,7 @@ export async function POST(
       label: row.label,
       qty: row.qty,
       unit_price: row.unit_price,
+      discount: row.discount ?? 0,
     }));
     const { error: itemErr } = await supabase
       .from("quote_items")
