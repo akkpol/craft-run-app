@@ -70,10 +70,13 @@ export default async function AdminWhtCertificatePage(props: {
   // Resolve order + downstream entities. We split the queries because
   // commercial_orders carries quote_id + lead_id + customer_id needed by
   // the print model, while leads carries the billing snapshot (withholder
-  // identity) and commercial_entities carries the payee (shop) identity.
+  // identity fallback) and commercial_entities carries the payee (shop)
+  // identity. If the order has a locked customer_tax_profile_id, that
+  // profile is the source of truth for withholder identity (L30) — same
+  // as what tax_invoice_receipt prints.
   const { data: order } = await supabase
     .from("commercial_orders")
-    .select("id, quote_id, lead_id, customer_id")
+    .select("id, quote_id, lead_id, customer_id, customer_tax_profile_id")
     .eq("id", payment.order_id)
     .maybeSingle();
 
@@ -81,7 +84,7 @@ export default async function AdminWhtCertificatePage(props: {
     notFound();
   }
 
-  const [{ data: quote }, { data: lead }, { data: customer }, { data: entity }] =
+  const [{ data: quote }, { data: lead }, { data: customer }, { data: entity }, { data: taxProfile }] =
     await Promise.all([
       supabase
         .from("quotes")
@@ -105,11 +108,42 @@ export default async function AdminWhtCertificatePage(props: {
         )
         .eq("id", payment.receiver_entity_id)
         .maybeSingle(),
+      order.customer_tax_profile_id
+        ? supabase
+            .from("customer_tax_profiles")
+            .select(
+              "id, legal_name, tax_id, branch_type, branch_code, branch_name, address"
+            )
+            .eq("id", order.customer_tax_profile_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
 
   if (!quote || !entity) {
     notFound();
   }
+
+  // Withholder identity precedence: locked tax profile is the source of
+  // truth when present. If the profile exists but a field is null/blank
+  // we keep that null — do NOT mix-and-match with the lead snapshot,
+  // because the resulting cert would carry a Frankenstein identity
+  // (legal name from the profile, tax id from the lead) that doesn't
+  // match what tax_invoice_receipt issued for the same payment.
+  //
+  // Only when there is NO locked profile do we fall back to lead.billing_*.
+  // customer_tax_profiles doesn't carry billing_entity_type, so that
+  // field still comes from the lead — it controls UI defaults only; the
+  // actual PND form code derives from receiver_entity.type (L29).
+  const useTaxProfile = taxProfile != null;
+  const withholderName = useTaxProfile
+    ? taxProfile.legal_name ?? null
+    : lead?.billing_name ?? customer?.display_name ?? null;
+  const withholderTaxId = useTaxProfile
+    ? taxProfile.tax_id ?? null
+    : lead?.tax_id ?? null;
+  const withholderAddress = useTaxProfile
+    ? taxProfile.address ?? null
+    : lead?.billing_address ?? null;
 
   const printModel = buildWhtCertificatePrintModel({
     payment: {
@@ -129,9 +163,9 @@ export default async function AdminWhtCertificatePage(props: {
       branch_name: entity.branch_name ?? null,
     },
     withholder: {
-      billing_name: lead?.billing_name ?? null,
-      tax_id: lead?.tax_id ?? null,
-      billing_address: lead?.billing_address ?? null,
+      billing_name: withholderName,
+      tax_id: withholderTaxId,
+      billing_address: withholderAddress,
       billing_entity_type: lead?.billing_entity_type ?? null,
       customer_display_name: customer?.display_name ?? null,
     },
