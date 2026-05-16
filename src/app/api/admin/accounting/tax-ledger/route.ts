@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
     ...new Set(docs.map((d) => d.order_id).filter((v): v is string => !!v)),
   ];
 
+  const emptyResult = { data: [], error: null } as const;
   const [
     issuersRes,
     customersRes,
@@ -103,32 +104,51 @@ export async function GET(request: NextRequest) {
             "id, legal_name, tax_id, branch_type, branch_code, branch_name, type"
           )
           .in("id", issuerIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve(emptyResult),
     customerIds.length
       ? supabase
           .from("customers")
           .select("id, display_name")
           .in("id", customerIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve(emptyResult),
     quoteIds.length
       ? supabase
           .from("quotes")
           .select("id, public_token, payment_terms, lead_id")
           .in("id", quoteIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve(emptyResult),
     paymentIds.length
       ? supabase
           .from("payments")
           .select("id, amount, wht_amount, paid_at")
           .in("id", paymentIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve(emptyResult),
     orderIds.length
       ? supabase
           .from("commercial_orders")
           .select("id, customer_tax_profile_id, lead_id")
           .in("id", orderIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve(emptyResult),
   ]);
+
+  // Fail loudly if any bulk lookup errored — accountants would rather see
+  // a 500 than receive a CSV with silently missing columns.
+  const bulkErrors = [
+    issuersRes.error,
+    customersRes.error,
+    quotesRes.error,
+    paymentsRes.error,
+    ordersRes.error,
+  ].filter((e): e is NonNullable<typeof e> => !!e);
+  if (bulkErrors.length > 0) {
+    return NextResponse.json(
+      {
+        error: "BULK_LOOKUP_FAILED",
+        detail: bulkErrors.map((e) => e.message).join("; "),
+      },
+      { status: 500 }
+    );
+  }
 
   const issuerMap = new Map(
     ((issuersRes.data ?? []) as Array<{
@@ -194,9 +214,11 @@ export async function GET(request: NextRequest) {
     taxProfileIds.length
       ? supabase
           .from("customer_tax_profiles")
-          .select("id, legal_name, tax_id, branch_type, branch_code, address")
+          .select(
+            "id, legal_name, tax_id, branch_type, branch_code, branch_name, address"
+          )
           .in("id", taxProfileIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve(emptyResult),
     leadIdsForWithholder.length
       ? supabase
           .from("leads")
@@ -204,8 +226,20 @@ export async function GET(request: NextRequest) {
             "id, billing_name, tax_id, billing_address, billing_entity_type, billing_branch_type, billing_branch_code"
           )
           .in("id", leadIdsForWithholder)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve(emptyResult),
   ]);
+  if (taxProfilesRes.error || leadsRes.error) {
+    return NextResponse.json(
+      {
+        error: "BULK_LOOKUP_FAILED",
+        detail:
+          taxProfilesRes.error?.message ??
+          leadsRes.error?.message ??
+          "withholder lookup failed",
+      },
+      { status: 500 }
+    );
+  }
   const taxProfileMap = new Map(
     ((taxProfilesRes.data ?? []) as Array<{
       id: string;
@@ -213,6 +247,7 @@ export async function GET(request: NextRequest) {
       tax_id: string | null;
       branch_type: string | null;
       branch_code: string | null;
+      branch_name: string | null;
       address: string | null;
     }>).map((row) => [row.id, row])
   );
@@ -247,15 +282,30 @@ export async function GET(request: NextRequest) {
       ? taxProfileMap.get(order.customer_tax_profile_id) ?? null
       : null;
 
-    const withholderName =
-      taxProfile?.legal_name ?? lead?.billing_name ?? customer?.display_name ?? null;
-    const withholderTaxId = taxProfile?.tax_id ?? lead?.tax_id ?? null;
-    const withholderAddress =
-      taxProfile?.address ?? lead?.billing_address ?? null;
-    const withholderBranchType =
-      taxProfile?.branch_type ?? lead?.billing_branch_type ?? null;
-    const withholderBranchCode =
-      taxProfile?.branch_code ?? lead?.billing_branch_code ?? null;
+    // L30: when a locked tax profile exists, use it exclusively for the
+    // withholder identity — do NOT fall back to lead fields for nulls,
+    // otherwise the CSV row mixes profile + lead values for the same
+    // document and won't reconcile with the issued tax_invoice_receipt
+    // or the 50 ทวิ certificate.
+    const useTaxProfile = taxProfile != null;
+    const withholderName = useTaxProfile
+      ? taxProfile.legal_name ?? null
+      : lead?.billing_name ?? customer?.display_name ?? null;
+    const withholderTaxId = useTaxProfile
+      ? taxProfile.tax_id ?? null
+      : lead?.tax_id ?? null;
+    const withholderAddress = useTaxProfile
+      ? taxProfile.address ?? null
+      : lead?.billing_address ?? null;
+    const withholderBranchType = useTaxProfile
+      ? taxProfile.branch_type ?? null
+      : lead?.billing_branch_type ?? null;
+    const withholderBranchCode = useTaxProfile
+      ? taxProfile.branch_code ?? null
+      : lead?.billing_branch_code ?? null;
+    const withholderBranchName = useTaxProfile
+      ? taxProfile.branch_name ?? null
+      : null; // leads has no billing_branch_name column
 
     return {
       documentId: doc.id,
@@ -285,6 +335,7 @@ export async function GET(request: NextRequest) {
         taxId: withholderTaxId,
         branchType: withholderBranchType,
         branchCode: withholderBranchCode,
+        branchName: withholderBranchName,
         address: withholderAddress,
         entityType: lead?.billing_entity_type ?? null,
       },

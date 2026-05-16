@@ -39,6 +39,7 @@ export type TaxLedgerRowSource = {
     taxId: string | null;
     branchType: string | null;
     branchCode: string | null;
+    branchName: string | null;
     address: string | null;
     entityType: string | null;
   };
@@ -118,7 +119,7 @@ export function buildTaxLedgerCsv(rows: TaxLedgerRowSource[]): string {
     const withholderBranch = joinBranch(
       row.withholder.branchType,
       row.withholder.branchCode,
-      null
+      row.withholder.branchName
     );
     const grossAmount = row.payment
       ? row.payment.amount + row.payment.whtAmount
