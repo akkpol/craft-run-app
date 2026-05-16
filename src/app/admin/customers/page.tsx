@@ -102,24 +102,24 @@ export default async function AdminCustomersPage() {
       <div className="mx-auto max-w-6xl space-y-6">
         <section className="flex flex-wrap items-start justify-between gap-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-700">Customer Profiles</p>
-            <h1 className="mt-2 text-2xl font-bold text-slate-950">โปรไฟล์ลูกค้า</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              รวมลูกค้าจาก LINE และลูกค้าที่ทีมรับเข้ามาเอง เพื่อเข้า Customer 360, ดูเอกสาร, quote, prompt source และประวัติงานจากหน้าเดียว
+            <h1 className="text-2xl font-bold text-slate-950">โปรไฟล์ลูกค้า</h1>
+            <p className="mt-1.5 text-sm text-slate-500">
+              รวมลูกค้าจาก LINE และที่ทีมรับเข้ามาเอง — กดเปิดเพื่อดูประวัติงาน เอกสาร และข้อมูลติดต่อทั้งหมด
             </p>
           </div>
           <Link href="/admin/manual-intake" className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
-            รับงาน manual
+            + รับงาน walk-in
           </Link>
         </section>
 
         <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-          <div className="grid grid-cols-[minmax(0,1.35fr)_120px_120px_140px_120px] gap-3 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 max-lg:hidden">
+          <div className="grid grid-cols-[minmax(0,1.35fr)_120px_120px_140px_120px_32px] gap-3 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 max-lg:hidden">
             <span>ลูกค้า</span>
             <span>แหล่งที่มา</span>
-            <span>Lead</span>
-            <span>ยอด approved</span>
+            <span>ใบลีด</span>
+            <span>ยอดอนุมัติ</span>
             <span>สร้างเมื่อ</span>
+            <span aria-hidden />
           </div>
           <div className="divide-y divide-slate-100">
             {customers.map((customer) => {
@@ -133,7 +133,7 @@ export default async function AdminCustomersPage() {
                 <Link
                   key={customer.id}
                   href={`/admin/customers/${customer.id}`}
-                  className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 lg:grid-cols-[minmax(0,1.35fr)_120px_120px_140px_120px]"
+                  className="group grid items-center gap-3 px-5 py-4 transition hover:bg-slate-50 lg:grid-cols-[minmax(0,1.35fr)_120px_120px_140px_120px_32px]"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-950">{customer.display_name || "ลูกค้าไม่ระบุชื่อ"}</p>
@@ -143,6 +143,7 @@ export default async function AdminCustomersPage() {
                   <div className="text-sm text-slate-600">{customerLeads.length}</div>
                   <div className="text-sm font-semibold text-slate-900">{formatMoney(approvedTotal)}</div>
                   <div className="text-sm text-slate-500">{formatBangkokDate(customer.created_at)}</div>
+                  <div className="text-slate-300 transition group-hover:text-slate-600 max-lg:hidden">›</div>
                 </Link>
               );
             })}

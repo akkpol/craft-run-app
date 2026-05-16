@@ -107,14 +107,14 @@ export default function ManualIntakeForm() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "บันทึกงาน manual ไม่สำเร็จ");
+        throw new Error(data.error || "บันทึกงานไม่สำเร็จ");
       }
 
       setResult(data);
       event.currentTarget.reset();
       setCreateQuote(true);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "บันทึกงาน manual ไม่สำเร็จ");
+      setError(submitError instanceof Error ? submitError.message : "บันทึกงานไม่สำเร็จ");
     } finally {
       setIsSubmitting(false);
     }
@@ -122,16 +122,21 @@ export default function ManualIntakeForm() {
 
   return (
     <form onSubmit={onSubmit} className="grid gap-5">
-      <section className="grid gap-4 rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2">
-        <TextField label="ชื่อลูกค้า" name="customerName" required placeholder="ชื่อหน้าร้าน / บริษัท / ผู้ติดต่อ" />
-        <SelectField label="ช่องทางที่เข้ามา" name="source" defaultValue="walk_in">
-          {sourceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </SelectField>
-        <TextField label="เบอร์โทร" name="phone" placeholder="ใช้เป็นช่องทางติดต่อหลัก" />
-        <TextField label="อีเมล" name="email" type="email" placeholder="ถ้ามี" />
+      <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-base font-semibold text-slate-900">1 · ข้อมูลลูกค้า</h2>
+        <div className="grid gap-4 md:grid-cols-2">
+          <TextField label="ชื่อลูกค้า" name="customerName" required placeholder="ชื่อหน้าร้าน / บริษัท / ผู้ติดต่อ" />
+          <SelectField label="ช่องทางที่เข้ามา" name="source" defaultValue="walk_in">
+            {sourceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </SelectField>
+          <TextField label="เบอร์โทร" name="phone" placeholder="ใช้เป็นช่องทางติดต่อหลัก" />
+          <TextField label="อีเมล" name="email" type="email" placeholder="ถ้ามี" />
+        </div>
       </section>
 
-      <section className="grid gap-4 rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-4">
+      <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-base font-semibold text-slate-900">2 · รายละเอียดงาน</h2>
+        <div className="grid gap-4 md:grid-cols-4">
         <SelectField label="ประเภทงาน" name="productType" defaultValue="vinyl_banner">
           {PRODUCT_TYPES.map((product) => <option key={product.value} value={product.value}>{product.label}</option>)}
         </SelectField>
@@ -151,9 +156,12 @@ export default function ManualIntakeForm() {
         <SelectField label="เงื่อนไขชำระเงิน" name="paymentTerms" defaultValue="prepaid">
           {paymentTerms.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </SelectField>
+        </div>
       </section>
 
-      <section className="grid gap-4 rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2">
+      <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-base font-semibold text-slate-900">3 · เอกสาร / บิล</h2>
+        <div className="grid gap-4 md:grid-cols-2">
         <SelectField label="เอกสารที่ลูกค้าต้องการ" name="requestedDocumentType" defaultValue="quote">
           {documentTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </SelectField>
@@ -167,9 +175,12 @@ export default function ManualIntakeForm() {
           ที่อยู่ออกเอกสาร
           <Textarea name="billingAddress" rows={3} className="border-slate-200 bg-white" />
         </label>
+        </div>
       </section>
 
-      <section className="grid gap-4 rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2">
+      <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-base font-semibold text-slate-900">4 · โน้ตและไฟล์อ้างอิง</h2>
+        <div className="grid gap-4 md:grid-cols-2">
         <label className="grid gap-2 text-sm font-medium text-slate-700">
           รายละเอียดงาน / โน้ตจากลูกค้า
           <Textarea name="note" rows={5} className="border-slate-200 bg-white" placeholder="พิมพ์รายละเอียดจากโทรศัพท์ หน้าร้าน หรือแชทอื่น" />
@@ -183,6 +194,7 @@ export default function ManualIntakeForm() {
           <Textarea name="aiImagePrompt" rows={5} className="border-slate-200 bg-white" placeholder="ใส่พรอมพ์ดิบ ถ้ามี" />
         </label>
         <TextField label="ลิงก์ไฟล์หรือ reference" name="referenceInfo" placeholder="Google Drive, Facebook link, หรือ note อื่น" />
+        </div>
       </section>
 
       <section className="flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-slate-200 bg-slate-50 p-5">
@@ -199,7 +211,7 @@ export default function ManualIntakeForm() {
           </span>
         </label>
         <Button type="submit" disabled={isSubmitting} size="lg">
-          {isSubmitting ? "กำลังบันทึก..." : "บันทึกงาน manual"}
+          {isSubmitting ? "กำลังบันทึก..." : "บันทึกงาน"}
         </Button>
       </section>
 
@@ -207,7 +219,7 @@ export default function ManualIntakeForm() {
 
       {result ? (
         <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm leading-6 text-emerald-950">
-          <p className="font-semibold">สร้างงาน manual แล้ว</p>
+          <p className="font-semibold">บันทึกงานเรียบร้อย</p>
           <p>Lead: {result.leadId}</p>
           {result.quoteUrl ? <p>Quote: <a href={result.quoteUrl} target="_blank" rel="noreferrer" className="font-semibold underline">เปิดลิงก์ใบเสนอราคา</a></p> : null}
           <div className="mt-3 flex flex-wrap gap-2">
