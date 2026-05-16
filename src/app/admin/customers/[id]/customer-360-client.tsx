@@ -262,7 +262,7 @@ export default function Customer360Client({
 
         <div className="grid gap-4 lg:grid-cols-3">
           <section className="admin-panel lg:col-span-1">
-            <h2 className="text-sm font-semibold text-slate-700">Verified LINE Profile</h2>
+            <h2 className="text-sm font-semibold text-slate-700">ข้อมูล LINE</h2>
             <div className="mt-4 flex items-start gap-4">
               <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 text-lg font-semibold text-slate-500">
                 {customer.line_picture_url || asString(latestLiffProfile?.pictureUrl) ? (
@@ -292,7 +292,7 @@ export default function Customer360Client({
           </section>
 
           <section className="admin-panel lg:col-span-1">
-            <h2 className="text-sm font-semibold text-slate-700">LIFF Runtime Snapshot</h2>
+            <h2 className="text-sm font-semibold text-slate-700">ข้อมูล LIFF ล่าสุด</h2>
             <div className="mt-4 space-y-2 text-sm text-slate-600">
               <p>เก็บล่าสุด: {formatDate(asString(latestLiffContext?.collectedAt))}</p>
               <p>เปิดจาก: {formatContextType(asString(latestLiffContextMeta?.type))}</p>
@@ -319,7 +319,7 @@ export default function Customer360Client({
           </section>
 
           <section className="admin-panel lg:col-span-1">
-            <h2 className="text-sm font-semibold text-slate-700">Document Defaults ล่าสุด</h2>
+            <h2 className="text-sm font-semibold text-slate-700">เอกสาร / บิลล่าสุด</h2>
             {latestLead ? (
               <div className="mt-4 space-y-2 text-sm text-slate-600">
                 <p>
@@ -343,33 +343,33 @@ export default function Customer360Client({
           </section>
 
           <section className="admin-panel lg:col-span-1">
-            <h2 className="text-sm font-semibold text-slate-700">แหล่งข้อมูลพรอมพ์ AI ล่าสุด</h2>
+            <h2 className="text-sm font-semibold text-slate-700">แหล่งข้อมูลพรอมพ์ AI</h2>
             {latestLead ? (
               <div className="mt-4 space-y-3 text-sm text-slate-600">
                 <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                    Design brief (ข้อมูลจากลูกค้า)
+                  <p className="text-xs font-semibold text-slate-500">
+                    Design brief จากลูกค้า
                   </p>
                   <p className="mt-1 whitespace-pre-wrap text-slate-700">
-                    {latestDesignBrief || "ยังไม่มี design brief จากลูกค้า"}
+                    {latestDesignBrief || "ยังไม่มี design brief"}
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                    AI image prompt (พรอมพ์ดิบ)
+                  <p className="text-xs font-semibold text-slate-500">
+                    AI prompt (ดิบ)
                   </p>
                   <p className="mt-1 whitespace-pre-wrap text-slate-700">
-                    {latestAiImagePrompt || "ยังไม่มี ai_image_prompt ที่ระบุโดยตรง"}
+                    {latestAiImagePrompt || "ยังไม่มี AI prompt ที่ระบุโดยตรง"}
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                    AI prompt snapshot (พรอมพ์สุดท้ายที่เตรียมแล้ว)
+                  <p className="text-xs font-semibold text-slate-500">
+                    AI prompt (snapshot ที่ระบบเตรียมส่งจริง)
                   </p>
                   <p className="mt-1 whitespace-pre-wrap text-slate-700">
-                    {latestAiPromptSnapshot || "ยังไม่มี ai_prompt_snapshot ที่ระบบเตรียมไว้"}
+                    {latestAiPromptSnapshot || "ยังไม่มี snapshot ที่ระบบเตรียมไว้"}
                   </p>
                 </div>
               </div>
@@ -381,7 +381,7 @@ export default function Customer360Client({
 
         <section className="admin-panel">
           <h2 className="mb-4 text-sm font-semibold text-slate-700">
-            Conversations ({conversations.length})
+            บทสนทนา ({conversations.length})
           </h2>
           {conversations.length === 0 ? (
             <p className="text-sm text-slate-400">ยังไม่มีบทสนทนา</p>
@@ -417,7 +417,7 @@ export default function Customer360Client({
 
         <section className="admin-panel">
           <h2 className="mb-4 text-sm font-semibold text-slate-700">
-            Leads ({leads.length})
+            ลีด ({leads.length})
           </h2>
           {leads.length === 0 ? (
             <p className="text-sm text-slate-400">ยังไม่มี lead</p>
@@ -482,7 +482,7 @@ export default function Customer360Client({
 
         <section className="admin-panel">
           <h2 className="mb-4 text-sm font-semibold text-slate-700">
-            Quotes &amp; Jobs ({quotes.length})
+            ใบเสนอราคา & งาน ({quotes.length})
           </h2>
           {quotes.length === 0 ? (
             <p className="text-sm text-slate-400">ยังไม่มีใบเสนอราคา</p>
@@ -492,8 +492,8 @@ export default function Customer360Client({
                 <thead>
                   <tr className="border-b border-slate-100 text-left text-xs font-medium text-slate-500">
                     <th className="pb-2 pr-4">ราคารวม</th>
-                    <th className="pb-2 pr-4">สถานะ Quote</th>
-                    <th className="pb-2 pr-4">Jobs</th>
+                    <th className="pb-2 pr-4">สถานะใบเสนอราคา</th>
+                    <th className="pb-2 pr-4">งาน</th>
                     <th className="pb-2">วันที่</th>
                   </tr>
                 </thead>
