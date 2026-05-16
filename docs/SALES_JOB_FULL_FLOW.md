@@ -475,7 +475,7 @@ Side: `ON_HOLD_CUSTOMER_INPUT`, `HUMAN_REVIEW_REQUIRED`, `CANCELLED`
 | Clone with overrides (qty / dimensions) | PR #69 deferred |
 | LIFF intake repeater UI (multi-item at submit) | PR #66 deferred |
 | Commercial entities admin editor page | TASK-025 |
-| Accounting CSV/Excel export | TASK-027 |
+| Accounting CSV (quote-centric) + tax-ledger CSV (document-centric for ภ.พ.30 / ภ.ง.ด.53) — closed via PR #78; **direct Excel xlsx + ERP push** still Wave 5 | TASK-027 |
 | First-class staff ownership model | TASK-025 |
 
 ---

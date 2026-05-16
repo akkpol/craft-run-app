@@ -279,6 +279,7 @@ export default async function AdminAccountingPage(props: {
   const searchParams = await props.searchParams;
   const month = normalizeMonth(firstValue(searchParams.month));
   const exportHref = `/api/admin/accounting/monthly?month=${encodeURIComponent(month)}`;
+  const taxLedgerHref = `/api/admin/accounting/tax-ledger?month=${encodeURIComponent(month)}`;
   const paymentOpsQueue = getAdminQueueContract("payment-ops");
   const commercialGateQueue = getAdminQueueContract("commercial-gate");
   const config = await getRuntimeAppConfig();
@@ -442,7 +443,14 @@ export default async function AdminAccountingPage(props: {
                 href={exportHref}
                 className="inline-flex items-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
-                ดาวน์โหลด CSV เดือน {month}
+                ดาวน์โหลด Quote/Payment CSV เดือน {month}
+              </a>
+              <a
+                href={taxLedgerHref}
+                className="inline-flex items-center rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:border-slate-400 hover:bg-slate-50"
+                title="หนึ่งแถวต่อใบกำกับ/ใบเสร็จ — ใช้สำหรับ ภ.พ.30 + ภ.ง.ด.53"
+              >
+                ดาวน์โหลด Tax Ledger เดือน {month}
               </a>
               <Link
                 href={getQueueHref("payment-ops")}
