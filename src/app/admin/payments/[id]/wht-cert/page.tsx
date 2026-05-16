@@ -123,18 +123,27 @@ export default async function AdminWhtCertificatePage(props: {
     notFound();
   }
 
-  // Withholder identity precedence: locked tax profile > lead snapshot.
-  // customer_tax_profiles doesn't carry billing_entity_type so that field
-  // still comes from the lead — it controls UI defaults only; the actual
-  // PND form code now derives from receiver_entity.type (L29), not this.
-  const withholderName =
-    (taxProfile?.legal_name ?? null) ||
-    (lead?.billing_name ?? null) ||
-    (customer?.display_name ?? null);
-  const withholderTaxId =
-    (taxProfile?.tax_id ?? null) || (lead?.tax_id ?? null);
-  const withholderAddress =
-    (taxProfile?.address ?? null) || (lead?.billing_address ?? null);
+  // Withholder identity precedence: locked tax profile is the source of
+  // truth when present. If the profile exists but a field is null/blank
+  // we keep that null — do NOT mix-and-match with the lead snapshot,
+  // because the resulting cert would carry a Frankenstein identity
+  // (legal name from the profile, tax id from the lead) that doesn't
+  // match what tax_invoice_receipt issued for the same payment.
+  //
+  // Only when there is NO locked profile do we fall back to lead.billing_*.
+  // customer_tax_profiles doesn't carry billing_entity_type, so that
+  // field still comes from the lead — it controls UI defaults only; the
+  // actual PND form code derives from receiver_entity.type (L29).
+  const useTaxProfile = taxProfile != null;
+  const withholderName = useTaxProfile
+    ? taxProfile.legal_name ?? null
+    : lead?.billing_name ?? customer?.display_name ?? null;
+  const withholderTaxId = useTaxProfile
+    ? taxProfile.tax_id ?? null
+    : lead?.tax_id ?? null;
+  const withholderAddress = useTaxProfile
+    ? taxProfile.address ?? null
+    : lead?.billing_address ?? null;
 
   const printModel = buildWhtCertificatePrintModel({
     payment: {
