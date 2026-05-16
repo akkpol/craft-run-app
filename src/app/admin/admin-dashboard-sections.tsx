@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Image from "next/image";
-import { CircleHelp, type LucideIcon } from "lucide-react";
+import { CircleHelp, LayoutGrid, LayoutList, type LucideIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -675,6 +675,157 @@ function renderOverviewQueueCardActions({
   );
 }
 
+function renderTablePrimaryAction({
+  card,
+  commercialReceiverEntities,
+}: {
+  card: AdminOverviewCardModel;
+  commercialReceiverEntities: AdminOverviewPage["commercialReceiverEntities"];
+}) {
+  const row = card.row;
+
+  if (row.kind === "conversation") {
+    return (
+      <AdminConversationActions
+        conversationId={row.conversationId}
+        currentState={row.conversationState}
+        compact
+        buttonVariant="default"
+        buttonLabel={card.primaryActionLabel}
+      />
+    );
+  }
+
+  if (row.kind === "escalation") {
+    if (!row.conversationId || !row.conversationState) return null;
+    return (
+      <AdminConversationActions
+        conversationId={row.conversationId}
+        currentState={row.conversationState}
+        compact
+        buttonVariant="default"
+        buttonLabel={card.primaryActionLabel}
+      />
+    );
+  }
+
+  if (row.kind === "quote") {
+    return (
+      <AdminQuoteActions
+        quoteId={row.quoteId}
+        publicToken={row.publicToken}
+        quoteStatus={row.quoteStatus}
+        quoteTotal={row.total}
+        paymentTerms={row.paymentTerms}
+        paymentStatus={row.paymentStatus}
+        hasJob={row.hasJob}
+        requestedDocumentType={row.documentRequestType}
+        commercialOrder={row.commercialOrder}
+        commercialReceiverEntities={commercialReceiverEntities}
+        buttonVariant="default"
+        buttonLabel={card.primaryActionLabel}
+      />
+    );
+  }
+
+  if (row.kind === "production-review") {
+    return (
+      <ProductionReviewActions
+        eventId={row.eventId}
+        reviewStatus={row.reviewStatus}
+        buttonVariant="default"
+        buttonLabel={card.primaryActionLabel}
+      />
+    );
+  }
+
+  if (row.kind === "running-job") {
+    return (
+      <AdminJobActions
+        jobId={row.jobId}
+        currentStatus={row.jobStatus}
+        buttonVariant="default"
+        buttonLabel={card.primaryActionLabel}
+      />
+    );
+  }
+
+  return null;
+}
+
+function OverviewTableView({
+  overviewGroups,
+  commercialReceiverEntities,
+}: {
+  overviewGroups: ReturnType<typeof buildAdminOverviewCardGroups>;
+  commercialReceiverEntities: AdminOverviewPage["commercialReceiverEntities"];
+}) {
+  const allCards = overviewGroups.flatMap((group) => group.cards);
+
+  if (allCards.length === 0) {
+    return <AdminEmptyStateBlock title="ตอนนี้ยังไม่มีรายการในคิวนี้" />;
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-[18px] border border-slate-200">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-slate-50/80">
+            <TableHead className="w-[180px] whitespace-nowrap py-3 text-xs font-semibold text-slate-600">ลูกค้า</TableHead>
+            <TableHead className="whitespace-nowrap py-3 text-xs font-semibold text-slate-600">สินค้า</TableHead>
+            <TableHead className="whitespace-nowrap py-3 text-xs font-semibold text-slate-600">สถานะ</TableHead>
+            <TableHead className="whitespace-nowrap py-3 text-xs font-semibold text-slate-600">เจ้าของ</TableHead>
+            <TableHead className="whitespace-nowrap py-3 text-xs font-semibold text-slate-600">สิ่งที่ต้องทำ</TableHead>
+            <TableHead className="w-[160px] py-3 text-right text-xs font-semibold text-slate-600">ดำเนินการ</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {allCards.map((card) => (
+            <TableRow
+              key={card.id}
+              className={cn(
+                "border-b border-slate-100 transition-colors hover:bg-slate-50/60",
+                card.statusTone === "danger" && "bg-rose-50/30 hover:bg-rose-50/50",
+                card.statusTone === "warning" && "bg-amber-50/20 hover:bg-amber-50/40"
+              )}
+            >
+              <TableCell className="py-3">
+                <p className="text-sm font-semibold text-slate-900">{card.title}</p>
+                <p className="mt-0.5 text-xs text-slate-400">{card.queueLabel}</p>
+              </TableCell>
+              <TableCell className="py-3">
+                <p className="text-sm text-slate-700">{card.subtitle}</p>
+              </TableCell>
+              <TableCell className="py-3">
+                <Badge
+                  className={cn(
+                    "border text-xs",
+                    OVERVIEW_STATUS_TONE_CLASS_NAMES[card.statusTone]
+                  )}
+                >
+                  {card.statusLabel}
+                </Badge>
+              </TableCell>
+              <TableCell className="py-3">
+                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                  {card.ownerLabel}
+                </span>
+              </TableCell>
+              <TableCell className="max-w-[220px] py-3">
+                <p className="truncate text-xs text-slate-600">{card.primaryActionLabel}</p>
+                <p className="mt-0.5 truncate text-[11px] text-slate-400">{card.stopReasonLabel}</p>
+              </TableCell>
+              <TableCell className="py-3 text-right">
+                {renderTablePrimaryAction({ card, commercialReceiverEntities })}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 export function OverviewCombinedQueueTable({
   overview,
   baseUrl,
@@ -682,6 +833,7 @@ export function OverviewCombinedQueueTable({
   overview: AdminOverviewPage;
   baseUrl: string;
 }) {
+  const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const activeFilter =
     OVERVIEW_QUEUE_FILTERS.find((item) => item.key === overview.filter) || OVERVIEW_QUEUE_FILTERS[0];
   const paginationStart = overview.totalCount === 0
@@ -713,7 +865,7 @@ export function OverviewCombinedQueueTable({
       <div className="rounded-[24px] border border-cyan-100/80 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.95))] p-3.5 shadow-[0_16px_36px_rgba(0,62,93,0.08)]">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-1.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Owner queue focus</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">กรองคิว</p>
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-base font-semibold text-slate-950">{activeFilter.label}</h3>
               <Badge variant="outline" className="border-cyan-200 bg-white text-cyan-700">
@@ -736,39 +888,73 @@ export function OverviewCombinedQueueTable({
             </div>
           </div>
         </div>
-        <div className="mt-3 overflow-x-auto pb-1">
-          <div className="flex min-w-max gap-2 lg:min-w-0 lg:flex-wrap">
-            {OVERVIEW_QUEUE_FILTERS.map((item) => {
-              const count = overview.counts[item.key];
+        <div className="mt-3 flex items-end justify-between gap-3">
+          <div className="overflow-x-auto pb-1">
+            <div className="flex min-w-max gap-2 lg:min-w-0 lg:flex-wrap">
+              {OVERVIEW_QUEUE_FILTERS.map((item) => {
+                const count = overview.counts[item.key];
 
-              return (
-                <Link
-                  key={item.key}
-                  href={buildOverviewHref(item.key, 1)}
-                  prefetch={false}
-                  aria-current={overview.filter === item.key ? "page" : undefined}
-                  className={cn(
-                    "inline-flex min-w-fit items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold whitespace-nowrap transition",
-                    overview.filter === item.key
-                      ? "border-cyan-200 bg-[linear-gradient(135deg,#00AEEF_0%,#0098d0_100%)] text-white shadow-[0_14px_30px_rgba(0,94,140,0.2)]"
-                      : "border-cyan-100 bg-white text-slate-600 hover:border-cyan-200 hover:bg-cyan-50/80"
-                  )}
-                >
-                  <span>{item.label}</span>
-                  <span
+                return (
+                  <Link
+                    key={item.key}
+                    href={buildOverviewHref(item.key, 1)}
+                    prefetch={false}
+                    aria-current={overview.filter === item.key ? "page" : undefined}
                     className={cn(
-                      "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                      overview.filter === item.key ? "bg-white/15 text-white" : "border border-cyan-100 bg-cyan-50 text-cyan-700"
+                      "inline-flex min-w-fit items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold whitespace-nowrap transition",
+                      overview.filter === item.key
+                        ? "border-cyan-200 bg-[linear-gradient(135deg,#00AEEF_0%,#0098d0_100%)] text-white shadow-[0_14px_30px_rgba(0,94,140,0.2)]"
+                        : "border-cyan-100 bg-white text-slate-600 hover:border-cyan-200 hover:bg-cyan-50/80"
                     )}
                   >
-                    {count}
-                  </span>
-                </Link>
-              );
-            })}
+                    <span>{item.label}</span>
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                        overview.filter === item.key ? "bg-white/15 text-white" : "border border-cyan-100 bg-cyan-50 text-cyan-700"
+                      )}
+                    >
+                      {count}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-white/85 p-1">
+            <button
+              onClick={() => setViewMode("card")}
+              title="การ์ด"
+              className={cn(
+                "rounded-full p-1.5 transition",
+                viewMode === "card"
+                  ? "bg-cyan-500 text-white shadow-sm"
+                  : "text-slate-500 hover:bg-slate-100"
+              )}
+            >
+              <LayoutGrid className="size-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("table")}
+              title="ตาราง"
+              className={cn(
+                "rounded-full p-1.5 transition",
+                viewMode === "table"
+                  ? "bg-cyan-500 text-white shadow-sm"
+                  : "text-slate-500 hover:bg-slate-100"
+              )}
+            >
+              <LayoutList className="size-4" />
+            </button>
           </div>
         </div>
       </div>
+        {viewMode === "table" ? (
+          <OverviewTableView
+            overviewGroups={overviewGroups}
+            commercialReceiverEntities={overview.commercialReceiverEntities}
+          />
+        ) : (
         <div className="space-y-4">
           {overviewGroups.map((group) => (
             <div
@@ -844,21 +1030,21 @@ export function OverviewCombinedQueueTable({
                           ))}
                         </div>
 
-                        <div className="rounded-[18px] border border-slate-200 bg-white/85 px-3 py-3">
+                        <div className="px-1">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                             หยุดเพราะ
                           </p>
                           <p className="mt-1 text-sm font-medium text-slate-800">
                             {card.stopReasonLabel}
                           </p>
-                          <p className="mt-2 text-xs leading-5 text-slate-500">{card.summary}</p>
+                          <p className="mt-1.5 text-xs leading-5 text-slate-500">{card.summary}</p>
                         </div>
 
-                        <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50/80 px-3 py-3">
+                        <div className="border-t border-slate-100 px-1 pt-3">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
                               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                                Primary surface
+                                ลิงก์ที่เกี่ยวข้อง
                               </p>
                               <Link
                                 href={card.primarySurfaceHref}
@@ -870,7 +1056,7 @@ export function OverviewCombinedQueueTable({
                             </div>
                             <div className="text-right">
                               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                                Queue
+                                คิว
                               </p>
                               <p className="mt-1 text-sm font-medium text-slate-700">{card.queueLabel}</p>
                             </div>
@@ -878,7 +1064,7 @@ export function OverviewCombinedQueueTable({
                           {card.evidenceSummary.length > 0 ? (
                             <div className="mt-3 space-y-2">
                               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                                หลักฐาน/สัญญาณที่ใช้ตัดสินใจ
+                                สัญญาณ
                               </p>
                               <div className="flex flex-wrap gap-2">
                                 {card.evidenceSummary.map((item) => (
@@ -900,6 +1086,7 @@ export function OverviewCombinedQueueTable({
             </div>
           ))}
         </div>
+        )}
 
       <div className="flex flex-col gap-3 rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
         <p>

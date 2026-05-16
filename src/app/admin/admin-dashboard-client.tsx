@@ -47,8 +47,8 @@ export default function AdminDashboardClient({
           <DashboardTrendChart trends={trends} />
 
           <SurfaceSection
-            title="Automation lanes"
-            description="คอขวดตาม owner — ดูได้แวบเดียวว่าคิวไหนมีของค้าง"
+            title="ภาพรวมคิว"
+            description="สรุปจำนวนงานค้างแต่ละกลุ่ม — ดูแวบเดียวว่าคิวไหนมีของรอ"
             count={totalLaneCount}
           >
             <div className="flex flex-wrap gap-2">

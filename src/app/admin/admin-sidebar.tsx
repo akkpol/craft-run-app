@@ -48,7 +48,7 @@ const primaryItems = [
     isActive: (pathname: string) => pathname === "/admin",
   },
   {
-    title: "รับงาน manual",
+    title: "รับงาน (walk-in)",
     href: "/admin/manual-intake",
     icon: FilePlus2Icon,
     isActive: (pathname: string) => pathname.startsWith("/admin/manual-intake"),
@@ -60,7 +60,7 @@ const primaryItems = [
     isActive: (pathname: string) => pathname.startsWith("/admin/customers"),
   },
   {
-    title: "รอลูกค้า",
+    title: "ติดตามลูกค้า",
     href: "/admin/follow-up",
     icon: ClipboardCheckIcon,
     isActive: (pathname: string) => pathname.startsWith("/admin/follow-up"),
@@ -73,7 +73,7 @@ const primaryItems = [
     isActive: (pathname: string) => pathname.startsWith("/admin/accounting"),
   },
   {
-    title: "พรอมพ์ / AI",
+    title: "ออกแบบ / AI",
     href: "/admin/prompts",
     icon: WandSparklesIcon,
     isActive: (pathname: string) => pathname.startsWith("/admin/prompts"),
