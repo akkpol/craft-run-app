@@ -833,7 +833,7 @@ export function OverviewCombinedQueueTable({
   overview: AdminOverviewPage;
   baseUrl: string;
 }) {
-  const [viewMode, setViewMode] = useState<"card" | "table">("card");
+  const [viewMode, setViewMode] = useState<"card" | "table">("table");
   const activeFilter =
     OVERVIEW_QUEUE_FILTERS.find((item) => item.key === overview.filter) || OVERVIEW_QUEUE_FILTERS[0];
   const paginationStart = overview.totalCount === 0
