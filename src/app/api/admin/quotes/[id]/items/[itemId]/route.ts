@@ -108,6 +108,205 @@ async function loadQuoteEditability(
   };
 }
 
+type PatchItemBody = {
+  qty?: number | string;
+  unitPrice?: number | string;
+  discount?: number | string;
+  label?: string;
+};
+
+/**
+ * PATCH an existing quote_item — edit qty, unit_price, discount, or label.
+ *
+ * Same editability gate as POST/DELETE: only when quote is draft/sent and
+ * payment hasn't been captured. Pricing constraint: discount ≤ qty * price
+ * for the resulting row (DB CHECK enforces discount >= 0; we enforce the
+ * upper bound in JS so we can return a friendly 422 instead of 23514).
+ */
+export async function PATCH(
+  request: NextRequest,
+  props: { params: Promise<{ id: string; itemId: string }> }
+) {
+  const { id, itemId } = await props.params;
+
+  let body: PatchItemBody;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const authClient = await createClient();
+  const { data: authData } = await authClient.auth.getClaims();
+  const access = resolveAdminAccess(authData?.claims);
+  if (!access.authenticated) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!access.allowed) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const supabase = createAdminClient();
+  const editable = await loadQuoteEditability(supabase, id);
+  if (!editable.ok) {
+    return NextResponse.json(
+      { error: editable.error, detail: "detail" in editable ? editable.detail : undefined },
+      { status: editable.status }
+    );
+  }
+
+  // Load current row so we can resolve "field unspecified = keep" and run
+  // the discount bound check against the merged values.
+  const { data: existing, error: existingErr } = await supabase
+    .from("quote_items")
+    .select("id, label, qty, unit_price, discount")
+    .eq("id", itemId)
+    .eq("quote_id", id)
+    .maybeSingle();
+  if (existingErr) {
+    return NextResponse.json({ error: existingErr.message }, { status: 500 });
+  }
+  if (!existing) {
+    return NextResponse.json({ error: "Item not found" }, { status: 404 });
+  }
+
+  const updates: {
+    label?: string;
+    qty?: number;
+    unit_price?: number;
+    discount?: number;
+  } = {};
+
+  if (body.label !== undefined) {
+    const label = body.label.toString().trim();
+    if (!label) {
+      return NextResponse.json(
+        { error: "label cannot be empty" },
+        { status: 400 }
+      );
+    }
+    if (label.length > 200) {
+      return NextResponse.json(
+        { error: "label too long (max 200 chars)" },
+        { status: 400 }
+      );
+    }
+    updates.label = label;
+  }
+
+  let nextQty = Number(existing.qty);
+  if (body.qty !== undefined) {
+    const qty = Number(body.qty);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      return NextResponse.json(
+        { error: "qty must be a positive number" },
+        { status: 400 }
+      );
+    }
+    updates.qty = qty;
+    nextQty = qty;
+  }
+
+  let nextUnitPrice = Number(existing.unit_price);
+  if (body.unitPrice !== undefined) {
+    const unitPrice = Number(body.unitPrice);
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      return NextResponse.json(
+        { error: "unitPrice must be a non-negative number" },
+        { status: 400 }
+      );
+    }
+    updates.unit_price = unitPrice;
+    nextUnitPrice = unitPrice;
+  }
+
+  let nextDiscount = Number(existing.discount ?? 0);
+  if (body.discount !== undefined) {
+    const discount = Number(body.discount);
+    if (!Number.isFinite(discount) || discount < 0) {
+      return NextResponse.json(
+        { error: "discount must be a non-negative number" },
+        { status: 400 }
+      );
+    }
+    updates.discount = discount;
+    nextDiscount = discount;
+  }
+
+  if (nextDiscount > nextQty * nextUnitPrice) {
+    return NextResponse.json(
+      {
+        error: "DISCOUNT_EXCEEDS_LINE",
+        detail: "Per-line discount cannot exceed qty × unitPrice.",
+      },
+      { status: 422 }
+    );
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json(
+      { error: "No fields to update" },
+      { status: 400 }
+    );
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from("quote_items")
+    .update(updates)
+    .eq("id", itemId)
+    .eq("quote_id", id)
+    .select("id, label, qty, unit_price, discount, line_total")
+    .single();
+
+  if (updateError || !updated) {
+    return NextResponse.json(
+      { error: updateError?.message || "Failed to update item" },
+      { status: 500 }
+    );
+  }
+
+  let totals;
+  try {
+    totals = await recomputeQuoteTotals(supabase, {
+      id: editable.quoteId,
+      discount: editable.discount,
+      paymentTerms: editable.paymentTerms,
+      billingEntityType: editable.billingEntityType,
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Failed to recompute totals" },
+      { status: 500 }
+    );
+  }
+
+  await logHumanAction(supabase, {
+    entityType: "quote",
+    entityId: id,
+    actionType: "quote.item_updated",
+    actorId: access.email ?? undefined,
+    actorLabel: access.email ?? "Admin",
+    payload: {
+      item_id: itemId,
+      before: {
+        qty: Number(existing.qty),
+        unit_price: Number(existing.unit_price),
+        discount: Number(existing.discount ?? 0),
+      },
+      after: {
+        qty: Number(updated.qty),
+        unit_price: Number(updated.unit_price),
+        discount: Number(updated.discount ?? 0),
+      },
+      new_line_total: Number(updated.line_total),
+      new_subtotal: totals.subtotal,
+      new_total: totals.total,
+    },
+  }).catch(() => null);
+
+  return NextResponse.json({ success: true, item: updated, totals });
+}
+
 export async function DELETE(
   _request: NextRequest,
   props: { params: Promise<{ id: string; itemId: string }> }

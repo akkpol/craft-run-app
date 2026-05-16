@@ -80,12 +80,28 @@ export default function AdminQuoteActions({
   const [panel, setPanel] = useState<
     "commercial" | "deposit" | "paid" | "balance" | "receiver" | "issueDocument" | "items" | "reject" | "rescope" | null
   >(null);
-  const [itemDraft, setItemDraft] = useState<{ label: string; qty: string; unitPrice: string }>(
-    { label: "", qty: "1", unitPrice: "" }
-  );
+  const [itemDraft, setItemDraft] = useState<{
+    label: string;
+    qty: string;
+    unitPrice: string;
+    discount: string;
+  }>({ label: "", qty: "1", unitPrice: "", discount: "0" });
   const [itemsList, setItemsList] = useState<
-    Array<{ id: string; label: string; qty: number; unit_price: number; line_total: number }> | null
+    Array<{
+      id: string;
+      label: string;
+      qty: number;
+      unit_price: number;
+      discount: number;
+      line_total: number;
+    }> | null
   >(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingItemDraft, setEditingItemDraft] = useState<{
+    qty: string;
+    unitPrice: string;
+    discount: string;
+  }>({ qty: "", unitPrice: "", discount: "" });
   const [itemsLoading, setItemsLoading] = useState(false);
   const [paymentTermsDraft, setPaymentTermsDraft] = useState(paymentTerms);
   const [paymentStatusDraft, setPaymentStatusDraft] = useState(paymentStatus);
@@ -155,7 +171,9 @@ export default function AdminQuoteActions({
     setPaymentAmountDraft("");
     setWhtAmountDraft("");
     setBalanceBreakdown(null);
-    setItemDraft({ label: "", qty: "1", unitPrice: "" });
+    setItemDraft({ label: "", qty: "1", unitPrice: "", discount: "0" });
+    setEditingItemId(null);
+    setEditingItemDraft({ qty: "", unitPrice: "", discount: "" });
 
     if (nextPanel === "items") {
       setItemsLoading(true);
@@ -274,6 +292,7 @@ export default function AdminQuoteActions({
     const labelTrim = itemDraft.label.trim();
     const qtyNum = Number(itemDraft.qty);
     const unitNum = Number(itemDraft.unitPrice);
+    const discountNum = Number(itemDraft.discount || 0);
     if (!labelTrim) {
       setToast({ tone: "warning", title: "ใส่ชื่อรายการก่อน" });
       return;
@@ -286,10 +305,26 @@ export default function AdminQuoteActions({
       setToast({ tone: "warning", title: "ราคา/หน่วย ต้อง ≥ 0" });
       return;
     }
+    if (!Number.isFinite(discountNum) || discountNum < 0) {
+      setToast({ tone: "warning", title: "ส่วนลด ต้อง ≥ 0" });
+      return;
+    }
+    if (discountNum > qtyNum * unitNum) {
+      setToast({
+        tone: "warning",
+        title: "ส่วนลดเกินยอดของรายการนี้",
+      });
+      return;
+    }
     try {
       const payload = await callApi(
         `/api/admin/quotes/${quoteId}/items`,
-        { label: labelTrim, qty: qtyNum, unitPrice: unitNum },
+        {
+          label: labelTrim,
+          qty: qtyNum,
+          unitPrice: unitNum,
+          discount: discountNum,
+        },
         "เพิ่มรายการไม่สำเร็จ"
       );
       setToast({
@@ -297,13 +332,86 @@ export default function AdminQuoteActions({
         title: "เพิ่มรายการแล้ว",
         description: `ยอดใหม่: ${Number(payload?.totals?.total ?? 0).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`,
       });
-      setItemDraft({ label: "", qty: "1", unitPrice: "" });
+      setItemDraft({ label: "", qty: "1", unitPrice: "", discount: "0" });
       await reloadItems();
       router.refresh();
     } catch (err) {
       setToast({
         tone: "error",
         title: "เพิ่มรายการไม่สำเร็จ",
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  }
+
+  function beginEditItem(item: {
+    id: string;
+    qty: number;
+    unit_price: number;
+    discount: number;
+  }) {
+    setEditingItemId(item.id);
+    setEditingItemDraft({
+      qty: String(item.qty),
+      unitPrice: String(item.unit_price),
+      discount: String(item.discount ?? 0),
+    });
+  }
+
+  function cancelEditItem() {
+    setEditingItemId(null);
+    setEditingItemDraft({ qty: "", unitPrice: "", discount: "" });
+  }
+
+  async function saveEditItem(itemId: string) {
+    const qtyNum = Number(editingItemDraft.qty);
+    const unitNum = Number(editingItemDraft.unitPrice);
+    const discountNum = Number(editingItemDraft.discount || 0);
+    if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+      setToast({ tone: "warning", title: "จำนวนต้องมากกว่า 0" });
+      return;
+    }
+    if (!Number.isFinite(unitNum) || unitNum < 0) {
+      setToast({ tone: "warning", title: "ราคา/หน่วย ต้อง ≥ 0" });
+      return;
+    }
+    if (!Number.isFinite(discountNum) || discountNum < 0) {
+      setToast({ tone: "warning", title: "ส่วนลด ต้อง ≥ 0" });
+      return;
+    }
+    if (discountNum > qtyNum * unitNum) {
+      setToast({ tone: "warning", title: "ส่วนลดเกินยอดของรายการนี้" });
+      return;
+    }
+    try {
+      const res = await fetch(
+        `/api/admin/quotes/${quoteId}/items/${itemId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            qty: qtyNum,
+            unitPrice: unitNum,
+            discount: discountNum,
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || "แก้ไขไม่สำเร็จ");
+      }
+      setToast({
+        tone: "success",
+        title: "อัปเดตรายการแล้ว",
+        description: `ยอดใหม่: ${Number(data?.totals?.total ?? 0).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`,
+      });
+      cancelEditItem();
+      await reloadItems();
+      router.refresh();
+    } catch (err) {
+      setToast({
+        tone: "error",
+        title: "แก้ไขไม่สำเร็จ",
         description: err instanceof Error ? err.message : undefined,
       });
     }
@@ -1054,38 +1162,128 @@ export default function AdminQuoteActions({
               <p className="text-xs text-slate-500">กำลังโหลด...</p>
             ) : itemsList && itemsList.length > 0 ? (
               <ul className="space-y-2">
-                {itemsList.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-slate-900">{item.label}</p>
-                      <p className="mt-0.5 text-slate-500">
-                        {Number(item.qty).toLocaleString("th-TH")} ×{" "}
-                        {Number(item.unit_price).toLocaleString("th-TH", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}{" "}
-                        ={" "}
-                        <span className="font-semibold text-slate-900">
-                          {Number(item.line_total).toLocaleString("th-TH", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}{" "}
-                          บาท
-                        </span>
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void removeItem(item.id)}
-                      className="shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-100"
+                {itemsList.map((item) => {
+                  const isEditing = editingItemId === item.id;
+                  return (
+                    <li
+                      key={item.id}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
                     >
-                      ลบ
-                    </button>
-                  </li>
-                ))}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-slate-900">{item.label}</p>
+                          {!isEditing ? (
+                            <p className="mt-0.5 text-slate-500">
+                              {Number(item.qty).toLocaleString("th-TH")} ×{" "}
+                              {Number(item.unit_price).toLocaleString("th-TH", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                              {Number(item.discount ?? 0) > 0 ? (
+                                <span className="text-rose-600">
+                                  {" "}
+                                  − ส่วนลด{" "}
+                                  {Number(item.discount).toLocaleString("th-TH", {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}
+                                </span>
+                              ) : null}
+                              {" "}={" "}
+                              <span className="font-semibold text-slate-900">
+                                {Number(item.line_total).toLocaleString("th-TH", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}{" "}
+                                บาท
+                              </span>
+                            </p>
+                          ) : null}
+                        </div>
+                        {!isEditing ? (
+                          <div className="flex shrink-0 gap-1">
+                            <button
+                              type="button"
+                              onClick={() => beginEditItem(item)}
+                              className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              แก้
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void removeItem(item.id)}
+                              className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-100"
+                            >
+                              ลบ
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                      {isEditing ? (
+                        <div className="mt-2 grid grid-cols-3 gap-2">
+                          <label className="grid gap-0.5 text-[11px] text-slate-700">
+                            <span>จำนวน</span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              step="0.01"
+                              value={editingItemDraft.qty}
+                              onChange={(e) =>
+                                setEditingItemDraft((p) => ({ ...p, qty: e.target.value }))
+                              }
+                              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+                            />
+                          </label>
+                          <label className="grid gap-0.5 text-[11px] text-slate-700">
+                            <span>ราคา/หน่วย</span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              step="0.01"
+                              value={editingItemDraft.unitPrice}
+                              onChange={(e) =>
+                                setEditingItemDraft((p) => ({ ...p, unitPrice: e.target.value }))
+                              }
+                              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+                            />
+                          </label>
+                          <label className="grid gap-0.5 text-[11px] text-slate-700">
+                            <span>ส่วนลด (บาท)</span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              step="0.01"
+                              value={editingItemDraft.discount}
+                              onChange={(e) =>
+                                setEditingItemDraft((p) => ({ ...p, discount: e.target.value }))
+                              }
+                              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+                            />
+                          </label>
+                          <div className="col-span-3 flex justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={cancelEditItem}
+                              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              ยกเลิก
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void saveEditItem(item.id)}
+                              className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-medium text-white hover:bg-slate-800"
+                            >
+                              บันทึก
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
               <p className="text-xs text-slate-500">ยังไม่มีรายการ</p>
@@ -1106,7 +1304,7 @@ export default function AdminQuoteActions({
                   maxLength={200}
                 />
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <label className="grid gap-1 text-xs text-slate-700">
                   <span>จำนวน</span>
                   <input
@@ -1129,6 +1327,21 @@ export default function AdminQuoteActions({
                     value={itemDraft.unitPrice}
                     onChange={(e) => setItemDraft((prev) => ({ ...prev, unitPrice: e.target.value }))}
                     className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                  />
+                </label>
+                <label className="grid gap-1 text-xs text-slate-700">
+                  <span>ส่วนลด/รายการ (บาท)</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={itemDraft.discount}
+                    onChange={(e) =>
+                      setItemDraft((prev) => ({ ...prev, discount: e.target.value }))
+                    }
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                    placeholder="0"
                   />
                 </label>
               </div>

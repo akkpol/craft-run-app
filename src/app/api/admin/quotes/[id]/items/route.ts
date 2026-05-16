@@ -11,6 +11,7 @@ type AddItemBody = {
   label?: string;
   qty?: number | string;
   unitPrice?: number | string;
+  discount?: number | string;
   note?: string;
 };
 
@@ -80,6 +81,23 @@ export async function POST(
     );
   }
 
+  const discount = Number(body.discount ?? 0);
+  if (!Number.isFinite(discount) || discount < 0) {
+    return NextResponse.json(
+      { error: "discount must be a non-negative number" },
+      { status: 400 }
+    );
+  }
+  if (discount > qty * unitPrice) {
+    return NextResponse.json(
+      {
+        error: "DISCOUNT_EXCEEDS_LINE",
+        detail: "Per-line discount cannot exceed qty × unitPrice.",
+      },
+      { status: 422 }
+    );
+  }
+
   const authClient = await createClient();
   const { data: authData } = await authClient.auth.getClaims();
   const access = resolveAdminAccess(authData?.claims);
@@ -138,8 +156,9 @@ export async function POST(
       label,
       qty,
       unit_price: unitPrice,
+      discount,
     })
-    .select("id, label, qty, unit_price, line_total")
+    .select("id, label, qty, unit_price, discount, line_total")
     .single();
 
   if (insertError || !insertedItem) {
@@ -166,8 +185,8 @@ export async function POST(
     (sum, row) => sum + Number(row.line_total ?? 0),
     0
   );
-  const discount = Number(quote.discount ?? 0);
-  const taxable = Math.max(0, subtotal - discount);
+  const quoteDiscount = Number(quote.discount ?? 0);
+  const taxable = Math.max(0, subtotal - quoteDiscount);
   const vat = Math.round(taxable * VAT_RATE * 100) / 100;
   const total = Math.round((taxable + vat) * 100) / 100;
   const appConfig = await getRuntimeAppConfig();
@@ -206,6 +225,7 @@ export async function POST(
       label: insertedItem.label,
       qty: Number(insertedItem.qty),
       unit_price: Number(insertedItem.unit_price),
+      discount: Number(insertedItem.discount ?? 0),
       line_total: Number(insertedItem.line_total),
       new_subtotal: subtotal,
       new_total: total,
@@ -238,7 +258,7 @@ export async function GET(
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("quote_items")
-    .select("id, label, qty, unit_price, line_total")
+    .select("id, label, qty, unit_price, discount, line_total")
     .eq("quote_id", id)
     .order("id", { ascending: true });
 
