@@ -212,7 +212,7 @@ export default function Customer360Client({
   const latestAiPromptSnapshot = asString(latestLead?.ai_prompt_snapshot);
 
   return (
-    <div className="admin-shell min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50">
       <div className="border-b border-slate-200 bg-white px-6 py-4">
         <div className="mx-auto max-w-5xl">
           <Link
