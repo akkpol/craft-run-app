@@ -73,12 +73,7 @@ export default function AdminDashboardClient({
           </SurfaceSection>
           </div>
 
-          <SurfaceSection
-            title="สลิปโอนรอตรวจ"
-            description="ลูกค้าอัปโหลดสลิปผ่านหน้า quote — ตรวจแล้ว match กับ payment ที่ admin บันทึก หรือกด reject ถ้าไม่ตรง"
-          >
-            <PaymentSlipQueue />
-          </SurfaceSection>
+          <PaymentSlipQueue />
 
           <SurfaceSection
             title="CRM inbox ของงานทั้งหมด"

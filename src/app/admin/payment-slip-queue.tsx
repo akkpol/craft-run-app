@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type SlipQuote = {
   total: number;
@@ -113,23 +115,20 @@ export function PaymentSlipQueue() {
     }
   }
 
-  if (loading && !slips) {
-    return (
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-        กำลังโหลดสลิป...
-      </div>
-    );
-  }
-
-  if (!slips || slips.length === 0) {
-    return (
-      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-500">
-        ไม่มีสลิปรอตรวจ
-      </div>
-    );
-  }
+  if (loading && !slips) return null;
+  if (!slips || slips.length === 0) return null;
 
   return (
+    <Card className="min-w-0 w-full rounded-[28px] border border-amber-200/80 bg-white/95 py-0 shadow-[0_16px_42px_rgba(0,62,93,0.08)]">
+      <CardHeader className="gap-3 border-b border-amber-100 px-4 py-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <CardTitle className="text-lg font-semibold text-slate-950">สลิปโอนรอตรวจ</CardTitle>
+          <Badge className="border border-amber-300 bg-amber-50 text-amber-800">
+            {slips.length} รายการ
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="px-4 py-5">
     <div className="space-y-3">
       {error ? (
         <div className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-800">
@@ -251,5 +250,7 @@ export function PaymentSlipQueue() {
         );
       })}
     </div>
+      </CardContent>
+    </Card>
   );
 }
