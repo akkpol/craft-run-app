@@ -260,7 +260,7 @@ export default function Customer360Client({
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid items-start gap-4 lg:grid-cols-3">
           <section className="admin-panel lg:col-span-1">
             <h2 className="text-sm font-semibold text-slate-700">ข้อมูล LINE</h2>
             <div className="mt-4 flex items-start gap-4">
@@ -342,10 +342,10 @@ export default function Customer360Client({
             )}
           </section>
 
-          <section className="admin-panel lg:col-span-1">
+          <section className="admin-panel lg:col-span-3">
             <h2 className="text-sm font-semibold text-slate-700">แหล่งข้อมูลพรอมพ์ AI</h2>
             {latestLead ? (
-              <div className="mt-4 space-y-3 text-sm text-slate-600">
+              <div className="mt-4 grid gap-3 text-sm text-slate-600 lg:grid-cols-3">
                 <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
                   <p className="text-xs font-semibold text-slate-500">
                     Design brief จากลูกค้า
