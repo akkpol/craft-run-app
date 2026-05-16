@@ -105,9 +105,9 @@ export const ADMIN_QUEUE_CONTRACT: Record<AdminQueueFilterKey, AdminQueueContrac
   },
   "commercial-gate": {
     key: "commercial-gate",
-    label: "เอกสาร / ผู้รับเงิน",
-    shortLabel: "เอกสาร",
-    description: "quote ที่ยังต้องเลือกผู้รับเงินหรือออกเอกสารหลังรับชำระ ก่อนส่งเข้าผลิตได้",
+    label: "เตรียมส่งผลิต",
+    shortLabel: "เตรียมผลิต",
+    description: "quote ที่ยังต้องเลือกผู้รับชำระหรือออกเอกสารหลังรับชำระ ก่อนส่งเข้าผลิตได้",
     ownerKey: "finance",
     ownerLabel: "การเงิน / เอกสาร",
     readinessStage: "commercial",
@@ -115,7 +115,7 @@ export const ADMIN_QUEUE_CONTRACT: Record<AdminQueueFilterKey, AdminQueueContrac
   },
   "design-ops": {
     key: "design-ops",
-    label: "ออกแบบ / ตรวจงาน",
+    label: "ออกแบบ / ตรวจแบบ",
     shortLabel: "ออกแบบ",
     description: "งานที่ยังรอตรวจแบบ ตีกลับ หรือต้องส่ง preview ให้ลูกค้าดู",
     ownerKey: "review",
