@@ -170,6 +170,8 @@ export function CatalogItemsTable({ reloadKey }: { reloadKey?: number }) {
                     min={0}
                     step="0.01"
                     value={state.perSqm}
+                    placeholder="ราคา/ตร.ม."
+                    aria-label={`ราคา/ตร.ม. ของ ${item.label}`}
                     onChange={(e) =>
                       setRows((prev) => ({
                         ...prev,
@@ -185,6 +187,8 @@ export function CatalogItemsTable({ reloadKey }: { reloadKey?: number }) {
                     min={0}
                     step="0.01"
                     value={state.minCharge}
+                    placeholder="ขั้นต่ำ"
+                    aria-label={`ขั้นต่ำ ของ ${item.label}`}
                     onChange={(e) =>
                       setRows((prev) => ({
                         ...prev,
@@ -198,6 +202,7 @@ export function CatalogItemsTable({ reloadKey }: { reloadKey?: number }) {
                   <input
                     type="checkbox"
                     checked={state.active}
+                    aria-label={`เปิดใช้ ${item.label}`}
                     onChange={(e) =>
                       setRows((prev) => ({
                         ...prev,
