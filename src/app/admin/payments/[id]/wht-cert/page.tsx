@@ -101,7 +101,7 @@ export default async function AdminWhtCertificatePage(props: {
       supabase
         .from("commercial_entities")
         .select(
-          "id, legal_name, tax_id, address, branch_type, branch_code, branch_name"
+          "id, legal_name, type, tax_id, address, branch_type, branch_code, branch_name"
         )
         .eq("id", payment.receiver_entity_id)
         .maybeSingle(),
@@ -121,6 +121,7 @@ export default async function AdminWhtCertificatePage(props: {
     },
     receiver_entity: {
       legal_name: entity.legal_name ?? "",
+      type: entity.type ?? null,
       tax_id: entity.tax_id ?? null,
       address: entity.address ?? null,
       branch_type: entity.branch_type ?? null,

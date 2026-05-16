@@ -21,6 +21,7 @@ export type WhtCertificatePrintSource = {
   };
   receiver_entity: {
     legal_name: string;
+    type?: string | null;
     tax_id?: string | null;
     address?: string | null;
     branch_type?: string | null;
@@ -95,12 +96,12 @@ function ratePercentLabel(rate: number | null | undefined): string {
 }
 
 /**
- * The withholder's legal form drives the RD form code:
+ * The payee's legal form drives the RD form code:
  *   - บุคคลธรรมดา (person) files ภ.ง.ด.3
  *   - นิติบุคคล (company) files ภ.ง.ด.53
  *
- * If billing_entity_type is missing we default to ภ.ง.ด.53 since most B2B
- * customers issuing 50ทวิ are companies — admin can correct on print.
+ * If the receiver type is missing we default to ภ.ง.ด.53 because commercial
+ * receivers are companies unless explicitly configured as personal accounts.
  */
 function pickFormType(entityType: string | null | undefined): {
   formType: "ภ.ง.ด.3" | "ภ.ง.ด.53";
@@ -161,7 +162,7 @@ export function buildWhtCertificatePrintModel(
     source.receiver_entity.branch_name
   );
   const { formType, formTypeLabel } = pickFormType(
-    source.withholder.billing_entity_type
+    source.receiver_entity.type
   );
 
   const withholderName =

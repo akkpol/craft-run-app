@@ -108,7 +108,7 @@ export default function WhtCertificatePrintPage({
                 <span className="ml-1">ภ.ง.ด.53 (นิติบุคคล)</span>
               </p>
               <p className="mt-1 text-[11px] text-slate-500">
-                อัตโนมัติจาก billing_entity_type — แก้ไขด้วยมือบนเอกสารพิมพ์ได้
+                อัตโนมัติจากประเภทผู้ถูกหักภาษี — แก้ไขด้วยมือบนเอกสารพิมพ์ได้
               </p>
             </div>
           </section>
