@@ -44,13 +44,14 @@ export default function AdminDashboardClient({
     <div className="pb-8 pt-3 text-slate-900">
       <div className="px-4">
         <div className="space-y-3">
-          <DashboardTrendChart trends={trends} />
+          <div className="grid items-stretch gap-3 lg:grid-cols-[7fr_3fr]">
+            <DashboardTrendChart trends={trends} />
 
-          <SurfaceSection
-            title="Automation lanes"
-            description="คอขวดตาม owner — ดูได้แวบเดียวว่าคิวไหนมีของค้าง"
-            count={totalLaneCount}
-          >
+            <SurfaceSection
+              title="ภาพรวมคิว"
+              description="สรุปจำนวนงานค้างแต่ละกลุ่ม — ดูแวบเดียวว่าคิวไหนมีของรอ"
+              count={totalLaneCount}
+            >
             <div className="flex flex-wrap gap-2">
               {automation.lanes.map((lane) => (
                 <span
@@ -70,13 +71,9 @@ export default function AdminDashboardClient({
               ))}
             </div>
           </SurfaceSection>
+          </div>
 
-          <SurfaceSection
-            title="สลิปโอนรอตรวจ"
-            description="ลูกค้าอัปโหลดสลิปผ่านหน้า quote — ตรวจแล้ว match กับ payment ที่ admin บันทึก หรือกด reject ถ้าไม่ตรง"
-          >
-            <PaymentSlipQueue />
-          </SurfaceSection>
+          <PaymentSlipQueue />
 
           <SurfaceSection
             title="CRM inbox ของงานทั้งหมด"
