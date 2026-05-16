@@ -365,7 +365,7 @@ export async function DELETE(
     .delete()
     .eq("id", itemId)
     .eq("quote_id", id)
-    .select("id, label, qty, unit_price")
+    .select("id, label, qty, unit_price, discount")
     .maybeSingle();
 
   if (deleteError) {
@@ -395,6 +395,7 @@ export async function DELETE(
       label: deleted.label,
       qty: deleted.qty,
       unit_price: deleted.unit_price,
+      discount: deleted.discount ?? 0,
     });
     return NextResponse.json(
       {

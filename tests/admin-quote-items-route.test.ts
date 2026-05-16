@@ -280,6 +280,37 @@ describe("admin quote item routes", () => {
     expect(supabase.quoteUpdates).toEqual([]);
   });
 
+  it("preserves discount when restoring a deleted item after a last-item race", async () => {
+    const supabase = createQuoteItemsClient({
+      deletedItem: {
+        id: "item-1",
+        label: "Discounted item",
+        qty: 2,
+        unit_price: 250,
+        discount: 75,
+      },
+      remainingCount: 0,
+    });
+    mockCreateAdminClient.mockReturnValue(supabase.client);
+
+    const response = await callDeleteItemRoute();
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.error).toBe("LAST_ITEM_PROTECTED");
+    expect(supabase.insertedRows).toEqual([
+      {
+        id: "item-1",
+        quote_id: "quote-1",
+        label: "Discounted item",
+        qty: 2,
+        unit_price: 250,
+        discount: 75,
+      },
+    ]);
+    expect(supabase.quoteUpdates).toEqual([]);
+  });
+
   it("refreshes the payment profile snapshot from the new total when deleting an item", async () => {
     const supabase = createQuoteItemsClient({
       lineTotals: [500],
