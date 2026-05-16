@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { CheckCircle2, ChevronDown, CircleAlert, MoreHorizontal, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -99,7 +100,33 @@ export function AdminActionMenu({
   buttonVariant = "outline",
 }: AdminActionMenuProps) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !buttonRef.current) {
+      return undefined;
+    }
+
+    function updatePosition() {
+      if (!buttonRef.current) return;
+      const rect = buttonRef.current.getBoundingClientRect();
+      setPosition({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    }
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -107,7 +134,11 @@ export function AdminActionMenu({
     }
 
     function handlePointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        !buttonRef.current?.contains(target) &&
+        !menuRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     }
@@ -131,9 +162,51 @@ export function AdminActionMenu({
     return null;
   }
 
+  const menu = open && position ? (
+    <div
+      ref={menuRef}
+      style={{ top: position.top, right: position.right }}
+      className="fixed z-[60] w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_60px_rgba(15,23,42,0.16)]"
+    >
+      {actions.map((action) => (
+        <button
+          key={action.key}
+          type="button"
+          disabled={action.disabled}
+          onClick={() => {
+            setOpen(false);
+            onSelect(action.key);
+          }}
+          className={cn(
+            "flex w-full flex-col items-start rounded-xl px-3 py-2 text-left transition",
+            action.disabled
+              ? "cursor-not-allowed opacity-50"
+              : "hover:bg-slate-50",
+            action.tone === "destructive" && !action.disabled && "hover:bg-rose-50"
+          )}
+        >
+          <span
+            className={cn(
+              "text-sm font-medium text-slate-900",
+              action.tone === "destructive" && "text-rose-700"
+            )}
+          >
+            {action.label}
+          </span>
+          {action.description ? (
+            <span className="mt-1 text-xs leading-5 text-slate-500">
+              {action.description}
+            </span>
+          ) : null}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
   return (
-    <div ref={rootRef} className="relative inline-flex">
+    <div className="relative inline-flex">
       <Button
+        ref={buttonRef}
         type="button"
         variant={buttonVariant}
         size={compact ? "xs" : "sm"}
@@ -150,42 +223,7 @@ export function AdminActionMenu({
         {!compact ? <ChevronDown className="size-3.5" /> : null}
       </Button>
 
-      {open ? (
-        <div className="absolute right-0 top-full z-40 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_60px_rgba(15,23,42,0.16)]">
-          {actions.map((action) => (
-            <button
-              key={action.key}
-              type="button"
-              disabled={action.disabled}
-              onClick={() => {
-                setOpen(false);
-                onSelect(action.key);
-              }}
-              className={cn(
-                "flex w-full flex-col items-start rounded-xl px-3 py-2 text-left transition",
-                action.disabled
-                  ? "cursor-not-allowed opacity-50"
-                  : "hover:bg-slate-50",
-                action.tone === "destructive" && !action.disabled && "hover:bg-rose-50"
-              )}
-            >
-              <span
-                className={cn(
-                  "text-sm font-medium text-slate-900",
-                  action.tone === "destructive" && "text-rose-700"
-                )}
-              >
-                {action.label}
-              </span>
-              {action.description ? (
-                <span className="mt-1 text-xs leading-5 text-slate-500">
-                  {action.description}
-                </span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      {menu && typeof document !== "undefined" ? createPortal(menu, document.body) : null}
     </div>
   );
 }

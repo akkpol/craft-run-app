@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Fragment, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { ChevronDown, CircleHelp, type LucideIcon } from "lucide-react";
+import { ChevronDown, CircleHelp, ExternalLink, type LucideIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -701,20 +701,32 @@ function renderTablePrimaryAction({
 
   if (row.kind === "quote") {
     return (
-      <AdminQuoteActions
-        quoteId={row.quoteId}
-        publicToken={row.publicToken}
-        quoteStatus={row.quoteStatus}
-        quoteTotal={row.total}
-        paymentTerms={row.paymentTerms}
-        paymentStatus={row.paymentStatus}
-        hasJob={row.hasJob}
-        requestedDocumentType={row.documentRequestType}
-        commercialOrder={row.commercialOrder}
-        commercialReceiverEntities={commercialReceiverEntities}
-        buttonVariant="default"
-        buttonLabel={card.primaryActionLabel}
-      />
+      <div className="inline-flex items-center justify-end gap-1.5">
+        <a
+          href={`/quote/${row.publicToken}`}
+          target="_blank"
+          rel="noreferrer"
+          title="เปิดหน้า quote ของลูกค้าในแท็บใหม่"
+          className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-700"
+        >
+          <ExternalLink className="size-3" />
+          <span>quote</span>
+        </a>
+        <AdminQuoteActions
+          quoteId={row.quoteId}
+          publicToken={row.publicToken}
+          quoteStatus={row.quoteStatus}
+          quoteTotal={row.total}
+          paymentTerms={row.paymentTerms}
+          paymentStatus={row.paymentStatus}
+          hasJob={row.hasJob}
+          requestedDocumentType={row.documentRequestType}
+          commercialOrder={row.commercialOrder}
+          commercialReceiverEntities={commercialReceiverEntities}
+          buttonVariant="default"
+          buttonLabel={card.primaryActionLabel}
+        />
+      </div>
     );
   }
 
