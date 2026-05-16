@@ -35,7 +35,7 @@ test("payment-ops conversation cards inherit finance ownership and payment gate 
 
   const card = buildAdminOverviewCardModel(row);
 
-  assert.equal(card.ownerLabel, "Finance");
+  assert.equal(card.ownerLabel, "การเงิน");
   assert.equal(card.automationMode, "human_gate");
   assert.equal(card.primaryActionLabel, "เคลียร์ payment gate");
   assert.equal(card.stopReasonLabel, "ยังไม่ยืนยันการชำระ");
@@ -72,7 +72,7 @@ test("quote-decision cards explain customer approval work and keep customer wait
 
   const card = buildAdminOverviewCardModel(row);
 
-  assert.equal(card.ownerLabel, "Sales / admin");
+  assert.equal(card.ownerLabel, "ฝ่ายขาย");
   assert.equal(card.automationMode, "customer_waiting");
   assert.equal(card.primaryActionLabel, "ติดตามการอนุมัติ");
   assert.equal(card.stopReasonLabel, "รอลูกค้าตัดสินใจ quote");
@@ -140,7 +140,7 @@ test("exception cards prioritize the escalation reason and reviewer ownership", 
 
   const card = buildAdminOverviewCardModel(row);
 
-  assert.equal(card.ownerLabel, "Owner / reviewer");
+  assert.equal(card.ownerLabel, "เจ้าของ / ตรวจสอบ");
   assert.equal(card.automationMode, "human_gate");
   assert.equal(card.stopReasonLabel, "ลูกค้าขอคุยกับแอดมิน");
   assert.equal(card.primaryActionLabel, "ตอบเคสนี้");
@@ -182,7 +182,7 @@ test("running-job cards keep production ownership and summarize proof pressure",
 
   const card = buildAdminOverviewCardModel(row);
 
-  assert.equal(card.ownerLabel, "Production / fulfillment");
+  assert.equal(card.ownerLabel, "ผลิต / จัดส่ง");
   assert.equal(card.automationMode, "human_gate");
   assert.equal(card.primaryActionLabel, "อัปเดตงานผลิต");
   assert.equal(card.stopReasonLabel, "มีหลักฐานรอตรวจ 2 รายการ");

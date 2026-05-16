@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { CircleHelp, LayoutGrid, LayoutList, type LucideIcon } from "lucide-react";
+import { ChevronDown, CircleHelp, type LucideIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -496,16 +496,6 @@ const OVERVIEW_STATUS_TONE_CLASS_NAMES: Record<
   accent: "border-violet-200 bg-violet-50 text-violet-700",
 };
 
-const OVERVIEW_NEXT_ACTION_OWNER_LABELS: Record<
-  AdminOverviewCardModel["nextActionOwner"],
-  string
-> = {
-  internal: "ทีมภายในต้องขยับต่อ",
-  customer: "ลูกค้าต้องส่งข้อมูล/ตัดสินใจ",
-  system: "ระบบจะเดินต่อเอง",
-  none: "ไม่มี next action",
-};
-
 function renderOverviewQueueCardActions({
   card,
   baseUrl,
@@ -753,16 +743,28 @@ function renderTablePrimaryAction({
   return null;
 }
 
+const EXPANDED_ROW_BORDER_CLASS: Record<AdminOverviewCardModel["statusTone"], string> = {
+  neutral: "border-l-slate-200",
+  info: "border-l-sky-300",
+  warning: "border-l-amber-300",
+  danger: "border-l-rose-300",
+  success: "border-l-emerald-300",
+  accent: "border-l-violet-300",
+};
+
 function OverviewTableView({
   overviewGroups,
   commercialReceiverEntities,
+  baseUrl,
 }: {
   overviewGroups: ReturnType<typeof buildAdminOverviewCardGroups>;
   commercialReceiverEntities: AdminOverviewPage["commercialReceiverEntities"];
+  baseUrl: string;
 }) {
-  const allCards = overviewGroups.flatMap((group) => group.cards);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const nonEmptyGroups = overviewGroups.filter((group) => group.cards.length > 0);
 
-  if (allCards.length === 0) {
+  if (nonEmptyGroups.length === 0) {
     return <AdminEmptyStateBlock title="ตอนนี้ยังไม่มีรายการในคิวนี้" />;
   }
 
@@ -771,6 +773,7 @@ function OverviewTableView({
       <Table>
         <TableHeader>
           <TableRow className="bg-slate-50/80">
+            <TableHead className="w-10 py-3" aria-hidden />
             <TableHead className="w-[180px] whitespace-nowrap py-3 text-xs font-semibold text-slate-600">ลูกค้า</TableHead>
             <TableHead className="whitespace-nowrap py-3 text-xs font-semibold text-slate-600">สินค้า</TableHead>
             <TableHead className="whitespace-nowrap py-3 text-xs font-semibold text-slate-600">สถานะ</TableHead>
@@ -780,45 +783,175 @@ function OverviewTableView({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {allCards.map((card) => (
-            <TableRow
-              key={card.id}
-              className={cn(
-                "border-b border-slate-100 transition-colors hover:bg-slate-50/60",
-                card.statusTone === "danger" && "bg-rose-50/30 hover:bg-rose-50/50",
-                card.statusTone === "warning" && "bg-amber-50/20 hover:bg-amber-50/40"
-              )}
-            >
-              <TableCell className="py-3">
-                <p className="text-sm font-semibold text-slate-900">{card.title}</p>
-                <p className="mt-0.5 text-xs text-slate-400">{card.queueLabel}</p>
-              </TableCell>
-              <TableCell className="py-3">
-                <p className="text-sm text-slate-700">{card.subtitle}</p>
-              </TableCell>
-              <TableCell className="py-3">
-                <Badge
-                  className={cn(
-                    "border text-xs",
-                    OVERVIEW_STATUS_TONE_CLASS_NAMES[card.statusTone]
-                  )}
-                >
-                  {card.statusLabel}
-                </Badge>
-              </TableCell>
-              <TableCell className="py-3">
-                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                  {card.ownerLabel}
-                </span>
-              </TableCell>
-              <TableCell className="max-w-[220px] py-3">
-                <p className="truncate text-xs text-slate-600">{card.primaryActionLabel}</p>
-                <p className="mt-0.5 truncate text-[11px] text-slate-400">{card.stopReasonLabel}</p>
-              </TableCell>
-              <TableCell className="py-3 text-right">
-                {renderTablePrimaryAction({ card, commercialReceiverEntities })}
-              </TableCell>
-            </TableRow>
+          {nonEmptyGroups.map((group) => (
+            <Fragment key={group.key}>
+              <TableRow className="bg-slate-100/70 hover:bg-slate-100/70">
+                <TableCell colSpan={7} className="py-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="border border-cyan-200 bg-cyan-50 text-cyan-700">
+                      {group.label}
+                    </Badge>
+                    <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
+                      {group.ownerLabel}
+                    </Badge>
+                    <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
+                      {group.count} รายการ
+                    </Badge>
+                    <span className="hidden truncate text-xs text-slate-500 md:inline">
+                      {group.description}
+                    </span>
+                  </div>
+                </TableCell>
+              </TableRow>
+              {group.cards.map((card) => {
+                const isOpen = expandedId === card.id;
+                return (
+                  <Fragment key={`${group.key}-${card.id}`}>
+                    <TableRow
+                      className={cn(
+                        "border-b border-slate-100 transition-colors hover:bg-slate-50/60",
+                        card.statusTone === "danger" && "bg-rose-50/30 hover:bg-rose-50/50",
+                        card.statusTone === "warning" && "bg-amber-50/20 hover:bg-amber-50/40"
+                      )}
+                    >
+                      <TableCell className="w-10 p-2 align-middle">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedId((prev) => (prev === card.id ? null : card.id))
+                          }
+                          aria-expanded={isOpen}
+                          aria-controls={`row-${card.id}-detail`}
+                          aria-label={isOpen ? "ปิดรายละเอียด" : "ดูรายละเอียด"}
+                          className="rounded p-1 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
+                        >
+                          <ChevronDown
+                            className={cn(
+                              "size-4 transition-transform",
+                              isOpen ? "" : "-rotate-90"
+                            )}
+                          />
+                        </button>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <p className="text-sm font-semibold text-slate-900">{card.title}</p>
+                        <p className="mt-0.5 text-xs text-slate-400">{card.queueLabel}</p>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <p className="text-sm text-slate-700">{card.subtitle}</p>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Badge
+                          className={cn(
+                            "border text-xs",
+                            OVERVIEW_STATUS_TONE_CLASS_NAMES[card.statusTone]
+                          )}
+                        >
+                          {card.statusLabel}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                          {card.ownerLabel}
+                        </span>
+                      </TableCell>
+                      <TableCell className="max-w-[220px] py-3">
+                        <p className="truncate text-xs text-slate-600">{card.primaryActionLabel}</p>
+                        <p className="mt-0.5 truncate text-[11px] text-slate-400">{card.stopReasonLabel}</p>
+                      </TableCell>
+                      <TableCell className="py-3 text-right">
+                        {renderTablePrimaryAction({ card, commercialReceiverEntities })}
+                      </TableCell>
+                    </TableRow>
+                    {isOpen ? (
+                      <TableRow
+                        id={`row-${card.id}-detail`}
+                        className="bg-slate-50/70 hover:bg-slate-50/70"
+                      >
+                        <TableCell
+                          colSpan={7}
+                          className={cn(
+                            "border-l-4 p-4",
+                            EXPANDED_ROW_BORDER_CLASS[card.statusTone]
+                          )}
+                        >
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                บริบท
+                              </p>
+                              <div className="mt-1.5 flex flex-wrap gap-2">
+                                <Badge
+                                  className={cn(
+                                    "border",
+                                    OVERVIEW_AUTOMATION_MODE_CLASS_NAMES[card.automationMode]
+                                  )}
+                                >
+                                  {OVERVIEW_AUTOMATION_MODE_LABELS[card.automationMode]}
+                                </Badge>
+                                <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
+                                  {card.workflowLabel}
+                                </Badge>
+                                {card.contextChips.map((chip) => (
+                                  <OverviewInlinePill key={`${card.id}-ctx-${chip}`}>
+                                    {chip}
+                                  </OverviewInlinePill>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                หยุดเพราะ
+                              </p>
+                              <p className="mt-1.5 text-sm font-medium text-slate-800">
+                                {card.stopReasonLabel}
+                              </p>
+                              <p className="mt-1 text-xs leading-5 text-slate-500">{card.summary}</p>
+                            </div>
+
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                ลิงก์และสัญญาณ
+                              </p>
+                              <Link
+                                href={card.primarySurfaceHref}
+                                prefetch={false}
+                                className="mt-1.5 inline-flex text-sm font-semibold text-cyan-700 transition hover:text-cyan-800"
+                              >
+                                {card.primarySurfaceLabel}
+                              </Link>
+                              {card.evidenceSummary.length > 0 ? (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {card.evidenceSummary.map((item) => (
+                                    <OverviewInlinePill key={`${card.id}-ev-${item}`} tone="accent">
+                                      {item}
+                                    </OverviewInlinePill>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                ดำเนินการเพิ่มเติม
+                              </p>
+                              <div className="mt-2">
+                                {renderOverviewQueueCardActions({
+                                  card,
+                                  baseUrl,
+                                  commercialReceiverEntities,
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+            </Fragment>
           ))}
         </TableBody>
       </Table>
@@ -833,7 +966,6 @@ export function OverviewCombinedQueueTable({
   overview: AdminOverviewPage;
   baseUrl: string;
 }) {
-  const [viewMode, setViewMode] = useState<"card" | "table">("table");
   const activeFilter =
     OVERVIEW_QUEUE_FILTERS.find((item) => item.key === overview.filter) || OVERVIEW_QUEUE_FILTERS[0];
   const paginationStart = overview.totalCount === 0
@@ -888,10 +1020,9 @@ export function OverviewCombinedQueueTable({
             </div>
           </div>
         </div>
-        <div className="mt-3 flex items-end justify-between gap-3">
-          <div className="overflow-x-auto pb-1">
-            <div className="flex min-w-max gap-2 lg:min-w-0 lg:flex-wrap">
-              {OVERVIEW_QUEUE_FILTERS.map((item) => {
+        <div className="mt-3 overflow-x-auto pb-1">
+          <div className="flex min-w-max gap-2 lg:min-w-0 lg:flex-wrap">
+            {OVERVIEW_QUEUE_FILTERS.map((item) => {
                 const count = overview.counts[item.key];
 
                 return (
@@ -921,172 +1052,13 @@ export function OverviewCombinedQueueTable({
               })}
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-white/85 p-1">
-            <button
-              onClick={() => setViewMode("card")}
-              title="การ์ด"
-              className={cn(
-                "rounded-full p-1.5 transition",
-                viewMode === "card"
-                  ? "bg-cyan-500 text-white shadow-sm"
-                  : "text-slate-500 hover:bg-slate-100"
-              )}
-            >
-              <LayoutGrid className="size-4" />
-            </button>
-            <button
-              onClick={() => setViewMode("table")}
-              title="ตาราง"
-              className={cn(
-                "rounded-full p-1.5 transition",
-                viewMode === "table"
-                  ? "bg-cyan-500 text-white shadow-sm"
-                  : "text-slate-500 hover:bg-slate-100"
-              )}
-            >
-              <LayoutList className="size-4" />
-            </button>
-          </div>
         </div>
-      </div>
-        {viewMode === "table" ? (
-          <OverviewTableView
-            overviewGroups={overviewGroups}
-            commercialReceiverEntities={overview.commercialReceiverEntities}
-          />
-        ) : (
-        <div className="space-y-4">
-          {overviewGroups.map((group) => (
-            <div
-              key={group.key}
-              className="rounded-[24px] border border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.94))] p-3.5 shadow-[0_14px_32px_rgba(15,23,42,0.05)]"
-            >
-              <div className="flex flex-col gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="border border-cyan-200 bg-cyan-50 text-cyan-700">
-                      {group.label}
-                    </Badge>
-                    <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
-                      {group.ownerLabel}
-                    </Badge>
-                    <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
-                      {group.count} รายการ
-                    </Badge>
-                  </div>
-                  <p className="max-w-3xl text-sm leading-6 text-slate-500">{group.description}</p>
-                </div>
-              </div>
 
-              {group.cards.length > 0 ? (
-                <div className="mt-4 grid gap-3 xl:grid-cols-2 2xl:grid-cols-3">
-                  {group.cards.map((card) => (
-                    <QueueCard
-                      key={`${group.key}-${card.id}`}
-                      title={card.title}
-                      meta={`${getProductLabel(card.subtitle)} · ${card.workflowLabel}`}
-                      badge={
-                        <Badge
-                          className={cn(
-                            "border",
-                            OVERVIEW_STATUS_TONE_CLASS_NAMES[card.statusTone]
-                          )}
-                        >
-                          {card.statusLabel}
-                        </Badge>
-                      }
-                      tone={card.statusTone === "danger" ? "danger" : card.statusTone === "warning" ? "warning" : "default"}
-                      footer={
-                        <div className="w-full space-y-2">
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                            <span className="font-semibold text-slate-700">สิ่งที่ต้องทำต่อ:</span>
-                            <span>{card.primaryActionLabel}</span>
-                            <span className="text-slate-300">•</span>
-                            <span>{OVERVIEW_NEXT_ACTION_OWNER_LABELS[card.nextActionOwner]}</span>
-                          </div>
-                          {renderOverviewQueueCardActions({
-                            card,
-                            baseUrl,
-                            commercialReceiverEntities: overview.commercialReceiverEntities,
-                          })}
-                        </div>
-                      }
-                    >
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap gap-2">
-                          <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
-                            {card.ownerLabel}
-                          </Badge>
-                          <Badge
-                            className={cn(
-                              "border",
-                              OVERVIEW_AUTOMATION_MODE_CLASS_NAMES[card.automationMode]
-                            )}
-                          >
-                            {OVERVIEW_AUTOMATION_MODE_LABELS[card.automationMode]}
-                          </Badge>
-                          {card.contextChips.map((chip) => (
-                            <OverviewInlinePill key={`${card.id}-${chip}`}>{chip}</OverviewInlinePill>
-                          ))}
-                        </div>
-
-                        <div className="px-1">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                            หยุดเพราะ
-                          </p>
-                          <p className="mt-1 text-sm font-medium text-slate-800">
-                            {card.stopReasonLabel}
-                          </p>
-                          <p className="mt-1.5 text-xs leading-5 text-slate-500">{card.summary}</p>
-                        </div>
-
-                        <div className="border-t border-slate-100 px-1 pt-3">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                                ลิงก์ที่เกี่ยวข้อง
-                              </p>
-                              <Link
-                                href={card.primarySurfaceHref}
-                                prefetch={false}
-                                className="mt-1 inline-flex text-sm font-semibold text-cyan-700 transition hover:text-cyan-800"
-                              >
-                                {card.primarySurfaceLabel}
-                              </Link>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                                คิว
-                              </p>
-                              <p className="mt-1 text-sm font-medium text-slate-700">{card.queueLabel}</p>
-                            </div>
-                          </div>
-                          {card.evidenceSummary.length > 0 ? (
-                            <div className="mt-3 space-y-2">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                                สัญญาณ
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {card.evidenceSummary.map((item) => (
-                                  <OverviewInlinePill key={`${card.id}-${item}`} tone="accent">{item}</OverviewInlinePill>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    </QueueCard>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-4">
-                  <AdminEmptyStateBlock title="ตอนนี้ยังไม่มีรายการในคิวนี้" />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        )}
+      <OverviewTableView
+        overviewGroups={overviewGroups}
+        commercialReceiverEntities={overview.commercialReceiverEntities}
+        baseUrl={baseUrl}
+      />
 
       <div className="flex flex-col gap-3 rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
         <p>
