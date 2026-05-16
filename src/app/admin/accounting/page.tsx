@@ -233,28 +233,19 @@ function AccountingLaneSection({
   return (
     <section className={`rounded-[28px] border p-5 shadow-sm ${visuals.panelClassName}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="max-w-3xl space-y-2">
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-            <span className={`rounded-full border px-3 py-1 ${visuals.badgeClassName}`}>
+        <div className="max-w-3xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${visuals.badgeClassName}`}>
               {group.label}
             </span>
-            <span className="rounded-full border border-white/80 bg-white/70 px-3 py-1 text-slate-600">
-              owner {group.ownerLabel}
-            </span>
-            <span className={`rounded-full border px-3 py-1 ${visuals.chipClassName}`}>
-              primary surface /admin/accounting
-            </span>
+            <span className="text-xs text-slate-500">{group.ownerLabel}</span>
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-slate-950">{group.label}</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">{group.description}</p>
-          </div>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{group.description}</p>
         </div>
 
-        <div className="rounded-[18px] border border-white/80 bg-white/80 px-4 py-3 text-right shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">ต้องเคลียร์ตอนนี้</p>
+        <div className="rounded-[18px] border border-white/80 bg-white/80 px-4 py-3 text-right">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">ต้องเคลียร์</p>
           <p className={`mt-1 text-2xl font-semibold ${visuals.countClassName}`}>{totalCount}</p>
-          <p className="mt-1 text-xs text-slate-500">แสดง {group.cards.length} รายการล่าสุด</p>
         </div>
       </div>
 
@@ -264,11 +255,7 @@ function AccountingLaneSection({
             <AccountingQueueCard key={card.id} card={card} queueKey={queueKey} />
           ))}
         </div>
-      ) : (
-        <div className="mt-4 rounded-[20px] border border-white/80 bg-white/80 px-4 py-4 text-sm text-slate-600">
-          ตอนนี้ไม่มีรายการค้างใน lane นี้
-        </div>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -349,73 +336,63 @@ export default async function AdminAccountingPage(props: {
             >
               ← กลับแดชบอร์ด
             </Link>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
-              {paymentOpsQueue.ownerLabel}
+            <h1 className="text-2xl font-bold text-slate-950">การเงิน · เอกสาร</h1>
+            <p className="mt-1.5 text-sm text-slate-500">
+              ตรวจคิวรับชำระ ออกเอกสารหลังรับเงิน และ export รายเดือนให้ฝ่ายบัญชี
             </p>
-            <h1 className="mt-2 text-2xl font-bold text-slate-950">Finance &amp; Documents Export</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              ศูนย์รวมเอกสารการเงิน runtime, commercial gate และ export รายเดือน สำหรับตรวจว่า payment receiver, ผู้ออกเอกสาร และเอกสารหลังรับชำระตรงกันหรือไม่
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2 text-xs">
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 font-medium text-slate-700">
-                {paymentOpsQueue.label}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 font-medium text-slate-700">
-                {commercialGateQueue.label}
-              </span>
-            </div>
           </div>
         </div>
       </div>
 
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <div className="mb-4 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="admin-kpi-card">
-            <p className="text-xs font-medium text-slate-500">Payment Ops เปิดค้าง</p>
-            <p className="mt-1 text-2xl font-bold text-amber-700">{paymentOpsOverview.totalCount}</p>
+            <p className="text-sm font-medium text-slate-500">รอตรวจชำระ</p>
+            <p className={`mt-1 text-3xl font-bold ${paymentOpsOverview.totalCount > 0 ? "text-rose-600" : "text-slate-400"}`}>
+              {paymentOpsOverview.totalCount}
+            </p>
           </div>
           <div className="admin-kpi-card">
-            <p className="text-xs font-medium text-slate-500">Commercial Gate เปิดค้าง</p>
-            <p className="mt-1 text-2xl font-bold text-cyan-700">{commercialGateOverview.totalCount}</p>
+            <p className="text-sm font-medium text-slate-500">รอออกเอกสาร</p>
+            <p className={`mt-1 text-3xl font-bold ${commercialGateOverview.totalCount > 0 ? "text-amber-600" : "text-slate-400"}`}>
+              {commercialGateOverview.totalCount}
+            </p>
           </div>
           <div className="admin-kpi-card">
-            <p className="text-xs font-medium text-slate-500">เอกสาร runtime</p>
-            <p className="mt-1 text-2xl font-bold text-slate-950">{documents.length}</p>
+            <p className="text-sm font-medium text-slate-500">เอกสารออกแล้ว</p>
+            <p className="mt-1 text-3xl font-bold text-slate-950">{issuedDocuments.length}</p>
           </div>
           <div className="admin-kpi-card">
-            <p className="text-xs font-medium text-slate-500">ออกแล้ว</p>
-            <p className="mt-1 text-2xl font-bold text-emerald-700">{issuedDocuments.length}</p>
-          </div>
-          <div className="admin-kpi-card">
-            <p className="text-xs font-medium text-slate-500">ใบกำกับ/ใบเสร็จ</p>
-            <p className="mt-1 text-2xl font-bold text-sky-700">{documents.filter((document) => document.document_type === "TAX_INVOICE_RECEIPT").length}</p>
-          </div>
-          <div className="admin-kpi-card">
-            <p className="text-xs font-medium text-slate-500">ยอดเอกสารออกแล้ว</p>
-            <p className="mt-1 text-xl font-bold text-slate-950">{formatMoney(issuedTotal)}</p>
+            <p className="text-sm font-medium text-slate-500">ยอดรวมเอกสาร</p>
+            <p className="mt-1 text-2xl font-bold text-slate-950">{formatMoney(issuedTotal)}</p>
           </div>
         </div>
 
-        <section className="admin-panel mb-4 space-y-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Finance Action Lanes</p>
-            <h2 className="mt-2 text-xl font-bold text-slate-950">ดูว่าเงินกับเอกสารติดตรงไหนก่อนปล่อยงานต่อ</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              หน้านี้ไม่ใช่แค่ export เอกสาร แต่เป็น surface ของทีมการเงินสำหรับดูว่า payment gate กับ commercial gate ค้างตรงไหน, ทำไมยังไม่ปล่อยงาน และควรเปิดคิวไหนต่อจากที่นี่
-            </p>
-          </div>
+        {paymentOpsOverview.totalCount > 0 || commercialGateOverview.totalCount > 0 ? (
+          <section className="admin-panel mb-4 space-y-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="max-w-3xl">
+              <h2 className="text-xl font-bold text-slate-950">คิวที่ต้องจัดการ</h2>
+              <p className="mt-1.5 text-sm text-slate-500">
+                เคลียร์งานค้างก่อนปล่อยเข้าผลิต
+              </p>
+            </div>
 
-          <AccountingLaneSection
-            queueKey="payment-ops"
-            group={paymentOpsGroup}
-            totalCount={paymentOpsOverview.totalCount}
-          />
-          <AccountingLaneSection
-            queueKey="commercial-gate"
-            group={commercialGateGroup}
-            totalCount={commercialGateOverview.totalCount}
-          />
-        </section>
+            {paymentOpsOverview.totalCount > 0 ? (
+              <AccountingLaneSection
+                queueKey="payment-ops"
+                group={paymentOpsGroup}
+                totalCount={paymentOpsOverview.totalCount}
+              />
+            ) : null}
+            {commercialGateOverview.totalCount > 0 ? (
+              <AccountingLaneSection
+                queueKey="commercial-gate"
+                group={commercialGateGroup}
+                totalCount={commercialGateOverview.totalCount}
+              />
+            ) : null}
+          </section>
+        ) : null}
 
         <section className="admin-panel rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
           <form className="grid gap-4 md:grid-cols-[minmax(0,220px)_1fr] md:items-end">
@@ -462,27 +439,32 @@ export default async function AdminAccountingPage(props: {
             </div>
           </form>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
-              <p className="text-sm font-semibold text-slate-950">สิ่งที่ export แล้ว</p>
-              <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
-                <li>Quote totals และสถานะการชำระ</li>
-                <li>Document / billing identity ที่ลูกค้าให้ไว้</li>
-                <li>Payment tracking timestamps และ proof reference</li>
-                <li>Payment profile snapshot ที่ quote ใช้อยู่ตอนนั้น</li>
-              </ul>
-            </div>
+          <details className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-700 hover:text-slate-900">
+              ℹ️ ในไฟล์ export มีข้อมูลอะไรบ้าง
+            </summary>
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-950">CSV รายเดือน</p>
+                <ul className="mt-2 space-y-1 text-sm leading-6 text-slate-600">
+                  <li>• ยอด quote และสถานะการชำระ</li>
+                  <li>• ข้อมูลออกใบกำกับของลูกค้า</li>
+                  <li>• เวลาและหลักฐานการชำระ</li>
+                  <li>• snapshot ผู้รับชำระตอน quote ถูกใช้</li>
+                </ul>
+              </div>
 
-            <div className="rounded-3xl border border-emerald-200 bg-emerald-50/70 p-4">
-              <p className="text-sm font-semibold text-emerald-950">runtime document ที่ระบบมีแล้ว</p>
-              <ul className="mt-3 space-y-2 text-sm leading-6 text-emerald-900/80">
-                <li>ออกเลขเอกสารจาก sequence ต่อ entity</li>
-                <li>ดาวน์โหลด/พิมพ์เอกสารจาก snapshot ที่ล็อกแล้ว</li>
-                <li>v1 ใช้งานจริงกับ RECEIPT และ TAX_INVOICE_RECEIPT หลังรับชำระ</li>
-                <li>ยังไม่ sync ไปโปรแกรมบัญชีภายนอกหรือ payment gateway</li>
-              </ul>
+              <div>
+                <p className="text-sm font-semibold text-emerald-950">เอกสาร runtime</p>
+                <ul className="mt-2 space-y-1 text-sm leading-6 text-emerald-900/80">
+                  <li>• ออกเลขเอกสารต่อผู้รับเงินอัตโนมัติ</li>
+                  <li>• ดาวน์โหลด/พิมพ์จาก snapshot ที่ล็อกแล้ว</li>
+                  <li>• v1 ใช้กับใบเสร็จ + ใบกำกับ/ใบเสร็จ หลังรับชำระ</li>
+                  <li>• ยังไม่ sync ไปโปรแกรมบัญชีภายนอก</li>
+                </ul>
+              </div>
             </div>
-          </div>
+          </details>
         </section>
 
         <section className="admin-panel mt-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
